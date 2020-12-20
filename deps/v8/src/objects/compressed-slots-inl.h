@@ -7,10 +7,10 @@
 
 #ifdef V8_COMPRESS_POINTERS
 
-#include "src/common/ptr-compr-inl.h"
 #include "src/objects/compressed-slots.h"
 #include "src/objects/heap-object-inl.h"
 #include "src/objects/maybe-object-inl.h"
+#include "src/ptr-compr-inl.h"
 
 namespace v8 {
 namespace internal {
@@ -22,24 +22,13 @@ namespace internal {
 CompressedObjectSlot::CompressedObjectSlot(Object* object)
     : SlotBase(reinterpret_cast<Address>(&object->ptr_)) {}
 
-bool CompressedObjectSlot::contains_value(Address raw_value) const {
-  AtomicTagged_t value = AsAtomicTagged::Relaxed_Load(location());
-  return static_cast<uint32_t>(value) ==
-         static_cast<uint32_t>(static_cast<Tagged_t>(raw_value));
-}
-
 Object CompressedObjectSlot::operator*() const {
   Tagged_t value = *location();
   return Object(DecompressTaggedAny(address(), value));
 }
 
-Object CompressedObjectSlot::load(const Isolate* isolate) const {
-  Tagged_t value = *location();
-  return Object(DecompressTaggedAny(isolate, value));
-}
-
 void CompressedObjectSlot::store(Object value) const {
-  *location() = CompressTagged(value.ptr());
+  *location() = CompressTagged(value->ptr());
 }
 
 Object CompressedObjectSlot::Acquire_Load() const {
@@ -52,28 +41,71 @@ Object CompressedObjectSlot::Relaxed_Load() const {
   return Object(DecompressTaggedAny(address(), value));
 }
 
-Object CompressedObjectSlot::Relaxed_Load(const Isolate* isolate) const {
-  AtomicTagged_t value = AsAtomicTagged::Relaxed_Load(location());
-  return Object(DecompressTaggedAny(isolate, value));
-}
-
 void CompressedObjectSlot::Relaxed_Store(Object value) const {
-  Tagged_t ptr = CompressTagged(value.ptr());
+  Tagged_t ptr = CompressTagged(value->ptr());
   AsAtomicTagged::Relaxed_Store(location(), ptr);
 }
 
 void CompressedObjectSlot::Release_Store(Object value) const {
-  Tagged_t ptr = CompressTagged(value.ptr());
+  Tagged_t ptr = CompressTagged(value->ptr());
   AsAtomicTagged::Release_Store(location(), ptr);
 }
 
 Object CompressedObjectSlot::Release_CompareAndSwap(Object old,
                                                     Object target) const {
-  Tagged_t old_ptr = CompressTagged(old.ptr());
-  Tagged_t target_ptr = CompressTagged(target.ptr());
+  Tagged_t old_ptr = CompressTagged(old->ptr());
+  Tagged_t target_ptr = CompressTagged(target->ptr());
   Tagged_t result =
       AsAtomicTagged::Release_CompareAndSwap(location(), old_ptr, target_ptr);
   return Object(DecompressTaggedAny(address(), result));
+}
+
+//
+// CompressedMapWordSlot implementation.
+//
+
+bool CompressedMapWordSlot::contains_value(Address raw_value) const {
+  AtomicTagged_t value = AsAtomicTagged::Relaxed_Load(location());
+  return static_cast<uint32_t>(value) ==
+         static_cast<uint32_t>(static_cast<Tagged_t>(raw_value));
+}
+
+Object CompressedMapWordSlot::operator*() const {
+  Tagged_t value = *location();
+  return Object(DecompressTaggedPointer(address(), value));
+}
+
+void CompressedMapWordSlot::store(Object value) const {
+  *location() = CompressTagged(value.ptr());
+}
+
+Object CompressedMapWordSlot::Relaxed_Load() const {
+  AtomicTagged_t value = AsAtomicTagged::Relaxed_Load(location());
+  return Object(DecompressTaggedPointer(address(), value));
+}
+
+void CompressedMapWordSlot::Relaxed_Store(Object value) const {
+  Tagged_t ptr = CompressTagged(value.ptr());
+  AsAtomicTagged::Relaxed_Store(location(), ptr);
+}
+
+Object CompressedMapWordSlot::Acquire_Load() const {
+  AtomicTagged_t value = AsAtomicTagged::Acquire_Load(location());
+  return Object(DecompressTaggedPointer(address(), value));
+}
+
+void CompressedMapWordSlot::Release_Store(Object value) const {
+  Tagged_t ptr = CompressTagged(value->ptr());
+  AsAtomicTagged::Release_Store(location(), ptr);
+}
+
+Object CompressedMapWordSlot::Release_CompareAndSwap(Object old,
+                                                     Object target) const {
+  Tagged_t old_ptr = CompressTagged(old->ptr());
+  Tagged_t target_ptr = CompressTagged(target->ptr());
+  Tagged_t result =
+      AsAtomicTagged::Release_CompareAndSwap(location(), old_ptr, target_ptr);
+  return Object(DecompressTaggedPointer(address(), result));
 }
 
 //
@@ -85,13 +117,8 @@ MaybeObject CompressedMaybeObjectSlot::operator*() const {
   return MaybeObject(DecompressTaggedAny(address(), value));
 }
 
-MaybeObject CompressedMaybeObjectSlot::load(const Isolate* isolate) const {
-  Tagged_t value = *location();
-  return MaybeObject(DecompressTaggedAny(isolate, value));
-}
-
 void CompressedMaybeObjectSlot::store(MaybeObject value) const {
-  *location() = CompressTagged(value.ptr());
+  *location() = CompressTagged(value->ptr());
 }
 
 MaybeObject CompressedMaybeObjectSlot::Relaxed_Load() const {
@@ -99,21 +126,15 @@ MaybeObject CompressedMaybeObjectSlot::Relaxed_Load() const {
   return MaybeObject(DecompressTaggedAny(address(), value));
 }
 
-MaybeObject CompressedMaybeObjectSlot::Relaxed_Load(
-    const Isolate* isolate) const {
-  AtomicTagged_t value = AsAtomicTagged::Relaxed_Load(location());
-  return MaybeObject(DecompressTaggedAny(isolate, value));
-}
-
 void CompressedMaybeObjectSlot::Relaxed_Store(MaybeObject value) const {
-  Tagged_t ptr = CompressTagged(value.ptr());
+  Tagged_t ptr = CompressTagged(value->ptr());
   AsAtomicTagged::Relaxed_Store(location(), ptr);
 }
 
 void CompressedMaybeObjectSlot::Release_CompareAndSwap(
     MaybeObject old, MaybeObject target) const {
-  Tagged_t old_ptr = CompressTagged(old.ptr());
-  Tagged_t target_ptr = CompressTagged(target.ptr());
+  Tagged_t old_ptr = CompressTagged(old->ptr());
+  Tagged_t target_ptr = CompressTagged(target->ptr());
   AsAtomicTagged::Release_CompareAndSwap(location(), old_ptr, target_ptr);
 }
 
@@ -124,12 +145,6 @@ void CompressedMaybeObjectSlot::Release_CompareAndSwap(
 HeapObjectReference CompressedHeapObjectSlot::operator*() const {
   Tagged_t value = *location();
   return HeapObjectReference(DecompressTaggedPointer(address(), value));
-}
-
-HeapObjectReference CompressedHeapObjectSlot::load(
-    const Isolate* isolate) const {
-  Tagged_t value = *location();
-  return HeapObjectReference(DecompressTaggedPointer(isolate, value));
 }
 
 void CompressedHeapObjectSlot::store(HeapObjectReference value) const {
@@ -143,47 +158,7 @@ HeapObject CompressedHeapObjectSlot::ToHeapObject() const {
 }
 
 void CompressedHeapObjectSlot::StoreHeapObject(HeapObject value) const {
-  *location() = CompressTagged(value.ptr());
-}
-
-//
-// OffHeapCompressedObjectSlot implementation.
-//
-
-Object OffHeapCompressedObjectSlot::load(const Isolate* isolate) const {
-  Tagged_t value = *location();
-  return Object(DecompressTaggedAny(isolate, value));
-}
-
-void OffHeapCompressedObjectSlot::store(Object value) const {
-  *location() = CompressTagged(value.ptr());
-}
-
-Object OffHeapCompressedObjectSlot::Relaxed_Load(const Isolate* isolate) const {
-  AtomicTagged_t value = AsAtomicTagged::Relaxed_Load(location());
-  return Object(DecompressTaggedAny(isolate, value));
-}
-
-Object OffHeapCompressedObjectSlot::Acquire_Load(const Isolate* isolate) const {
-  AtomicTagged_t value = AsAtomicTagged::Acquire_Load(location());
-  return Object(DecompressTaggedAny(isolate, value));
-}
-
-void OffHeapCompressedObjectSlot::Relaxed_Store(Object value) const {
-  Tagged_t ptr = CompressTagged(value.ptr());
-  AsAtomicTagged::Relaxed_Store(location(), ptr);
-}
-
-void OffHeapCompressedObjectSlot::Release_Store(Object value) const {
-  Tagged_t ptr = CompressTagged(value.ptr());
-  AsAtomicTagged::Release_Store(location(), ptr);
-}
-
-void OffHeapCompressedObjectSlot::Release_CompareAndSwap(Object old,
-                                                         Object target) const {
-  Tagged_t old_ptr = CompressTagged(old.ptr());
-  Tagged_t target_ptr = CompressTagged(target.ptr());
-  AsAtomicTagged::Release_CompareAndSwap(location(), old_ptr, target_ptr);
+  *location() = CompressTagged(value->ptr());
 }
 
 }  // namespace internal

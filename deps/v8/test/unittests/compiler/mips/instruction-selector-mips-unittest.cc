@@ -4,7 +4,7 @@
 
 #include "test/unittests/compiler/backend/instruction-selector-unittest.h"
 
-#include "src/objects/objects-inl.h"
+#include "src/objects-inl.h"
 
 namespace v8 {
 namespace internal {
@@ -25,8 +25,8 @@ std::ostream& operator<<(std::ostream& os, const MachInst<T>& mi) {
   return os << mi.constructor_name;
 }
 
-using MachInst1 = MachInst<Node* (RawMachineAssembler::*)(Node*)>;
-using MachInst2 = MachInst<Node* (RawMachineAssembler::*)(Node*, Node*)>;
+typedef MachInst<Node* (RawMachineAssembler::*)(Node*)> MachInst1;
+typedef MachInst<Node* (RawMachineAssembler::*)(Node*, Node*)> MachInst2;
 
 // To avoid duplicated code IntCmp helper structure
 // is created. It contains MachInst2 with two nodes and expected_size
@@ -274,7 +274,9 @@ const Conversion kFloat32RoundInstructions[] = {
 
 }  // namespace
 
-using InstructionSelectorFPCmpTest = InstructionSelectorTestWithParam<FPCmp>;
+
+typedef InstructionSelectorTestWithParam<FPCmp> InstructionSelectorFPCmpTest;
+
 
 TEST_P(InstructionSelectorFPCmpTest, Parameter) {
   const FPCmp cmp = GetParam();
@@ -297,7 +299,9 @@ INSTANTIATE_TEST_SUITE_P(InstructionSelectorTest, InstructionSelectorFPCmpTest,
 // Arithmetic compare instructions integers.
 // ----------------------------------------------------------------------------
 
-using InstructionSelectorCmpTest = InstructionSelectorTestWithParam<IntCmp>;
+
+typedef InstructionSelectorTestWithParam<IntCmp> InstructionSelectorCmpTest;
+
 
 TEST_P(InstructionSelectorCmpTest, Parameter) {
   const IntCmp cmp = GetParam();
@@ -318,8 +322,10 @@ INSTANTIATE_TEST_SUITE_P(InstructionSelectorTest, InstructionSelectorCmpTest,
 // Shift instructions.
 // ----------------------------------------------------------------------------
 
-using InstructionSelectorShiftTest =
-    InstructionSelectorTestWithParam<MachInst2>;
+
+typedef InstructionSelectorTestWithParam<MachInst2>
+    InstructionSelectorShiftTest;
+
 
 TEST_P(InstructionSelectorShiftTest, Immediate) {
   const MachInst2 dpi = GetParam();
@@ -436,8 +442,10 @@ TEST_F(InstructionSelectorTest, Word32SarWithWord32Shl) {
 // Logical instructions.
 // ----------------------------------------------------------------------------
 
-using InstructionSelectorLogicalTest =
-    InstructionSelectorTestWithParam<MachInst2>;
+
+typedef InstructionSelectorTestWithParam<MachInst2>
+    InstructionSelectorLogicalTest;
+
 
 TEST_P(InstructionSelectorLogicalTest, Parameter) {
   const MachInst2 dpi = GetParam();
@@ -570,8 +578,10 @@ TEST_F(InstructionSelectorTest, Word32AndToClearBits) {
 // MUL/DIV instructions.
 // ----------------------------------------------------------------------------
 
-using InstructionSelectorMulDivTest =
-    InstructionSelectorTestWithParam<MachInst2>;
+
+typedef InstructionSelectorTestWithParam<MachInst2>
+    InstructionSelectorMulDivTest;
+
 
 TEST_P(InstructionSelectorMulDivTest, Parameter) {
   const MachInst2 dpi = GetParam();
@@ -592,7 +602,9 @@ INSTANTIATE_TEST_SUITE_P(InstructionSelectorTest, InstructionSelectorMulDivTest,
 // MOD instructions.
 // ----------------------------------------------------------------------------
 
-using InstructionSelectorModTest = InstructionSelectorTestWithParam<MachInst2>;
+
+typedef InstructionSelectorTestWithParam<MachInst2> InstructionSelectorModTest;
+
 
 TEST_P(InstructionSelectorModTest, Parameter) {
   const MachInst2 dpi = GetParam();
@@ -613,8 +625,10 @@ INSTANTIATE_TEST_SUITE_P(InstructionSelectorTest, InstructionSelectorModTest,
 // Floating point instructions.
 // ----------------------------------------------------------------------------
 
-using InstructionSelectorFPArithTest =
-    InstructionSelectorTestWithParam<MachInst2>;
+
+typedef InstructionSelectorTestWithParam<MachInst2>
+    InstructionSelectorFPArithTest;
+
 
 TEST_P(InstructionSelectorFPArithTest, Parameter) {
   const MachInst2 fpa = GetParam();
@@ -635,8 +649,10 @@ INSTANTIATE_TEST_SUITE_P(InstructionSelectorTest,
 // Integer arithmetic.
 // ----------------------------------------------------------------------------
 
-using InstructionSelectorIntArithTwoTest =
-    InstructionSelectorTestWithParam<MachInst2>;
+
+typedef InstructionSelectorTestWithParam<MachInst2>
+    InstructionSelectorIntArithTwoTest;
+
 
 TEST_P(InstructionSelectorIntArithTwoTest, Parameter) {
   const MachInst2 intpa = GetParam();
@@ -658,8 +674,10 @@ INSTANTIATE_TEST_SUITE_P(InstructionSelectorTest,
 // One node.
 // ----------------------------------------------------------------------------
 
-using InstructionSelectorIntArithOneTest =
-    InstructionSelectorTestWithParam<MachInst1>;
+
+typedef InstructionSelectorTestWithParam<MachInst1>
+    InstructionSelectorIntArithOneTest;
+
 
 TEST_P(InstructionSelectorIntArithOneTest, Parameter) {
   const MachInst1 intpa = GetParam();
@@ -681,8 +699,10 @@ INSTANTIATE_TEST_SUITE_P(InstructionSelectorTest,
 // Conversions.
 // ----------------------------------------------------------------------------
 
-using InstructionSelectorConversionTest =
-    InstructionSelectorTestWithParam<Conversion>;
+
+typedef InstructionSelectorTestWithParam<Conversion>
+    InstructionSelectorConversionTest;
+
 
 TEST_P(InstructionSelectorConversionTest, Parameter) {
   const Conversion conv = GetParam();
@@ -699,8 +719,8 @@ INSTANTIATE_TEST_SUITE_P(InstructionSelectorTest,
                          InstructionSelectorConversionTest,
                          ::testing::ValuesIn(kConversionInstructions));
 
-using CombineChangeFloat64ToInt32WithRoundFloat64 =
-    InstructionSelectorTestWithParam<Conversion>;
+typedef InstructionSelectorTestWithParam<Conversion>
+    CombineChangeFloat64ToInt32WithRoundFloat64;
 
 TEST_P(CombineChangeFloat64ToInt32WithRoundFloat64, Parameter) {
   {
@@ -720,8 +740,8 @@ INSTANTIATE_TEST_SUITE_P(InstructionSelectorTest,
                          CombineChangeFloat64ToInt32WithRoundFloat64,
                          ::testing::ValuesIn(kFloat64RoundInstructions));
 
-using CombineChangeFloat32ToInt32WithRoundFloat32 =
-    InstructionSelectorTestWithParam<Conversion>;
+typedef InstructionSelectorTestWithParam<Conversion>
+    CombineChangeFloat32ToInt32WithRoundFloat32;
 
 TEST_P(CombineChangeFloat32ToInt32WithRoundFloat32, Parameter) {
   {
@@ -966,8 +986,10 @@ const MemoryAccessImm2 kMemoryAccessesImmUnaligned[] = {
 
 }  // namespace
 
-using InstructionSelectorMemoryAccessTest =
-    InstructionSelectorTestWithParam<MemoryAccess>;
+
+typedef InstructionSelectorTestWithParam<MemoryAccess>
+    InstructionSelectorMemoryAccessTest;
+
 
 TEST_P(InstructionSelectorMemoryAccessTest, LoadWithParameters) {
   const MemoryAccess memacc = GetParam();
@@ -1002,8 +1024,10 @@ INSTANTIATE_TEST_SUITE_P(InstructionSelectorTest,
 // Load immediate.
 // ----------------------------------------------------------------------------
 
-using InstructionSelectorMemoryAccessImmTest =
-    InstructionSelectorTestWithParam<MemoryAccessImm>;
+
+typedef InstructionSelectorTestWithParam<MemoryAccessImm>
+    InstructionSelectorMemoryAccessImmTest;
+
 
 TEST_P(InstructionSelectorMemoryAccessImmTest, LoadWithImmediateIndex) {
   const MemoryAccessImm memacc = GetParam();
@@ -1071,8 +1095,8 @@ INSTANTIATE_TEST_SUITE_P(InstructionSelectorTest,
                          InstructionSelectorMemoryAccessImmTest,
                          ::testing::ValuesIn(kMemoryAccessesImm));
 
-using InstructionSelectorMemoryAccessUnalignedImmTest =
-    InstructionSelectorTestWithParam<MemoryAccessImm2>;
+typedef InstructionSelectorTestWithParam<MemoryAccessImm2>
+    InstructionSelectorMemoryAccessUnalignedImmTest;
 
 TEST_P(InstructionSelectorMemoryAccessUnalignedImmTest, StoreZero) {
   const MemoryAccessImm2 memacc = GetParam();
@@ -1106,8 +1130,10 @@ INSTANTIATE_TEST_SUITE_P(InstructionSelectorTest,
 // Load/store offsets more than 16 bits.
 // ----------------------------------------------------------------------------
 
-using InstructionSelectorMemoryAccessImmMoreThan16bitTest =
-    InstructionSelectorTestWithParam<MemoryAccessImm1>;
+
+typedef InstructionSelectorTestWithParam<MemoryAccessImm1>
+    InstructionSelectorMemoryAccessImmMoreThan16bitTest;
+
 
 TEST_P(InstructionSelectorMemoryAccessImmMoreThan16bitTest,
        LoadWithImmediateIndex) {

@@ -5,33 +5,43 @@ const assert = require('assert');
 const stream = require('stream');
 
 class MyWritable extends stream.Writable {
-  constructor(options) {
-    super({ autoDestroy: false, ...options });
-  }
   _write(chunk, encoding, callback) {
     assert.notStrictEqual(chunk, null);
     callback();
   }
 }
 
-{
-  const m = new MyWritable({ objectMode: true });
-  m.on('error', common.mustNotCall());
-  assert.throws(() => {
-    m.write(null);
-  }, {
-    code: 'ERR_STREAM_NULL_VALUES'
-  });
+common.expectsError(
+  () => {
+    const m = new MyWritable({ objectMode: true });
+    m.write(null, (err) => assert.ok(err));
+  },
+  {
+    code: 'ERR_STREAM_NULL_VALUES',
+    type: TypeError,
+    message: 'May not write null values to stream'
+  }
+);
+
+{ // Should not throw.
+  const m = new MyWritable({ objectMode: true }).on('error', assert);
+  m.write(null, assert);
 }
 
-{
-  const m = new MyWritable();
-  m.on('error', common.mustNotCall());
-  assert.throws(() => {
-    m.write(false);
-  }, {
-    code: 'ERR_INVALID_ARG_TYPE'
-  });
+common.expectsError(
+  () => {
+    const m = new MyWritable();
+    m.write(false, (err) => assert.ok(err));
+  },
+  {
+    code: 'ERR_INVALID_ARG_TYPE',
+    type: TypeError
+  }
+);
+
+{ // Should not throw.
+  const m = new MyWritable().on('error', assert);
+  m.write(false, assert);
 }
 
 { // Should not throw.

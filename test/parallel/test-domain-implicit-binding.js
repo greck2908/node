@@ -6,8 +6,6 @@ const domain = require('domain');
 const fs = require('fs');
 const isEnumerable = Function.call.bind(Object.prototype.propertyIsEnumerable);
 
-process.on('warning', common.mustNotCall());
-
 {
   const d = new domain.Domain();
 

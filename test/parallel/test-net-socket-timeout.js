@@ -55,11 +55,11 @@ for (let i = 0; i < validDelays.length; i++) {
 
 for (let i = 0; i < invalidCallbacks.length; i++) {
   [0, 1].forEach((mesc) =>
-    assert.throws(
+    common.expectsError(
       () => s.setTimeout(mesc, invalidCallbacks[i]),
       {
         code: 'ERR_INVALID_CALLBACK',
-        name: 'TypeError',
+        type: TypeError,
         message: 'Callback must be a function. ' +
                  `Received ${inspect(invalidCallbacks[i])}`
       }
@@ -70,12 +70,8 @@ for (let i = 0; i < invalidCallbacks.length; i++) {
 const server = net.Server();
 server.listen(0, common.mustCall(() => {
   const socket = net.createConnection(server.address().port);
-  assert.strictEqual(
-    socket.setTimeout(1, common.mustCall(() => {
-      socket.destroy();
-      assert.strictEqual(socket.setTimeout(1, common.mustNotCall()), socket);
-      server.close();
-    })),
-    socket
-  );
+  socket.setTimeout(1, common.mustCall(() => {
+    socket.destroy();
+    server.close();
+  }));
 }));

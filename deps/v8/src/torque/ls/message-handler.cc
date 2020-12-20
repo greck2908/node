@@ -19,7 +19,6 @@ namespace torque {
 
 DEFINE_CONTEXTUAL_VARIABLE(Logger)
 DEFINE_CONTEXTUAL_VARIABLE(TorqueFileList)
-DEFINE_CONTEXTUAL_VARIABLE(DiagnosticsFiles)
 
 namespace ls {
 
@@ -53,7 +52,7 @@ JsonValue ReadMessage() {
   return ParseJson(content).value;
 }
 
-void WriteMessage(JsonValue message) {
+void WriteMessage(JsonValue& message) {
   std::string content = SerializeToString(message);
 
   Logger::Log("[outgoing] ", content, "\n\n");
@@ -64,148 +63,21 @@ void WriteMessage(JsonValue message) {
 
 namespace {
 
-void ResetCompilationErrorDiagnostics(MessageWriter writer) {
-  for (const SourceId& source : DiagnosticsFiles::Get()) {
-    PublishDiagnosticsNotification notification;
-    notification.set_method("textDocument/publishDiagnostics");
-
-    std::string error_file = SourceFileMap::AbsolutePath(source);
-    notification.params().set_uri(error_file);
-    // Trigger empty array creation.
-    USE(notification.params().diagnostics_size());
-
-    writer(std::move(notification.GetJsonValue()));
-  }
-  DiagnosticsFiles::Get() = {};
-}
-
-// Each notification must contain all diagnostics for a specific file,
-// because sending multiple notifications per file resets previously sent
-// diagnostics. Thus, two steps are needed:
-//   1) collect all notifications in this class.
-//   2) send one notification per entry (per file).
-class DiagnosticCollector {
- public:
-  void AddTorqueMessage(const TorqueMessage& message) {
-    if (!ShouldAddMessageOfKind(message.kind)) return;
-
-    SourceId id =
-        message.position ? message.position->source : SourceId::Invalid();
-    auto& notification = GetOrCreateNotificationForSource(id);
-
-    Diagnostic diagnostic = notification.params().add_diagnostics();
-    diagnostic.set_severity(ServerityFor(message.kind));
-    diagnostic.set_message(message.message);
-    diagnostic.set_source("Torque Compiler");
-
-    if (message.position) {
-      PopulateRangeFromSourcePosition(diagnostic.range(), *message.position);
-    }
-  }
-
-  std::map<SourceId, PublishDiagnosticsNotification>& notifications() {
-    return notifications_;
-  }
-
- private:
-  PublishDiagnosticsNotification& GetOrCreateNotificationForSource(
-      SourceId id) {
-    auto iter = notifications_.find(id);
-    if (iter != notifications_.end()) return iter->second;
-
-    PublishDiagnosticsNotification& notification = notifications_[id];
-    notification.set_method("textDocument/publishDiagnostics");
-
-    std::string file =
-        id.IsValid() ? SourceFileMap::AbsolutePath(id) : "<unknown>";
-    notification.params().set_uri(file);
-    return notification;
-  }
-
-  bool ShouldAddMessageOfKind(TorqueMessage::Kind kind) {
-    // An error can easily cause a lot of false positive lint messages, due to
-    // unused variables, macros, etc. Thus we suppress subsequent lint messages
-    // when there are errors.
-    switch (kind) {
-      case TorqueMessage::Kind::kError:
-        suppress_lint_messages_ = true;
-        return true;
-      case TorqueMessage::Kind::kLint:
-        if (suppress_lint_messages_) return false;
-        return true;
-    }
-  }
-
-  void PopulateRangeFromSourcePosition(Range range,
-                                       const SourcePosition& position) {
-    range.start().set_line(position.start.line);
-    range.start().set_character(position.start.column);
-    range.end().set_line(position.end.line);
-    range.end().set_character(position.end.column);
-  }
-
-  Diagnostic::DiagnosticSeverity ServerityFor(TorqueMessage::Kind kind) {
-    switch (kind) {
-      case TorqueMessage::Kind::kError:
-        return Diagnostic::kError;
-      case TorqueMessage::Kind::kLint:
-        return Diagnostic::kWarning;
-    }
-  }
-
-  std::map<SourceId, PublishDiagnosticsNotification> notifications_;
-  bool suppress_lint_messages_ = false;
-};
-
-void SendCompilationDiagnostics(const TorqueCompilerResult& result,
-                                MessageWriter writer) {
-  DiagnosticCollector collector;
-
-  // TODO(szuend): Split up messages by SourceId and sort them by line number.
-  for (const TorqueMessage& message : result.messages) {
-    collector.AddTorqueMessage(message);
-  }
-
-  for (auto& pair : collector.notifications()) {
-    PublishDiagnosticsNotification& notification = pair.second;
-    writer(std::move(notification.GetJsonValue()));
-
-    // Record all source files for which notifications are sent, so they
-    // can be reset before the next compiler run.
-    const SourceId& source = pair.first;
-    if (source.IsValid()) DiagnosticsFiles::Get().push_back(source);
-  }
-}
-
-}  // namespace
-
-void CompilationFinished(TorqueCompilerResult result, MessageWriter writer) {
-  LanguageServerData::Get() = std::move(result.language_server_data);
-  SourceFileMap::Get() = *result.source_file_map;
-
-  SendCompilationDiagnostics(result, writer);
-}
-
-namespace {
-
-void RecompileTorque(MessageWriter writer) {
+void RecompileTorque() {
   Logger::Log("[info] Start compilation run ...\n");
 
   TorqueCompilerOptions options;
   options.output_directory = "";
+  options.verbose = false;
   options.collect_language_server_data = true;
-  options.force_assert_statements = true;
+  options.abort_on_lint_errors = false;
 
   TorqueCompilerResult result = CompileTorque(TorqueFileList::Get(), options);
 
+  LanguageServerData::Get() = result.language_server_data;
+  SourceFileMap::Get() = result.source_file_map;
+
   Logger::Log("[info] Finished compilation run ...\n");
-
-  CompilationFinished(std::move(result), writer);
-}
-
-void RecompileTorqueWithDiagnostics(MessageWriter writer) {
-  ResetCompilationErrorDiagnostics(writer);
-  RecompileTorque(writer);
 }
 
 void HandleInitializeRequest(InitializeRequest request, MessageWriter writer) {
@@ -213,7 +85,6 @@ void HandleInitializeRequest(InitializeRequest request, MessageWriter writer) {
   response.set_id(request.id());
   response.result().capabilities().textDocumentSync();
   response.result().capabilities().set_definitionProvider(true);
-  response.result().capabilities().set_documentSymbolProvider(true);
 
   // TODO(szuend): Register for document synchronisation here,
   //               so we work with the content that the client
@@ -222,7 +93,7 @@ void HandleInitializeRequest(InitializeRequest request, MessageWriter writer) {
   //               "workspace/didChangeWatchedFiles" capability.
   // TODO(szuend): Check if client supports "LocationLink". This will
   //               influence the result of "goto definition".
-  writer(std::move(response.GetJsonValue()));
+  writer(response.GetJsonValue());
 }
 
 void HandleInitializedNotification(MessageWriter writer) {
@@ -241,11 +112,10 @@ void HandleInitializedNotification(MessageWriter writer) {
   reg.set_id("did-change-id");
   reg.set_method("workspace/didChangeWatchedFiles");
 
-  writer(std::move(request.GetJsonValue()));
+  writer(request.GetJsonValue());
 }
 
-void HandleTorqueFileListNotification(TorqueFileListNotification notification,
-                                      MessageWriter writer) {
+void HandleTorqueFileListNotification(TorqueFileListNotification notification) {
   CHECK_EQ(notification.params().object()["files"].tag, JsonValue::ARRAY);
 
   std::vector<std::string>& files = TorqueFileList::Get();
@@ -260,7 +130,22 @@ void HandleTorqueFileListNotification(TorqueFileListNotification notification,
     files.push_back(file_json.ToString());
     Logger::Log("    ", file_json.ToString(), "\n");
   }
-  RecompileTorqueWithDiagnostics(writer);
+
+  // The Torque compiler expects to see some files first,
+  // we need to order them in the correct way.
+  // TODO(szuend): Remove this, once the compiler doesn't require the input
+  //               files to be in a specific order.
+  std::vector<std::string> sort_to_front = {"base.tq", "frames.tq",
+                                            "arguments.tq", "array.tq"};
+  std::sort(files.begin(), files.end(), [&](std::string a, std::string b) {
+    for (const std::string& fixed_file : sort_to_front) {
+      if (a.find(fixed_file) != std::string::npos) return true;
+      if (b.find(fixed_file) != std::string::npos) return false;
+    }
+    return a < b;
+  });
+
+  RecompileTorque();
 }
 
 void HandleGotoDefinitionRequest(GotoDefinitionRequest request,
@@ -275,7 +160,7 @@ void HandleGotoDefinitionRequest(GotoDefinitionRequest request,
   // the definition not beeing found.
   if (!id.IsValid()) {
     response.SetNull("result");
-    writer(std::move(response.GetJsonValue()));
+    writer(response.GetJsonValue());
     return;
   }
 
@@ -284,71 +169,33 @@ void HandleGotoDefinitionRequest(GotoDefinitionRequest request,
 
   if (auto maybe_definition = LanguageServerData::FindDefinition(id, pos)) {
     SourcePosition definition = *maybe_definition;
-    response.result().SetTo(definition);
+
+    std::string definition_file = SourceFileMap::GetSource(definition.source);
+    response.result().set_uri(definition_file);
+
+    Range range = response.result().range();
+    range.start().set_line(definition.start.line);
+    range.start().set_character(definition.start.column);
+    range.end().set_line(definition.end.line);
+    range.end().set_character(definition.end.column);
   } else {
     response.SetNull("result");
   }
 
-  writer(std::move(response.GetJsonValue()));
+  writer(response.GetJsonValue());
 }
 
 void HandleChangeWatchedFilesNotification(
-    DidChangeWatchedFilesNotification notification, MessageWriter writer) {
+    DidChangeWatchedFilesNotification notification) {
   // TODO(szuend): Implement updates to the TorqueFile list when create/delete
   //               notifications are received. Currently we simply re-compile.
-  RecompileTorqueWithDiagnostics(writer);
-}
-
-void HandleDocumentSymbolRequest(DocumentSymbolRequest request,
-                                 MessageWriter writer) {
-  DocumentSymbolResponse response;
-  response.set_id(request.id());
-
-  SourceId id =
-      SourceFileMap::GetSourceId(request.params().textDocument().uri());
-
-  for (const auto& symbol : LanguageServerData::SymbolsForSourceId(id)) {
-    DCHECK(symbol->IsUserDefined());
-    if (symbol->IsMacro()) {
-      Macro* macro = Macro::cast(symbol);
-      SymbolInformation symbol = response.add_result();
-      symbol.set_name(macro->ReadableName());
-      symbol.set_kind(SymbolKind::kFunction);
-      symbol.location().SetTo(macro->Position());
-    } else if (symbol->IsBuiltin()) {
-      Builtin* builtin = Builtin::cast(symbol);
-      SymbolInformation symbol = response.add_result();
-      symbol.set_name(builtin->ReadableName());
-      symbol.set_kind(SymbolKind::kFunction);
-      symbol.location().SetTo(builtin->Position());
-    } else if (symbol->IsGenericCallable()) {
-      GenericCallable* generic = GenericCallable::cast(symbol);
-      SymbolInformation symbol = response.add_result();
-      symbol.set_name(generic->name());
-      symbol.set_kind(SymbolKind::kFunction);
-      symbol.location().SetTo(generic->Position());
-    } else if (symbol->IsTypeAlias()) {
-      const Type* type = TypeAlias::cast(symbol)->type();
-      SymbolKind kind =
-          type->IsClassType() ? SymbolKind::kClass : SymbolKind::kStruct;
-
-      SymbolInformation sym = response.add_result();
-      sym.set_name(type->ToString());
-      sym.set_kind(kind);
-      sym.location().SetTo(symbol->Position());
-    }
-  }
-
-  // Trigger empty array creation in case no symbols were found.
-  USE(response.result_size());
-
-  writer(std::move(response.GetJsonValue()));
+  RecompileTorque();
 }
 
 }  // namespace
 
-void HandleMessage(JsonValue raw_message, MessageWriter writer) {
-  Request<bool> request(std::move(raw_message));
+void HandleMessage(JsonValue& raw_message, MessageWriter writer) {
+  Request<bool> request(raw_message);
 
   // We ignore responses for now. They are matched to requests
   // by id and don't have a method set.
@@ -361,23 +208,18 @@ void HandleMessage(JsonValue raw_message, MessageWriter writer) {
 
   const std::string method = request.method();
   if (method == "initialize") {
-    HandleInitializeRequest(
-        InitializeRequest(std::move(request.GetJsonValue())), writer);
+    HandleInitializeRequest(InitializeRequest(request.GetJsonValue()), writer);
   } else if (method == "initialized") {
     HandleInitializedNotification(writer);
   } else if (method == "torque/fileList") {
     HandleTorqueFileListNotification(
-        TorqueFileListNotification(std::move(request.GetJsonValue())), writer);
+        TorqueFileListNotification(request.GetJsonValue()));
   } else if (method == "textDocument/definition") {
-    HandleGotoDefinitionRequest(
-        GotoDefinitionRequest(std::move(request.GetJsonValue())), writer);
+    HandleGotoDefinitionRequest(GotoDefinitionRequest(request.GetJsonValue()),
+                                writer);
   } else if (method == "workspace/didChangeWatchedFiles") {
     HandleChangeWatchedFilesNotification(
-        DidChangeWatchedFilesNotification(std::move(request.GetJsonValue())),
-        writer);
-  } else if (method == "textDocument/documentSymbol") {
-    HandleDocumentSymbolRequest(
-        DocumentSymbolRequest(std::move(request.GetJsonValue())), writer);
+        DidChangeWatchedFilesNotification(request.GetJsonValue()));
   } else {
     Logger::Log("[error] Message of type ", method, " is not handled!\n\n");
   }

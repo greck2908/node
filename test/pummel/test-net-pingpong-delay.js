@@ -24,7 +24,7 @@ const common = require('../common');
 const assert = require('assert');
 const net = require('net');
 
-function pingPongTest(host, on_complete) {
+function pingPongTest(port, host, on_complete) {
   const N = 100;
   const DELAY = 1;
   let count = 0;
@@ -63,8 +63,8 @@ function pingPongTest(host, on_complete) {
     });
   });
 
-  server.listen(0, host, common.mustCall(function() {
-    const client = net.createConnection(server.address().port, host);
+  server.listen(port, host, common.mustCall(function() {
+    const client = net.createConnection(port, host);
 
     client.setEncoding('utf8');
 
@@ -104,4 +104,4 @@ function pingPongTest(host, on_complete) {
   }));
 }
 
-pingPongTest();
+pingPongTest(common.PORT);

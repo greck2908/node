@@ -24,16 +24,15 @@ const common = require('../common');
 const assert = require('assert');
 
 const spawnSync = require('child_process').spawnSync;
-const { debuglog, getSystemErrorName } = require('util');
-const debug = debuglog('test');
+const { getSystemErrorName } = require('util');
 
 const TIMER = 200;
 const SLEEP = common.platformTimeout(5000);
 
 switch (process.argv[2]) {
   case 'child':
-    setTimeout(() => {
-      debug('child fired');
+    setTimeout(function() {
+      console.log('child fired');
       process.exit(1);
     }, SLEEP);
     break;

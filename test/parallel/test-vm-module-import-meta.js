@@ -7,16 +7,15 @@ const assert = require('assert');
 const { SourceTextModule } = require('vm');
 
 async function testBasic() {
-  const m = new SourceTextModule('globalThis.importMeta = import.meta;', {
+  const m = new SourceTextModule('import.meta;', {
     initializeImportMeta: common.mustCall((meta, module) => {
       assert.strictEqual(module, m);
       meta.prop = 42;
     })
   });
   await m.link(common.mustNotCall());
-  await m.evaluate();
-  const result = globalThis.importMeta;
-  delete globalThis.importMeta;
+  m.instantiate();
+  const { result } = await m.evaluate();
   assert.strictEqual(typeof result, 'object');
   assert.strictEqual(Object.getPrototypeOf(result), null);
   assert.strictEqual(result.prop, 42);
@@ -27,13 +26,13 @@ async function testInvalid() {
   for (const invalidValue of [
     null, {}, 0, Symbol.iterator, [], 'string', false
   ]) {
-    assert.throws(() => {
+    common.expectsError(() => {
       new SourceTextModule('', {
         initializeImportMeta: invalidValue
       });
     }, {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError'
+      type: TypeError
     });
   }
 }
@@ -41,4 +40,4 @@ async function testInvalid() {
 (async () => {
   await testBasic();
   await testInvalid();
-})().then(common.mustCall());
+})();

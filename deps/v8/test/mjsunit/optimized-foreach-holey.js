@@ -14,8 +14,7 @@
       result += i;
     };
     b.forEach(sum);
-  };
-  %PrepareFunctionForOptimization(f);
+  }
   f();
   f();
   %OptimizeFunctionOnNextCall(f);

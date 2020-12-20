@@ -44,8 +44,6 @@
 
 #include "unicode/utypes.h"
 
-#if U_SHOW_CPLUSPLUS_API
-
 #if !UCONFIG_NO_REGULAR_EXPRESSIONS
 
 #include "unicode/uobject.h"
@@ -66,7 +64,7 @@ class  RegexCImpl;
 class  RegexMatcher;
 class  RegexPattern;
 struct REStackFrame;
-class  BreakIterator;
+class  RuleBasedBreakIterator;
 class  UnicodeSet;
 class  UVector;
 class  UVector32;
@@ -116,7 +114,7 @@ public:
      * were constructed from identical source patterns using the same #URegexpFlag
      * settings.
      * @param that a RegexPattern object to compare with "this".
-     * @return true if the objects are equivalent.
+     * @return TRUE if the objects are equivalent.
      * @stable ICU 2.4
      */
     UBool           operator==(const RegexPattern& that) const;
@@ -126,7 +124,7 @@ public:
      * were constructed from identical source patterns using the same #URegexpFlag
      * settings.
      * @param that a RegexPattern object to compare with "this".
-     * @return true if the objects are different.
+     * @return TRUE if the objects are different.
      * @stable ICU 2.4
      */
     inline UBool    operator!=(const RegexPattern& that) const {return ! operator ==(that);}
@@ -612,6 +610,12 @@ private:
     UVector32       *fGroupMap;    // Map from capture group number to position of
                                    //   the group's variables in the matcher stack frame.
 
+    UnicodeSet     **fStaticSets;  // Ptr to static (shared) sets for predefined
+                                   //   regex character classes, e.g. Word.
+
+    Regex8BitSet   *fStaticSets8;  // Ptr to the static (shared) latin-1 only
+                                   //  sets for predefined regex classes.
+
     int32_t         fStartType;    // Info on how a match must start.
     int32_t         fInitialStringIdx;     //
     int32_t         fInitialStringLen;
@@ -629,9 +633,8 @@ private:
     //
     //  Implementation Methods
     //
-    void        init();                 // Common initialization, for use by constructors.
-    bool        initNamedCaptureMap();  // Lazy init for fNamedCaptureMap.
-    void        zap();                  // Common cleanup
+    void        init();            // Common initialization, for use by constructors.
+    void        zap();             // Common cleanup
 
     void        dumpOp(int32_t index) const;
 
@@ -764,7 +767,7 @@ public:
    /**
     *   Attempts to match the entire input region against the pattern.
     *    @param   status     A reference to a UErrorCode to receive any errors.
-    *    @return true if there is a match
+    *    @return TRUE if there is a match
     *    @stable ICU 2.4
     */
     virtual UBool matches(UErrorCode &status);
@@ -777,7 +780,7 @@ public:
     *   A successful match must extend to the end of the input.
     *    @param   startIndex The input string (native) index at which to begin matching.
     *    @param   status     A reference to a UErrorCode to receive any errors.
-    *    @return true if there is a match
+    *    @return TRUE if there is a match
     *    @stable ICU 2.8
     */
     virtual UBool matches(int64_t startIndex, UErrorCode &status);
@@ -793,7 +796,7 @@ public:
     *   end(), and group() functions.
     *
     *    @param   status     A reference to a UErrorCode to receive any errors.
-    *    @return  true if there is a match at the start of the input string.
+    *    @return  TRUE if there is a match at the start of the input string.
     *    @stable ICU 2.4
     */
     virtual UBool lookingAt(UErrorCode &status);
@@ -809,7 +812,7 @@ public:
     *
     *    @param   startIndex The input string (native) index at which to begin matching.
     *    @param   status     A reference to a UErrorCode to receive any errors.
-    *    @return  true if there is a match.
+    *    @return  TRUE if there is a match.
     *    @stable ICU 2.8
     */
     virtual UBool lookingAt(int64_t startIndex, UErrorCode &status);
@@ -824,7 +827,7 @@ public:
     *  Note that if the input string is changed by the application,
     *     use find(startPos, status) instead of find(), because the saved starting
     *     position may not be valid with the altered input string.
-    *  @return  true if a match is found.
+    *  @return  TRUE if a match is found.
     *  @stable ICU 2.4
     */
     virtual UBool find();
@@ -841,7 +844,7 @@ public:
     *  use find(startPos, status) instead of find(), because the saved starting
     *  position may not be valid with the altered input string.
     *  @param   status  A reference to a UErrorCode to receive any errors.
-    *  @return  true if a match is found.
+    *  @return  TRUE if a match is found.
     * @stable ICU 55
     */
     virtual UBool find(UErrorCode &status);
@@ -852,7 +855,7 @@ public:
     *
     *   @param   start     The (native) index in the input string to begin the search.
     *   @param   status    A reference to a UErrorCode to receive any errors.
-    *   @return  true if a match is found.
+    *   @return  TRUE if a match is found.
     *   @stable ICU 2.4
     */
     virtual UBool find(int64_t start, UErrorCode &status);
@@ -1271,7 +1274,7 @@ public:
       * See useTransparentBounds for a description of transparent and opaque bounds.
       * By default, a matcher uses opaque region boundaries.
       *
-      * @return true if this matcher is using opaque bounds, false if it is not.
+      * @return TRUE if this matcher is using opaque bounds, false if it is not.
       * @stable ICU 4.0
       */
       virtual UBool hasTransparentBounds() const;
@@ -1290,7 +1293,7 @@ public:
       *
       * By default, a matcher uses opaque bounds.
       *
-      * @param   b true for transparent bounds; false for opaque bounds
+      * @param   b TRUE for transparent bounds; FALSE for opaque bounds
       * @return  This Matcher;
       * @stable ICU 4.0
       **/
@@ -1301,7 +1304,7 @@ public:
       * Return true if this matcher is using anchoring bounds.
       * By default, matchers use anchoring region bounds.
       *
-      * @return true if this matcher is using anchoring bounds.
+      * @return TRUE if this matcher is using anchoring bounds.
       * @stable ICU 4.0
       */
       virtual UBool hasAnchoringBounds() const;
@@ -1315,7 +1318,7 @@ public:
       *
       * Anchoring Bounds are the default for regions.
       *
-      * @param b true if to enable anchoring bounds; false to disable them.
+      * @param b TRUE if to enable anchoring bounds; FALSE to disable them.
       * @return  This Matcher
       * @stable ICU 4.0
       */
@@ -1323,26 +1326,26 @@ public:
 
 
     /**
-      * Return true if the most recent matching operation attempted to access
+      * Return TRUE if the most recent matching operation attempted to access
       *  additional input beyond the available input text.
       *  In this case, additional input text could change the results of the match.
       *
       *  hitEnd() is defined for both successful and unsuccessful matches.
-      *  In either case hitEnd() will return true if if the end of the text was
+      *  In either case hitEnd() will return TRUE if if the end of the text was
       *  reached at any point during the matching process.
       *
-      *  @return  true if the most recent match hit the end of input
+      *  @return  TRUE if the most recent match hit the end of input
       *  @stable ICU 4.0
       */
       virtual UBool hitEnd() const;
 
     /**
-      * Return true the most recent match succeeded and additional input could cause
+      * Return TRUE the most recent match succeeded and additional input could cause
       * it to fail. If this method returns false and a match was found, then more input
       * might change the match but the match won't be lost. If a match was not found,
       * then requireEnd has no meaning.
       *
-      * @return true if more input could cause the most recent match to no longer match.
+      * @return TRUE if more input could cause the most recent match to no longer match.
       * @stable ICU 4.0
       */
       virtual UBool requireEnd() const;
@@ -1774,14 +1777,12 @@ private:
     void                 MatchAt(int64_t startIdx, UBool toEnd, UErrorCode &status);
     inline void          backTrack(int64_t &inputIdx, int32_t &patIdx);
     UBool                isWordBoundary(int64_t pos);         // perform Perl-like  \b test
-    UBool                isUWordBoundary(int64_t pos, UErrorCode &status);   // perform RBBI based \b test
-    // Find a grapheme cluster boundary using a break iterator. For handling \X in regexes.
-    int64_t              followingGCBoundary(int64_t pos, UErrorCode &status);
+    UBool                isUWordBoundary(int64_t pos);        // perform RBBI based \b test
     REStackFrame        *resetStack();
     inline REStackFrame *StateSave(REStackFrame *fp, int64_t savePatIdx, UErrorCode &status);
     void                 IncrementTime(UErrorCode &status);
 
-    // Call user find callback function, if set. Return true if operation should be interrupted.
+    // Call user find callback function, if set. Return TRUE if operation should be interrupted.
     inline UBool         findProgressInterrupt(int64_t matchIndex, UErrorCode &status);
 
     int64_t              appendGroup(int32_t groupNum, UText *dest, UErrorCode &status) const;
@@ -1870,13 +1871,9 @@ private:
     UErrorCode          fDeferredStatus;   // Save error state that cannot be immediately
                                            //   reported, or that permanently disables this matcher.
 
-    BreakIterator       *fWordBreakItr;
-    BreakIterator       *fGCBreakItr;
+    RuleBasedBreakIterator  *fWordBreakItr;
 };
 
 U_NAMESPACE_END
 #endif  // UCONFIG_NO_REGULAR_EXPRESSIONS
-
-#endif /* U_SHOW_CPLUSPLUS_API */
-
 #endif

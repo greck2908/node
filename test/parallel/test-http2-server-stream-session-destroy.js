@@ -20,28 +20,26 @@ server.on('stream', common.mustCall((stream) => {
   // Test that ERR_HTTP2_INVALID_STREAM is thrown while calling
   // stream operations after the stream session has been destroyed
   const invalidStreamError = {
-    name: 'Error',
+    type: Error,
     code: 'ERR_HTTP2_INVALID_STREAM',
     message: 'The stream has been destroyed'
   };
-  assert.throws(() => stream.additionalHeaders(), invalidStreamError);
-  assert.throws(() => stream.priority(), invalidStreamError);
-  assert.throws(() => stream.respond(), invalidStreamError);
-  assert.throws(
+  common.expectsError(() => stream.additionalHeaders(), invalidStreamError);
+  common.expectsError(() => stream.priority(), invalidStreamError);
+  common.expectsError(() => stream.respond(), invalidStreamError);
+  common.expectsError(
     () => stream.pushStream({}, common.mustNotCall()),
     {
       code: 'ERR_HTTP2_PUSH_DISABLED',
-      name: 'Error'
+      type: Error
     }
   );
-  // When session is detroyed all streams are destroyed and no further
-  // error should be emitted.
-  stream.on('error', common.mustNotCall());
-  assert.strictEqual(stream.write('data', common.expectsError({
-    name: 'Error',
+  stream.on('error', common.expectsError({
+    type: Error,
     code: 'ERR_STREAM_WRITE_AFTER_END',
     message: 'write after end'
-  })), false);
+  }));
+  assert.strictEqual(stream.write('data'), false);
 }));
 
 server.listen(0, common.mustCall(() => {

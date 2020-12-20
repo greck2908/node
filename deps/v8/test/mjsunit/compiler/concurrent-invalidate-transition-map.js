@@ -43,6 +43,7 @@ function new_object() {
 
 function add_field(obj) {
   // Assign twice to make the field non-constant.
+  // TODO(ishell): update test once constant field tracking is done.
   obj.c = 0;
   obj.c = 3;
 }

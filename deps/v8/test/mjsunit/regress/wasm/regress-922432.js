@@ -9,10 +9,10 @@ load("test/mjsunit/wasm/wasm-module-builder.js");
 (function TestTruncatedBrOnExnInLoop() {
   let builder = new WasmModuleBuilder();
   let fun = builder.addFunction(undefined, kSig_v_v)
-      .addLocals(kWasmExnRef, 1)
+      .addLocals({except_count: 1})
       .addBody([
         kExprLoop, kWasmStmt,
-          kExprLocalGet, 0,
+          kExprGetLocal, 0,
           kExprBrOnExn  // Bytecode truncated here.
       ]).exportFunc();
   fun.body.pop();  // Pop implicitly added kExprEnd from body.

@@ -24,59 +24,83 @@ class JSPromise;
 //
 // classes, which are used to represent either reactions, and we distinguish
 // them by their instance types.
-class PromiseReactionJobTask
-    : public TorqueGeneratedPromiseReactionJobTask<PromiseReactionJobTask,
-                                                   Microtask> {
+class PromiseReactionJobTask : public Microtask {
  public:
-  static const int kSizeOfAllPromiseReactionJobTasks = kHeaderSize;
-  TQ_OBJECT_CONSTRUCTORS(PromiseReactionJobTask)
+  DECL_ACCESSORS(argument, Object)
+  DECL_ACCESSORS(context, Context)
+  DECL_ACCESSORS(handler, HeapObject)
+  // [promise_or_capability]: Either a JSPromise (in case of native promises),
+  // a PromiseCapability (general case), or undefined (in case of await).
+  DECL_ACCESSORS(promise_or_capability, HeapObject)
+
+  DEFINE_FIELD_OFFSET_CONSTANTS(
+      Microtask::kHeaderSize, TORQUE_GENERATED_PROMISE_REACTION_JOB_TASK_FIELDS)
+
+  // Dispatched behavior.
+  DECL_CAST(PromiseReactionJobTask)
+  DECL_VERIFIER(PromiseReactionJobTask)
+
+  OBJECT_CONSTRUCTORS(PromiseReactionJobTask, Microtask);
 };
 
 // Struct to hold state required for a PromiseReactionJob of type "Fulfill".
-class PromiseFulfillReactionJobTask
-    : public TorqueGeneratedPromiseFulfillReactionJobTask<
-          PromiseFulfillReactionJobTask, PromiseReactionJobTask> {
+class PromiseFulfillReactionJobTask : public PromiseReactionJobTask {
  public:
   // Dispatched behavior.
+  DECL_CAST(PromiseFulfillReactionJobTask)
   DECL_PRINTER(PromiseFulfillReactionJobTask)
+  DECL_VERIFIER(PromiseFulfillReactionJobTask)
 
-  STATIC_ASSERT(kSize == kSizeOfAllPromiseReactionJobTasks);
-
-  TQ_OBJECT_CONSTRUCTORS(PromiseFulfillReactionJobTask)
+  OBJECT_CONSTRUCTORS(PromiseFulfillReactionJobTask, PromiseReactionJobTask);
 };
 
 // Struct to hold state required for a PromiseReactionJob of type "Reject".
-class PromiseRejectReactionJobTask
-    : public TorqueGeneratedPromiseRejectReactionJobTask<
-          PromiseRejectReactionJobTask, PromiseReactionJobTask> {
+class PromiseRejectReactionJobTask : public PromiseReactionJobTask {
  public:
   // Dispatched behavior.
+  DECL_CAST(PromiseRejectReactionJobTask)
   DECL_PRINTER(PromiseRejectReactionJobTask)
+  DECL_VERIFIER(PromiseRejectReactionJobTask)
 
-  STATIC_ASSERT(kSize == kSizeOfAllPromiseReactionJobTasks);
-
-  TQ_OBJECT_CONSTRUCTORS(PromiseRejectReactionJobTask)
+  OBJECT_CONSTRUCTORS(PromiseRejectReactionJobTask, PromiseReactionJobTask);
 };
 
 // A container struct to hold state required for PromiseResolveThenableJob.
-class PromiseResolveThenableJobTask
-    : public TorqueGeneratedPromiseResolveThenableJobTask<
-          PromiseResolveThenableJobTask, Microtask> {
+class PromiseResolveThenableJobTask : public Microtask {
  public:
-  // Dispatched behavior.
-  DECL_PRINTER(PromiseResolveThenableJobTask)
+  DECL_ACCESSORS(context, Context)
+  DECL_ACCESSORS(promise_to_resolve, JSPromise)
+  DECL_ACCESSORS(then, JSReceiver)
+  DECL_ACCESSORS(thenable, JSReceiver)
 
-  TQ_OBJECT_CONSTRUCTORS(PromiseResolveThenableJobTask)
+  DEFINE_FIELD_OFFSET_CONSTANTS(
+      Microtask::kHeaderSize,
+      TORQUE_GENERATED_PROMISE_RESOLVE_THENABLE_JOB_TASK_FIELDS)
+
+  // Dispatched behavior.
+  DECL_CAST(PromiseResolveThenableJobTask)
+  DECL_PRINTER(PromiseResolveThenableJobTask)
+  DECL_VERIFIER(PromiseResolveThenableJobTask)
+
+  OBJECT_CONSTRUCTORS(PromiseResolveThenableJobTask, Microtask);
 };
 
 // Struct to hold the state of a PromiseCapability.
-class PromiseCapability
-    : public TorqueGeneratedPromiseCapability<PromiseCapability, Struct> {
+class PromiseCapability : public Struct {
  public:
-  // Dispatched behavior.
-  DECL_PRINTER(PromiseCapability)
+  DECL_ACCESSORS(promise, HeapObject)
+  DECL_ACCESSORS(resolve, Object)
+  DECL_ACCESSORS(reject, Object)
 
-  TQ_OBJECT_CONSTRUCTORS(PromiseCapability)
+  DEFINE_FIELD_OFFSET_CONSTANTS(Struct::kHeaderSize,
+                                TORQUE_GENERATED_PROMISE_CAPABILITY_FIELDS)
+
+  // Dispatched behavior.
+  DECL_CAST(PromiseCapability)
+  DECL_PRINTER(PromiseCapability)
+  DECL_VERIFIER(PromiseCapability)
+
+  OBJECT_CONSTRUCTORS(PromiseCapability, Struct);
 };
 
 // A representation of promise reaction. This differs from the specification
@@ -96,15 +120,26 @@ class PromiseCapability
 // Smi 0. On the JSPromise instance they are linked in reverse order,
 // and are turned into the proper order again when scheduling them on
 // the microtask queue.
-class PromiseReaction
-    : public TorqueGeneratedPromiseReaction<PromiseReaction, Struct> {
+class PromiseReaction : public Struct {
  public:
   enum Type { kFulfill, kReject };
 
-  // Dispatched behavior.
-  DECL_PRINTER(PromiseReaction)
+  DECL_ACCESSORS(next, Object)
+  DECL_ACCESSORS(reject_handler, HeapObject)
+  DECL_ACCESSORS(fulfill_handler, HeapObject)
+  // [promise_or_capability]: Either a JSPromise (in case of native promises),
+  // a PromiseCapability (general case), or undefined (in case of await).
+  DECL_ACCESSORS(promise_or_capability, HeapObject)
 
-  TQ_OBJECT_CONSTRUCTORS(PromiseReaction)
+  DEFINE_FIELD_OFFSET_CONSTANTS(Struct::kHeaderSize,
+                                TORQUE_GENERATED_PROMISE_REACTION_FIELDS)
+
+  // Dispatched behavior.
+  DECL_CAST(PromiseReaction)
+  DECL_PRINTER(PromiseReaction)
+  DECL_VERIFIER(PromiseReaction)
+
+  OBJECT_CONSTRUCTORS(PromiseReaction, Struct);
 };
 
 }  // namespace internal

@@ -14,10 +14,9 @@
 #include "include/v8.h"
 
 #include "src/base/platform/platform.h"
-#include "src/flags/flags.h"
-#include "src/heap/read-only-heap.h"
-#include "src/utils/utils.h"
-#include "src/utils/vector.h"
+#include "src/flags.h"
+#include "src/utils.h"
+#include "src/vector.h"
 
 #include "test/inspector/isolate-data.h"
 #include "test/inspector/task-runner.h"
@@ -27,12 +26,6 @@ namespace internal {
 
 extern void DisableEmbeddedBlobRefcounting();
 extern void FreeCurrentEmbeddedBlob();
-
-extern v8::StartupData CreateSnapshotDataBlobInternal(
-    v8::SnapshotCreator::FunctionCodeHandling function_code_handling,
-    const char* embedded_source, v8::Isolate* isolate);
-extern v8::StartupData WarmUpSnapshotDataBlobInternal(
-    v8::StartupData cold_snapshot_blob, const char* warmup_source);
 
 }  // namespace internal
 }  // namespace v8
@@ -63,21 +56,8 @@ std::vector<uint16_t> ToVector(v8::Isolate* isolate,
   return buffer;
 }
 
-std::vector<uint8_t> ToBytes(v8::Isolate* isolate, v8::Local<v8::String> str) {
-  std::vector<uint8_t> buffer(str->Length());
-  str->WriteOneByte(isolate, buffer.data(), 0, str->Length());
-  return buffer;
-}
-
 v8::Local<v8::String> ToV8String(v8::Isolate* isolate, const char* str) {
-  return v8::String::NewFromUtf8(isolate, str).ToLocalChecked();
-}
-
-v8::Local<v8::String> ToV8String(v8::Isolate* isolate,
-                                 const std::vector<uint8_t>& bytes) {
-  return v8::String::NewFromOneByte(isolate, bytes.data(),
-                                    v8::NewStringType::kNormal,
-                                    static_cast<int>(bytes.size()))
+  return v8::String::NewFromUtf8(isolate, str, v8::NewStringType::kNormal)
       .ToLocalChecked();
 }
 
@@ -111,11 +91,10 @@ std::vector<uint16_t> ToVector(const v8_inspector::StringView& string) {
 class FrontendChannelImpl : public v8_inspector::V8Inspector::Channel {
  public:
   FrontendChannelImpl(TaskRunner* task_runner, int context_group_id,
-                      v8::Isolate* isolate,
-                      v8::Local<v8::Function> dispatch_message_callback)
+                      v8::Isolate* isolate, v8::Local<v8::Function> function)
       : task_runner_(task_runner),
         context_group_id_(context_group_id),
-        dispatch_message_callback_(isolate, dispatch_message_callback) {}
+        function_(isolate, function) {}
   ~FrontendChannelImpl() override = default;
 
   void set_session_id(int session_id) { session_id_ = session_id; }
@@ -152,7 +131,7 @@ class FrontendChannelImpl : public v8_inspector::V8Inspector::Channel {
       v8::Context::Scope context_scope(context);
       v8::Local<v8::Value> message = ToV8String(data->isolate(), message_);
       v8::MaybeLocal<v8::Value> result;
-      result = channel_->dispatch_message_callback_.Get(data->isolate())
+      result = channel_->function_.Get(data->isolate())
                    ->Call(context, context->Global(), 1, &message);
     }
     FrontendChannelImpl* channel_;
@@ -161,7 +140,7 @@ class FrontendChannelImpl : public v8_inspector::V8Inspector::Channel {
 
   TaskRunner* task_runner_;
   int context_group_id_;
-  v8::Global<v8::Function> dispatch_message_callback_;
+  v8::Global<v8::Function> function_;
   int session_id_;
   DISALLOW_COPY_AND_ASSIGN(FrontendChannelImpl);
 };
@@ -283,7 +262,7 @@ class ExecuteStringTask : public TaskRunner::Task {
       int length = static_cast<int>(name_.size());
       v8::internal::Vector<uint16_t> buffer =
           v8::internal::Vector<uint16_t>::New(length);
-      std::copy(name_.begin(), name_.end(), buffer.begin());
+      std::copy(name_.begin(), name_.end(), buffer.start());
       data->RegisterModule(context, buffer, &scriptSource);
     }
   }
@@ -306,54 +285,54 @@ class UtilsExtension : public IsolateData::SetupGlobalTask {
   void Run(v8::Isolate* isolate,
            v8::Local<v8::ObjectTemplate> global) override {
     v8::Local<v8::ObjectTemplate> utils = v8::ObjectTemplate::New(isolate);
-    utils->Set(isolate, "print",
+    utils->Set(ToV8String(isolate, "print"),
                v8::FunctionTemplate::New(isolate, &UtilsExtension::Print));
-    utils->Set(isolate, "quit",
+    utils->Set(ToV8String(isolate, "quit"),
                v8::FunctionTemplate::New(isolate, &UtilsExtension::Quit));
-    utils->Set(isolate, "setlocale",
+    utils->Set(ToV8String(isolate, "setlocale"),
                v8::FunctionTemplate::New(isolate, &UtilsExtension::Setlocale));
-    utils->Set(isolate, "read",
+    utils->Set(ToV8String(isolate, "read"),
                v8::FunctionTemplate::New(isolate, &UtilsExtension::Read));
-    utils->Set(isolate, "load",
+    utils->Set(ToV8String(isolate, "load"),
                v8::FunctionTemplate::New(isolate, &UtilsExtension::Load));
-    utils->Set(isolate, "compileAndRunWithOrigin",
+    utils->Set(ToV8String(isolate, "compileAndRunWithOrigin"),
                v8::FunctionTemplate::New(
                    isolate, &UtilsExtension::CompileAndRunWithOrigin));
-    utils->Set(isolate, "setCurrentTimeMSForTest",
+    utils->Set(ToV8String(isolate, "setCurrentTimeMSForTest"),
                v8::FunctionTemplate::New(
                    isolate, &UtilsExtension::SetCurrentTimeMSForTest));
-    utils->Set(isolate, "setMemoryInfoForTest",
+    utils->Set(ToV8String(isolate, "setMemoryInfoForTest"),
                v8::FunctionTemplate::New(
                    isolate, &UtilsExtension::SetMemoryInfoForTest));
-    utils->Set(isolate, "schedulePauseOnNextStatement",
+    utils->Set(ToV8String(isolate, "schedulePauseOnNextStatement"),
                v8::FunctionTemplate::New(
                    isolate, &UtilsExtension::SchedulePauseOnNextStatement));
-    utils->Set(isolate, "cancelPauseOnNextStatement",
+    utils->Set(ToV8String(isolate, "cancelPauseOnNextStatement"),
                v8::FunctionTemplate::New(
                    isolate, &UtilsExtension::CancelPauseOnNextStatement));
-    utils->Set(isolate, "setLogConsoleApiMessageCalls",
+    utils->Set(ToV8String(isolate, "setLogConsoleApiMessageCalls"),
                v8::FunctionTemplate::New(
                    isolate, &UtilsExtension::SetLogConsoleApiMessageCalls));
     utils->Set(
-        isolate, "setLogMaxAsyncCallStackDepthChanged",
+        ToV8String(isolate, "setLogMaxAsyncCallStackDepthChanged"),
         v8::FunctionTemplate::New(
             isolate, &UtilsExtension::SetLogMaxAsyncCallStackDepthChanged));
-    utils->Set(isolate, "createContextGroup",
+    utils->Set(ToV8String(isolate, "createContextGroup"),
                v8::FunctionTemplate::New(isolate,
                                          &UtilsExtension::CreateContextGroup));
     utils->Set(
-        isolate, "resetContextGroup",
+        ToV8String(isolate, "resetContextGroup"),
         v8::FunctionTemplate::New(isolate, &UtilsExtension::ResetContextGroup));
     utils->Set(
-        isolate, "connectSession",
+        ToV8String(isolate, "connectSession"),
         v8::FunctionTemplate::New(isolate, &UtilsExtension::ConnectSession));
     utils->Set(
-        isolate, "disconnectSession",
+        ToV8String(isolate, "disconnectSession"),
         v8::FunctionTemplate::New(isolate, &UtilsExtension::DisconnectSession));
-    utils->Set(isolate, "sendMessageToBackend",
+    utils->Set(ToV8String(isolate, "sendMessageToBackend"),
                v8::FunctionTemplate::New(
                    isolate, &UtilsExtension::SendMessageToBackend));
-    global->Set(isolate, "utils", utils);
+    global->Set(ToV8String(isolate, "utils"), utils);
   }
 
   static void set_backend_task_runner(TaskRunner* runner) {
@@ -378,7 +357,7 @@ class UtilsExtension : public IsolateData::SetupGlobalTask {
       v8::Local<v8::String> str_obj;
 
       if (arg->IsSymbol()) {
-        arg = v8::Local<v8::Symbol>::Cast(arg)->Description();
+        arg = v8::Local<v8::Symbol>::Cast(arg)->Name();
       }
       if (!arg->ToString(args.GetIsolate()->GetCurrentContext())
                .ToLocal(&str_obj)) {
@@ -585,8 +564,8 @@ class UtilsExtension : public IsolateData::SetupGlobalTask {
         IsolateData::FromContext(context)->GetContextGroupId(context),
         args.GetIsolate(), args[2].As<v8::Function>());
 
-    std::vector<uint8_t> state =
-        ToBytes(args.GetIsolate(), args[1].As<v8::String>());
+    std::vector<uint16_t> state =
+        ToVector(args.GetIsolate(), args[1].As<v8::String>());
     int context_group_id = args[0].As<v8::Int32>()->Value();
     int session_id = 0;
     RunSyncTask(backend_runner_, [&context_group_id, &session_id, &channel,
@@ -608,9 +587,9 @@ class UtilsExtension : public IsolateData::SetupGlobalTask {
       Exit();
     }
     int session_id = args[0].As<v8::Int32>()->Value();
-    std::vector<uint8_t> state;
+    std::vector<uint16_t> state;
     RunSyncTask(backend_runner_, [&session_id, &state](IsolateData* data) {
-      state = data->DisconnectSession(session_id);
+      state = ToVector(data->DisconnectSession(session_id)->string());
     });
     channels_.erase(session_id);
     args.GetReturnValue().Set(ToV8String(args.GetIsolate(), state));
@@ -637,8 +616,8 @@ std::map<int, std::unique_ptr<FrontendChannelImpl>> UtilsExtension::channels_;
 class SetTimeoutTask : public TaskRunner::Task {
  public:
   SetTimeoutTask(int context_group_id, v8::Isolate* isolate,
-                 v8::Local<v8::Function> callback)
-      : callback_(isolate, callback), context_group_id_(context_group_id) {}
+                 v8::Local<v8::Function> function)
+      : function_(isolate, function), context_group_id_(context_group_id) {}
   ~SetTimeoutTask() override = default;
   bool is_priority_task() final { return false; }
 
@@ -650,12 +629,12 @@ class SetTimeoutTask : public TaskRunner::Task {
     v8::Local<v8::Context> context = data->GetContext(context_group_id_);
     v8::Context::Scope context_scope(context);
 
-    v8::Local<v8::Function> callback = callback_.Get(data->isolate());
+    v8::Local<v8::Function> function = function_.Get(data->isolate());
     v8::MaybeLocal<v8::Value> result;
-    result = callback->Call(context, context->Global(), 0, nullptr);
+    result = function->Call(context, context->Global(), 0, nullptr);
   }
 
-  v8::Global<v8::Function> callback_;
+  v8::Global<v8::Function> function_;
   int context_group_id_;
 };
 
@@ -714,66 +693,66 @@ class InspectorExtension : public IsolateData::SetupGlobalTask {
   void Run(v8::Isolate* isolate,
            v8::Local<v8::ObjectTemplate> global) override {
     v8::Local<v8::ObjectTemplate> inspector = v8::ObjectTemplate::New(isolate);
-    inspector->Set(isolate, "fireContextCreated",
+    inspector->Set(ToV8String(isolate, "fireContextCreated"),
                    v8::FunctionTemplate::New(
                        isolate, &InspectorExtension::FireContextCreated));
-    inspector->Set(isolate, "fireContextDestroyed",
+    inspector->Set(ToV8String(isolate, "fireContextDestroyed"),
                    v8::FunctionTemplate::New(
                        isolate, &InspectorExtension::FireContextDestroyed));
     inspector->Set(
-        isolate, "freeContext",
+        ToV8String(isolate, "freeContext"),
         v8::FunctionTemplate::New(isolate, &InspectorExtension::FreeContext));
-    inspector->Set(isolate, "addInspectedObject",
+    inspector->Set(ToV8String(isolate, "addInspectedObject"),
                    v8::FunctionTemplate::New(
                        isolate, &InspectorExtension::AddInspectedObject));
-    inspector->Set(isolate, "setMaxAsyncTaskStacks",
+    inspector->Set(ToV8String(isolate, "setMaxAsyncTaskStacks"),
                    v8::FunctionTemplate::New(
                        isolate, &InspectorExtension::SetMaxAsyncTaskStacks));
     inspector->Set(
-        isolate, "dumpAsyncTaskStacksStateForTest",
+        ToV8String(isolate, "dumpAsyncTaskStacksStateForTest"),
         v8::FunctionTemplate::New(
             isolate, &InspectorExtension::DumpAsyncTaskStacksStateForTest));
     inspector->Set(
-        isolate, "breakProgram",
+        ToV8String(isolate, "breakProgram"),
         v8::FunctionTemplate::New(isolate, &InspectorExtension::BreakProgram));
     inspector->Set(
-        isolate, "createObjectWithStrictCheck",
+        ToV8String(isolate, "createObjectWithStrictCheck"),
         v8::FunctionTemplate::New(
             isolate, &InspectorExtension::CreateObjectWithStrictCheck));
-    inspector->Set(isolate, "callWithScheduledBreak",
+    inspector->Set(ToV8String(isolate, "callWithScheduledBreak"),
                    v8::FunctionTemplate::New(
                        isolate, &InspectorExtension::CallWithScheduledBreak));
-    inspector->Set(isolate, "allowAccessorFormatting",
+    inspector->Set(ToV8String(isolate, "allowAccessorFormatting"),
                    v8::FunctionTemplate::New(
                        isolate, &InspectorExtension::AllowAccessorFormatting));
     inspector->Set(
-        isolate, "markObjectAsNotInspectable",
+        ToV8String(isolate, "markObjectAsNotInspectable"),
         v8::FunctionTemplate::New(
             isolate, &InspectorExtension::MarkObjectAsNotInspectable));
-    inspector->Set(isolate, "createObjectWithAccessor",
+    inspector->Set(ToV8String(isolate, "createObjectWithAccessor"),
                    v8::FunctionTemplate::New(
                        isolate, &InspectorExtension::CreateObjectWithAccessor));
-    inspector->Set(isolate, "storeCurrentStackTrace",
+    inspector->Set(ToV8String(isolate, "storeCurrentStackTrace"),
                    v8::FunctionTemplate::New(
                        isolate, &InspectorExtension::StoreCurrentStackTrace));
-    inspector->Set(isolate, "externalAsyncTaskStarted",
+    inspector->Set(ToV8String(isolate, "externalAsyncTaskStarted"),
                    v8::FunctionTemplate::New(
                        isolate, &InspectorExtension::ExternalAsyncTaskStarted));
     inspector->Set(
-        isolate, "externalAsyncTaskFinished",
+        ToV8String(isolate, "externalAsyncTaskFinished"),
         v8::FunctionTemplate::New(
             isolate, &InspectorExtension::ExternalAsyncTaskFinished));
-    inspector->Set(isolate, "scheduleWithAsyncStack",
+    inspector->Set(ToV8String(isolate, "scheduleWithAsyncStack"),
                    v8::FunctionTemplate::New(
                        isolate, &InspectorExtension::ScheduleWithAsyncStack));
     inspector->Set(
-        isolate, "setAllowCodeGenerationFromStrings",
+        ToV8String(isolate, "setAllowCodeGenerationFromStrings"),
         v8::FunctionTemplate::New(
             isolate, &InspectorExtension::SetAllowCodeGenerationFromStrings));
-    inspector->Set(isolate, "setResourceNamePrefix",
+    inspector->Set(ToV8String(isolate, "setResourceNamePrefix"),
                    v8::FunctionTemplate::New(
                        isolate, &InspectorExtension::SetResourceNamePrefix));
-    global->Set(isolate, "inspector", inspector);
+    global->Set(ToV8String(isolate, "inspector"), inspector);
   }
 
  private:
@@ -968,8 +947,8 @@ class InspectorExtension : public IsolateData::SetupGlobalTask {
         data->StoreCurrentStackTrace(description_view);
     v8::Local<v8::ArrayBuffer> buffer =
         v8::ArrayBuffer::New(isolate, sizeof(id));
-    *static_cast<v8_inspector::V8StackTraceId*>(
-        buffer->GetBackingStore()->Data()) = id;
+    *static_cast<v8_inspector::V8StackTraceId*>(buffer->GetContents().Data()) =
+        id;
     args.GetReturnValue().Set(buffer);
   }
 
@@ -983,7 +962,7 @@ class InspectorExtension : public IsolateData::SetupGlobalTask {
     IsolateData* data = IsolateData::FromContext(context);
     v8_inspector::V8StackTraceId* id =
         static_cast<v8_inspector::V8StackTraceId*>(
-            args[0].As<v8::ArrayBuffer>()->GetBackingStore()->Data());
+            args[0].As<v8::ArrayBuffer>()->GetContents().Data());
     data->ExternalAsyncTaskStarted(*id);
   }
 
@@ -997,7 +976,7 @@ class InspectorExtension : public IsolateData::SetupGlobalTask {
     IsolateData* data = IsolateData::FromContext(context);
     v8_inspector::V8StackTraceId* id =
         static_cast<v8_inspector::V8StackTraceId*>(
-            args[0].As<v8::ArrayBuffer>()->GetBackingStore()->Data());
+            args[0].As<v8::ArrayBuffer>()->GetContents().Data());
     data->ExternalAsyncTaskFinished(*id);
   }
 
@@ -1051,13 +1030,56 @@ class InspectorExtension : public IsolateData::SetupGlobalTask {
   }
 };
 
+bool RunExtraCode(v8::Isolate* isolate, v8::Local<v8::Context> context,
+                  const char* utf8_source, const char* name) {
+  v8::Context::Scope context_scope(context);
+  v8::TryCatch try_catch(isolate);
+  v8::Local<v8::String> source_string;
+  if (!v8::String::NewFromUtf8(isolate, utf8_source, v8::NewStringType::kNormal)
+           .ToLocal(&source_string)) {
+    return false;
+  }
+  v8::Local<v8::String> resource_name =
+      v8::String::NewFromUtf8(isolate, name, v8::NewStringType::kNormal)
+          .ToLocalChecked();
+  v8::ScriptOrigin origin(resource_name);
+  v8::ScriptCompiler::Source source(source_string, origin);
+  v8::Local<v8::Script> script;
+  if (!v8::ScriptCompiler::Compile(context, &source).ToLocal(&script))
+    return false;
+  if (script->Run(context).IsEmpty()) return false;
+  CHECK(!try_catch.HasCaught());
+  return true;
+}
+
+v8::StartupData CreateSnapshotDataBlob(const char* embedded_source = nullptr) {
+  // Create a new isolate and a new context from scratch, optionally run
+  // a script to embed, and serialize to create a snapshot blob.
+  v8::StartupData result = {nullptr, 0};
+  {
+    v8::SnapshotCreator snapshot_creator;
+    v8::Isolate* isolate = snapshot_creator.GetIsolate();
+    {
+      v8::HandleScope scope(isolate);
+      v8::Local<v8::Context> context = v8::Context::New(isolate);
+      if (embedded_source != nullptr &&
+          !RunExtraCode(isolate, context, embedded_source, "<embedded>")) {
+        return result;
+      }
+      snapshot_creator.SetDefaultContext(context);
+    }
+    result = snapshot_creator.CreateBlob(
+        v8::SnapshotCreator::FunctionCodeHandling::kClear);
+  }
+  return result;
+}
+
 }  //  namespace
 
 int main(int argc, char* argv[]) {
   v8::V8::InitializeICUDefaultLocation(argv[0]);
   std::unique_ptr<v8::Platform> platform(v8::platform::NewDefaultPlatform());
   v8::V8::InitializePlatform(platform.get());
-  v8::internal::FLAG_abort_on_contradictory_flags = true;
   v8::V8::SetFlagsFromCommandLine(&argc, argv, true);
   v8::V8::InitializeExternalStartupData(argv[0]);
   v8::V8::Initialize();
@@ -1070,8 +1092,7 @@ int main(int argc, char* argv[]) {
     if (strcmp(argv[i], "--embed") == 0) {
       argv[i++] = nullptr;
       printf("Embedding script '%s'\n", argv[i]);
-      startup_data = i::CreateSnapshotDataBlobInternal(
-          v8::SnapshotCreator::FunctionCodeHandling::kClear, argv[i], nullptr);
+      startup_data = CreateSnapshotDataBlob(argv[i]);
       argv[i] = nullptr;
     }
   }
@@ -1079,9 +1100,8 @@ int main(int argc, char* argv[]) {
   {
     IsolateData::SetupGlobalTasks frontend_extensions;
     frontend_extensions.emplace_back(new UtilsExtension());
-    TaskRunner frontend_runner(
-        std::move(frontend_extensions), true, &ready_semaphore,
-        startup_data.data ? &startup_data : nullptr, false);
+    TaskRunner frontend_runner(std::move(frontend_extensions), true,
+                               &ready_semaphore, nullptr, false);
     ready_semaphore.Wait();
 
     int frontend_context_group_id = 0;

@@ -32,7 +32,7 @@ try {
 }
 
 spawn(process.execPath,
-      ['--preserve-symlinks', entry],
+      ['--experimental-modules', '--preserve-symlinks', entry],
       { stdio: 'inherit' }).on('exit', (code) => {
   assert.strictEqual(code, 0);
 });

@@ -29,7 +29,6 @@ import test
 import os
 import re
 from functools import reduce
-from io import open
 
 
 FLAGS_PATTERN = re.compile(r"//\s+Flags:(.*)")
@@ -57,7 +56,7 @@ class SimpleTestCase(test.TestCase):
 
   def GetCommand(self):
     result = [self.config.context.GetVm(self.arch, self.mode)]
-    source = open(self.file, encoding='utf8').read()
+    source = open(self.file).read()
     flags_match = FLAGS_PATTERN.search(source)
     if flags_match:
       flags = flags_match.group(1).strip().split()

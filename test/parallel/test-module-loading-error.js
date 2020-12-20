@@ -31,14 +31,10 @@ const errorMessagesByPlatform = {
   darwin: ['file too short'],
   aix: ['Cannot load module',
         'Cannot run a file that does not have a valid format.',
-        'Exec format error'],
-  ibmi: ['Cannot load module',
-         'The module has too many section headers',
-         'or the file has been truncated.'],
+        'Exec format error']
 };
 // If we don't know a priori what the error would be, we accept anything.
-const platform = common.isIBMi ? 'ibmi' : process.platform;
-const errorMessages = errorMessagesByPlatform[platform] || [''];
+const errorMessages = errorMessagesByPlatform[process.platform] || [''];
 
 // On Windows, error messages are MUI dependent
 // Ref: https://github.com/nodejs/node/issues/13376
@@ -64,22 +60,22 @@ assert.throws(
   }
 );
 
-const re = /^The "id" argument must be of type string\. Received /;
+const re = /^The "id" argument must be of type string\. Received type \w+$/;
 [1, false, null, undefined, {}].forEach((value) => {
-  assert.throws(
+  common.expectsError(
     () => { require(value); },
     {
-      name: 'TypeError',
+      type: TypeError,
       code: 'ERR_INVALID_ARG_TYPE',
       message: re
     });
 });
 
 
-assert.throws(
+common.expectsError(
   () => { require(''); },
   {
-    name: 'TypeError',
+    type: TypeError,
     code: 'ERR_INVALID_ARG_VALUE',
     message: 'The argument \'id\' must be a non-empty string. Received \'\''
   });

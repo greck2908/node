@@ -1,5 +1,6 @@
 'use strict';
 const common = require('../common');
+const dnstools = require('../common/dns');
 const { Resolver } = require('dns');
 const assert = require('assert');
 const dgram = require('dgram');
@@ -7,45 +8,21 @@ const dgram = require('dgram');
 const server = dgram.createSocket('udp4');
 const resolver = new Resolver();
 
-const desiredQueries = 11;
-let finishedQueries = 0;
-
-const addMessageListener = () => {
-  server.removeAllListeners('message');
-
-  server.once('message', () => {
-    server.once('message', common.mustNotCall);
-
-    resolver.cancel();
-  });
-};
-
-server.bind(0, common.mustCall(async () => {
+server.bind(0, common.mustCall(() => {
   resolver.setServers([`127.0.0.1:${server.address().port}`]);
-
-  const callback = common.mustCall((err, res) => {
+  resolver.resolve4('example.org', common.mustCall((err, res) => {
     assert.strictEqual(err.code, 'ECANCELLED');
     assert.strictEqual(err.syscall, 'queryA');
-    assert.strictEqual(err.hostname, `example${finishedQueries}.org`);
+    assert.strictEqual(err.hostname, 'example.org');
+    server.close();
+  }));
+}));
 
-    finishedQueries++;
-    if (finishedQueries === desiredQueries) {
-      server.close();
-    }
-  }, desiredQueries);
+server.on('message', common.mustCall((msg, { address, port }) => {
+  const parsed = dnstools.parseDNSPacket(msg);
+  const domain = parsed.questions[0].domain;
+  assert.strictEqual(domain, 'example.org');
 
-  const next = (...args) => {
-    callback(...args);
-
-    addMessageListener();
-
-    // Multiple queries
-    for (let i = 1; i < desiredQueries; i++) {
-      resolver.resolve4(`example${i}.org`, callback);
-    }
-  };
-
-  // Single query
-  addMessageListener();
-  resolver.resolve4('example0.org', next);
+  // Do not send a reply.
+  resolver.cancel();
 }));

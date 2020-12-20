@@ -27,23 +27,24 @@
 
 #include <stdlib.h>
 
-#include "src/init/v8.h"
+#include "src/v8.h"
 
+#include "src/assembler-inl.h"
 #include "src/base/platform/platform.h"
 #include "src/base/utils/random-number-generator.h"
-#include "src/codegen/assembler-inl.h"
-#include "src/codegen/macro-assembler.h"
-#include "src/diagnostics/disassembler.h"
+#include "src/disassembler.h"
 #include "src/heap/factory.h"
-#include "src/utils/ostreams.h"
+#include "src/macro-assembler.h"
+#include "src/ostreams.h"
 #include "test/cctest/cctest.h"
 
 namespace v8 {
 namespace internal {
 
-using F0 = int (*)();
-using F1 = int (*)(int x);
-using F2 = int (*)(int x, int y);
+typedef int (*F0)();
+typedef int (*F1)(int x);
+typedef int (*F2)(int x, int y);
+
 
 #define __ assm.
 
@@ -63,7 +64,7 @@ TEST(AssemblerIa320) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
 #ifdef OBJECT_PRINT
   StdoutStream os;
   code->Print(os);
@@ -101,7 +102,7 @@ TEST(AssemblerIa321) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
 #ifdef OBJECT_PRINT
   StdoutStream os;
   code->Print(os);
@@ -143,7 +144,7 @@ TEST(AssemblerIa322) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
 #ifdef OBJECT_PRINT
   StdoutStream os;
   code->Print(os);
@@ -154,7 +155,8 @@ TEST(AssemblerIa322) {
   CHECK_EQ(3628800, res);
 }
 
-using F3 = int (*)(float x);
+
+typedef int (*F3)(float x);
 
 TEST(AssemblerIa323) {
   CcTest::InitializeVM();
@@ -172,7 +174,7 @@ TEST(AssemblerIa323) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
 #ifdef OBJECT_PRINT
   StdoutStream os;
   code->Print(os);
@@ -183,7 +185,8 @@ TEST(AssemblerIa323) {
   CHECK_EQ(-3, res);
 }
 
-using F4 = int (*)(double x);
+
+typedef int (*F4)(double x);
 
 TEST(AssemblerIa324) {
   CcTest::InitializeVM();
@@ -201,7 +204,7 @@ TEST(AssemblerIa324) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
 #ifdef OBJECT_PRINT
   StdoutStream os;
   code->Print(os);
@@ -229,13 +232,14 @@ TEST(AssemblerIa325) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
   F0 f = FUNCTION_CAST<F0>(code->entry());
   int res = f();
   CHECK_EQ(42, res);
 }
 
-using F5 = double (*)(double x, double y);
+
+typedef double (*F5)(double x, double y);
 
 TEST(AssemblerIa326) {
   CcTest::InitializeVM();
@@ -262,7 +266,7 @@ TEST(AssemblerIa326) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
 #ifdef OBJECT_PRINT
   StdoutStream os;
   code->Print(os);
@@ -273,7 +277,8 @@ TEST(AssemblerIa326) {
   CHECK(2.29 < res && res < 2.31);
 }
 
-using F6 = double (*)(int x);
+
+typedef double (*F6)(int x);
 
 TEST(AssemblerIa328) {
   CcTest::InitializeVM();
@@ -294,7 +299,7 @@ TEST(AssemblerIa328) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
 #ifdef OBJECT_PRINT
   StdoutStream os;
   code->Print(os);
@@ -377,7 +382,7 @@ TEST(AssemblerMultiByteNop) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
   CHECK(code->IsCode());
 
   F0 f = FUNCTION_CAST<F0>(code->entry());
@@ -428,7 +433,7 @@ void DoSSE2(const v8::FunctionCallbackInfo<v8::Value>& args) {
   assm.GetCode(isolate, &desc);
 
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
 
   F0 f = FUNCTION_CAST<F0>(code->entry());
   int res = f();
@@ -493,20 +498,21 @@ TEST(AssemblerIa32Extractps) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
 #ifdef OBJECT_PRINT
   StdoutStream os;
   code->Print(os);
 #endif
 
   F4 f = FUNCTION_CAST<F4>(code->entry());
-  uint64_t value1 = 0x1234'5678'8765'4321;
+  uint64_t value1 = V8_2PART_UINT64_C(0x12345678, 87654321);
   CHECK_EQ(0x12345678, f(uint64_to_double(value1)));
-  uint64_t value2 = 0x8765'4321'1234'5678;
+  uint64_t value2 = V8_2PART_UINT64_C(0x87654321, 12345678);
   CHECK_EQ(static_cast<int>(0x87654321), f(uint64_to_double(value2)));
 }
 
-using F8 = int (*)(float x, float y);
+
+typedef int (*F8)(float x, float y);
 TEST(AssemblerIa32SSE) {
   CcTest::InitializeVM();
 
@@ -532,7 +538,7 @@ TEST(AssemblerIa32SSE) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
 #ifdef OBJECT_PRINT
   StdoutStream os;
   code->Print(os);
@@ -565,7 +571,7 @@ TEST(AssemblerIa32SSE3) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
 #ifdef OBJECT_PRINT
   StdoutStream os;
   code->Print(os);
@@ -575,7 +581,7 @@ TEST(AssemblerIa32SSE3) {
   CHECK_EQ(4, f(1.0, 2.0));
 }
 
-using F9 = int (*)(double x, double y, double z);
+typedef int (*F9)(double x, double y, double z);
 TEST(AssemblerX64FMA_sd) {
   CcTest::InitializeVM();
   if (!CpuFeatures::IsSupported(FMA3)) return;
@@ -597,7 +603,7 @@ TEST(AssemblerX64FMA_sd) {
     __ mulsd(xmm3, xmm1);
     __ addsd(xmm3, xmm2);  // Expected result in xmm3
 
-    __ AllocateStackSpace(kDoubleSize);  // For memory operand
+    __ sub(esp, Immediate(kDoubleSize));  // For memory operand
     // vfmadd132sd
     __ mov(eax, Immediate(1));  // Test number
     __ movaps(xmm4, xmm0);
@@ -793,7 +799,7 @@ TEST(AssemblerX64FMA_sd) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
 #ifdef OBJECT_PRINT
   StdoutStream os;
   code->Print(os);
@@ -803,7 +809,8 @@ TEST(AssemblerX64FMA_sd) {
   CHECK_EQ(0, f(0.000092662107262076, -2.460774966188315, -1.0958787393627414));
 }
 
-using F10 = int (*)(float x, float y, float z);
+
+typedef int (*F10)(float x, float y, float z);
 TEST(AssemblerX64FMA_ss) {
   CcTest::InitializeVM();
   if (!CpuFeatures::IsSupported(FMA3)) return;
@@ -825,7 +832,7 @@ TEST(AssemblerX64FMA_ss) {
     __ mulss(xmm3, xmm1);
     __ addss(xmm3, xmm2);  // Expected result in xmm3
 
-    __ AllocateStackSpace(kDoubleSize);  // For memory operand
+    __ sub(esp, Immediate(kDoubleSize));  // For memory operand
     // vfmadd132ss
     __ mov(eax, Immediate(1));  // Test number
     __ movaps(xmm4, xmm0);
@@ -1021,7 +1028,7 @@ TEST(AssemblerX64FMA_ss) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
 #ifdef OBJECT_PRINT
   StdoutStream os;
   code->Print(os);
@@ -1129,7 +1136,7 @@ TEST(AssemblerIa32BMI1) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
 #ifdef OBJECT_PRINT
   StdoutStream os;
   code->Print(os);
@@ -1177,7 +1184,7 @@ TEST(AssemblerIa32LZCNT) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
 #ifdef OBJECT_PRINT
   StdoutStream os;
   code->Print(os);
@@ -1225,7 +1232,7 @@ TEST(AssemblerIa32POPCNT) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
 #ifdef OBJECT_PRINT
   StdoutStream os;
   code->Print(os);
@@ -1371,7 +1378,7 @@ TEST(AssemblerIa32BMI2) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
 #ifdef OBJECT_PRINT
   StdoutStream os;
   code->Print(os);
@@ -1415,7 +1422,7 @@ TEST(AssemblerIa32JumpTables1) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
 #ifdef OBJECT_PRINT
   StdoutStream os;
   code->Print(os);
@@ -1463,7 +1470,7 @@ TEST(AssemblerIa32JumpTables2) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
 #ifdef OBJECT_PRINT
   StdoutStream os;
   code->Print(os);
@@ -1506,7 +1513,7 @@ TEST(Regress621926) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
+      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
 
 #ifdef OBJECT_PRINT
   StdoutStream os;

@@ -6,10 +6,12 @@ const bench = common.createBenchmark(main, {
   n: [2e4],
   len: [1e2, 1e3],
   strict: [0, 1],
-  method: ['deepEqual', 'notDeepEqual'],
+  method: [ 'deepEqual', 'notDeepEqual' ],
 });
 
 function main({ len, n, method, strict }) {
+  if (!method)
+    method = 'deepEqual';
   const data = Buffer.allocUnsafe(len + 1);
   const actual = Buffer.alloc(len);
   const expected = Buffer.alloc(len);
@@ -25,7 +27,7 @@ function main({ len, n, method, strict }) {
   const value2 = method.includes('not') ? expectedWrong : expected;
 
   bench.start();
-  for (let i = 0; i < n; ++i) {
+  for (var i = 0; i < n; ++i) {
     fn(actual, value2);
   }
   bench.end(n);

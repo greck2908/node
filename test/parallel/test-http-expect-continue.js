@@ -76,6 +76,7 @@ server.on('listening', common.mustCall(() => {
       assert.strictEqual(body, test_res_body);
       assert.ok('abcd' in res.headers, 'Response headers missing.');
       server.close();
+      process.exit();
     }));
   }));
 }));

@@ -3,7 +3,6 @@
 const common = require('../common');
 if (!common.hasCrypto)
   common.skip('missing crypto');
-common.requireNoPackageJSONAbove();
 
 const fixtures = require('../common/fixtures');
 
@@ -29,6 +28,10 @@ const windowsPolicySRI = 'sha512-OeyCPRo4OZMosHyquZXDHpuU1F4KzG9UHFnn12FMaHsvqFU
 /* eslint-enable max-len */
 
 const depPolicySRI = `${nixPolicySRI} ${windowsPolicySRI}`;
+console.dir({
+  depPolicySRI,
+  body: JSON.stringify(fs.readFileSync(depPolicy).toString('utf8'))
+});
 {
   const { status, stderr } = spawnSync(
     process.execPath,

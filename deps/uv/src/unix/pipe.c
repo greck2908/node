@@ -95,12 +95,8 @@ int uv_pipe_listen(uv_pipe_t* handle, int backlog, uv_connection_cb cb) {
   if (uv__stream_fd(handle) == -1)
     return UV_EINVAL;
 
-  if (handle->ipc)
-    return UV_EINVAL;
-
-#if defined(__MVS__) || defined(__PASE__)
+#if defined(__MVS__)
   /* On zOS, backlog=0 has undefined behaviour */
-  /* On IBMi PASE, backlog=0 leads to "Connection refused" error */
   if (backlog == 0)
     backlog = 1;
   else if (backlog < 0)
@@ -265,7 +261,7 @@ static int uv__pipe_getsockpeername(const uv_pipe_t* handle,
     addrlen = strlen(sa.sun_path);
 
 
-  if ((size_t)addrlen >= *size) {
+  if (addrlen >= *size) {
     *size = addrlen + 1;
     return UV_ENOBUFS;
   }

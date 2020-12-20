@@ -5,7 +5,7 @@ const fixtures = require('../common/fixtures');
 const assert = require('assert');
 const repl = require('repl');
 
-const stackRegExp = /(REPL\d+):[0-9]+:[0-9]+/g;
+const stackRegExp = /repl:[0-9]+:[0-9]+/g;
 
 function run({ command, expected }) {
   let accum = '';
@@ -25,8 +25,8 @@ function run({ command, expected }) {
 
   r.write(`${command}\n`);
   assert.strictEqual(
-    accum.replace(stackRegExp, '$1:*:*'),
-    expected.replace(stackRegExp, '$1:*:*')
+    accum.replace(stackRegExp, 'repl:*:*'),
+    expected.replace(stackRegExp, 'repl:*:*')
   );
   r.close();
 }
@@ -48,26 +48,26 @@ const tests = [
   {
     // test .load for a file that throws
     command: `.load ${fixtures.path('repl-pretty-stack.js')}`,
-    expected: 'Uncaught Error: Whoops!--->\nREPL1:*:*--->\nd (REPL1:*:*)' +
-              '--->\nc (REPL1:*:*)--->\nb (REPL1:*:*)--->\na (REPL1:*:*)\n'
+    expected: 'Thrown:\nError: Whoops!--->\nrepl:*:*--->\nd (repl:*:*)' +
+              '--->\nc (repl:*:*)--->\nb (repl:*:*)--->\na (repl:*:*)\n'
   },
   {
     command: 'let x y;',
-    expected: 'let x y;\n      ^\n\n' +
-              'Uncaught SyntaxError: Unexpected identifier\n'
+    expected: 'Thrown:\n' +
+              'let x y;\n      ^\n\nSyntaxError: Unexpected identifier\n'
   },
   {
     command: 'throw new Error(\'Whoops!\')',
-    expected: 'Uncaught Error: Whoops!\n'
+    expected: 'Thrown:\nError: Whoops!\n'
   },
   {
     command: 'foo = bar;',
-    expected: 'Uncaught ReferenceError: bar is not defined\n'
+    expected: 'Thrown:\nReferenceError: bar is not defined\n'
   },
   // test anonymous IIFE
   {
     command: '(function() { throw new Error(\'Whoops!\'); })()',
-    expected: 'Uncaught Error: Whoops!--->\nREPL5:*:*\n'
+    expected: 'Thrown:\nError: Whoops!--->\nrepl:*:*\n'
   }
 ];
 

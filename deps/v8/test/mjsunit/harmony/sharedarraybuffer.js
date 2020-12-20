@@ -25,7 +25,8 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-// Flags: --harmony-sharedarraybuffer --allow-natives-syntax
+// Flags: --harmony-sharedarraybuffer
+
 
 // SharedArrayBuffer
 
@@ -46,10 +47,11 @@ function TestArrayBufferCreation() {
   assertThrows(function() { new SharedArrayBuffer(-10); }, RangeError);
   assertThrows(function() { new SharedArrayBuffer(-2.567); }, RangeError);
 
+/* TODO[dslomov]: Reenable the test
   assertThrows(function() {
-    let kArrayBufferByteLengthLimit = %ArrayBufferMaxByteLength() + 1;
-    var ab1 = new SharedArrayBuffer(kArrayBufferByteLengthLimit);
+    var ab1 = new SharedArrayBuffer(0xFFFFFFFFFFFF)
   }, RangeError);
+*/
 
   var sab = new SharedArrayBuffer();
   assertSame(0, sab.byteLength);
@@ -448,10 +450,10 @@ function TestTypedArraysWithIllegalIndices() {
   assertEquals(255, a[s2]);
   assertEquals(0, a[-0]);
 
-
-  a[-Infinity] = 50;
-  assertEquals(undefined, a[-Infinity]);
-
+  /* Chromium bug: 424619
+   * a[-Infinity] = 50;
+   * assertEquals(undefined, a[-Infinity]);
+   */
   a[1.5] = 10;
   assertEquals(undefined, a[1.5]);
   var nan = Math.sqrt(-1);
@@ -497,9 +499,10 @@ function TestTypedArraysWithIllegalIndicesStrict() {
   assertEquals(255, a[s2]);
   assertEquals(0, a[-0]);
 
-  a[-Infinity] = 50;
-  assertEquals(undefined, a[-Infinity]);
-
+  /* Chromium bug: 424619
+   * a[-Infinity] = 50;
+   * assertEquals(undefined, a[-Infinity]);
+   */
   a[1.5] = 10;
   assertEquals(undefined, a[1.5]);
   var nan = Math.sqrt(-1);

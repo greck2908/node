@@ -18,7 +18,7 @@ function main({ n, paths }) {
   const orig = copy[0];
 
   bench.start();
-  for (let i = 0; i < n; i++) {
+  for (var i = 0; i < n; i++) {
     if (i % 3 === 0) {
       copy[0] = `${orig}${i}`;
       win32.resolve(...copy);

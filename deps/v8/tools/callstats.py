@@ -29,9 +29,10 @@ import subprocess
 import sys
 import tempfile
 import operator
-from callstats_groups import RUNTIME_CALL_STATS_GROUPS
 
 import numpy
+import scipy
+import scipy.stats
 from math import sqrt
 
 
@@ -326,10 +327,6 @@ def do_run_replay_server(args):
 # Calculate statistics.
 
 def statistics(data):
-  # NOTE(V8:10269): imports moved here to mitigate the outage.
-  import scipy
-  import scipy.stats
-
   N = len(data)
   average = numpy.average(data)
   median = numpy.median(data)
@@ -373,7 +370,8 @@ def read_stats(path, domain, args):
   if args.aggregate:
     groups = [
         ('Group-IC', re.compile(".*IC_.*")),
-        ('Group-OptimizeBackground', re.compile(".*OptimizeBackground.*")),
+        ('Group-OptimizeBackground',
+         re.compile(".*OptimizeConcurrent.*|RecompileConcurrent.*")),
         ('Group-Optimize',
          re.compile("StackGuard|.*Optimize.*|.*Deoptimize.*|Recompile.*")),
         ('Group-CompileBackground', re.compile("(.*CompileBackground.*)")),
@@ -547,9 +545,10 @@ def create_total_page_stats(domains, args):
   # Add a new "Total" page containing the summed up metrics.
   domains['Total'] = total
 
-# Generate Raw JSON file.
 
-def _read_logs(args):
+# Generate JSON file.
+
+def do_json(args):
   versions = {}
   for path in args.logdirs:
     if os.path.isdir(path):
@@ -563,36 +562,6 @@ def _read_logs(args):
             if domain not in versions[version]: versions[version][domain] = {}
             read_stats(os.path.join(root, filename),
                        versions[version][domain], args)
-
-  return versions
-
-def do_raw_json(args):
-  versions = _read_logs(args)
-
-  for version, domains in versions.items():
-    if args.aggregate:
-      create_total_page_stats(domains, args)
-    for domain, entries in domains.items():
-      raw_entries = []
-      for name, value in entries.items():
-        # We don't want the calculated sum in the JSON file.
-        if name == "Sum": continue
-        raw_entries.append({
-          'name': name,
-          'duration': value['time_list'],
-          'count': value['count_list'],
-        })
-
-      domains[domain] = raw_entries
-
-  print(json.dumps(versions, separators=(',', ':')))
-
-
-# Generate JSON file.
-
-def do_json(args):
-  versions = _read_logs(args)
-
   for version, domains in versions.items():
     if args.aggregate:
       create_total_page_stats(domains, args)
@@ -733,20 +702,6 @@ def main():
       "logdirs", type=str, metavar="<logdir>", nargs="*",
       help="specify directories with log files to parse")
   subparsers["json"].add_argument(
-      "--aggregate", dest="aggregate", action="store_true", default=False,
-      help="Create aggregated entries. Adds Group-* entries at the toplevel. " \
-      "Additionally creates a Total page with all entries.")
-
-  # Command: raw-json.
-  subparsers["raw-json"] = subparser_adder.add_parser(
-      "raw-json", help="Collect raw results from 'run' command into" \
-          "a single json file.")
-  subparsers["raw-json"].set_defaults(
-      func=do_raw_json, error=subparsers["json"].error)
-  subparsers["raw-json"].add_argument(
-      "logdirs", type=str, metavar="<logdir>", nargs="*",
-      help="specify directories with log files to parse")
-  subparsers["raw-json"].add_argument(
       "--aggregate", dest="aggregate", action="store_true", default=False,
       help="Create aggregated entries. Adds Group-* entries at the toplevel. " \
       "Additionally creates a Total page with all entries.")

@@ -65,7 +65,7 @@ DangiCalendar::~DangiCalendar()
 {
 }
 
-DangiCalendar*
+Calendar*
 DangiCalendar::clone() const
 {
     return new DangiCalendar(*this);

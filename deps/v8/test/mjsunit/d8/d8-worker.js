@@ -147,12 +147,12 @@ if (this.Worker) {
   // Clone ArrayBuffer
   var ab1 = createArrayBuffer(16);
   w.postMessage(ab1);
-  assertEquals(16, ab1.byteLength);  // ArrayBuffer should not be detached.
+  assertEquals(16, ab1.byteLength);  // ArrayBuffer should not be neutered.
 
   // Transfer ArrayBuffer
   var ab2 = createArrayBuffer(32);
   w.postMessage(ab2, [ab2]);
-  assertEquals(0, ab2.byteLength);  // ArrayBuffer should be detached.
+  assertEquals(0, ab2.byteLength);  // ArrayBuffer should be neutered.
 
   // Attempting to transfer the same ArrayBuffer twice should throw.
   assertThrows(function() {

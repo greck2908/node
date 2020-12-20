@@ -150,7 +150,7 @@ int localeExists(const char* loc, UBool* exists) {
   }
   icu::LocalUResourceBundlePointer aResource(
       ures_openDirect(packageName.data(), loc, &status));
-  *exists = false;
+  *exists = FALSE;
   if (U_SUCCESS(status)) {
     *exists = true;
     if (VERBOSE > 1) {
@@ -209,8 +209,7 @@ int dumpAllButInstalledLocales(int lev,
     } else {
       printIndent(bf, lev);
       fprintf(bf, "%s", key);
-      const UResType type = ures_getType(t.getAlias());
-      switch (type) {
+      switch (ures_getType(t.getAlias())) {
         case URES_STRING: {
           int32_t len = 0;
           const UChar* s = ures_getString(t.getAlias(), &len, status);
@@ -219,16 +218,8 @@ int dumpAllButInstalledLocales(int lev,
           fwrite(s, len, 1, bf);
           fprintf(bf, "\"}");
         } break;
-        case URES_TABLE: {
-          fprintf(bf, ":table {\n");
-          dumpAllButInstalledLocales(lev+1, &t, bf, status);
-          printIndent(bf, lev);
-          fprintf(bf, "}\n");
-        } break;
         default: {
-          printf("ERROR: unhandled type %d for key %s "
-                 "in dumpAllButInstalledLocales().\n",
-                 static_cast<int>(type), key);
+          printf("ERROR: unhandled type in dumpAllButInstalledLocales().\n");
           return 1;
         } break;
       }

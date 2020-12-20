@@ -1,3 +1,4 @@
+// Flags: --experimental-modules
 import '../common/index.mjs';
 import cjs from '../fixtures/baz.js';
 import { message } from '../fixtures/es-modules/message.mjs';

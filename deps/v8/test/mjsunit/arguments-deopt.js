@@ -16,13 +16,11 @@
     return f.apply(null, arguments);
   }
 
-  %PrepareFunctionForOptimization(test1);
   assertEquals(test1(1, 2), 3);
   assertEquals(test1(1, 2, 3), 3);
 
   %OptimizeFunctionOnNextCall(test1);
   assertEquals(test1(1, 2), 3);
-  %PrepareFunctionForOptimization(test1);
   %OptimizeFunctionOnNextCall(test1);
   assertEquals(test1(1, 2, 3), 3);
 })();
@@ -37,13 +35,11 @@
     return f.apply(null, arguments);
   }
 
-  %PrepareFunctionForOptimization(test2);
   assertEquals(test2(1, 2), 3);
   assertEquals(test2(1, 2, 3), 3);
 
   %OptimizeFunctionOnNextCall(test2);
   assertEquals(test2(1, 2), 3);
-  %PrepareFunctionForOptimization(test2);
   %OptimizeFunctionOnNextCall(test2);
   assertEquals(test2(1, 2, 3), 3);
 })();
@@ -61,13 +57,11 @@
     return f.apply(null, arguments);
   }
 
-  %PrepareFunctionForOptimization(test3);
   assertEquals(test3(1, 2), 3);
   assertEquals(test3(1, 2, 3), 3);
 
   %OptimizeFunctionOnNextCall(test3);
   assertEquals(test3(11, 12), 23);
-  %PrepareFunctionForOptimization(test3);
   %OptimizeFunctionOnNextCall(test3);
   assertEquals(test3(11, 12, 13), 23);
 })();
@@ -86,13 +80,11 @@
   test4(1, 2);
   test4(3, 4, 5);
 
-  %PrepareFunctionForOptimization(test4);
   assertEquals(test4(1, 2), 6);
   assertEquals(test4(1, 2, 3), 6);
 
   %OptimizeFunctionOnNextCall(test4);
   assertEquals(test4(1, 2), 6);
-  %PrepareFunctionForOptimization(test4);
   %OptimizeFunctionOnNextCall(test4);
   assertEquals(test4(1, 2, 3), 6);
 })();
@@ -110,13 +102,11 @@
     return sum;
   };
 
-  %PrepareFunctionForOptimization(sum1);
   var args = []
   for (var i = 1; i < 30; ++i) {
     args.push(i);
     if (i%10 == 0) %OptimizeFunctionOnNextCall(sum1);
     assertEquals(i*(i+1)/2, sum1(...args));
-    if (i%10 == 0) %PrepareFunctionForOptimization(sum1);
   }
 })();
 
@@ -131,13 +121,11 @@
     return sum;
   };
 
-  %PrepareFunctionForOptimization(sum2);
   var args = []
   for (var i = 1; i < 30; ++i) {
     args.push(i);
     if (i%10 == 0) %OptimizeFunctionOnNextCall(sum2);
     assertEquals(i*(i+1)/2, sum2(...args));
-    if (i%10 == 0) %PrepareFunctionForOptimization(sum2);
   }
 })();
 
@@ -152,13 +140,11 @@
     return sum;
   };
 
-  %PrepareFunctionForOptimization(sum3);
   var args = []
   for (var i = 1; i < 30; ++i) {
     args.push(i);
     if (i%10 == 0) %OptimizeFunctionOnNextCall(sum3);
     assertEquals(i*(i+1)/2, sum3(...args));
-    if (i%10 == 0) %PrepareFunctionForOptimization(sum3);
   }
 })();
 
@@ -173,13 +159,11 @@
     return sum;
   };
 
-  %PrepareFunctionForOptimization(sum4);
   var args = []
   for (var i = 1; i < 30; ++i) {
     args.push(i);
     if (i%10 == 0) %OptimizeFunctionOnNextCall(sum4);
     assertEquals(i*(i+1)/2-1, sum4(...args));
-    if (i%10 == 0) %PrepareFunctionForOptimization(sum4);
   }
 })();
 
@@ -190,12 +174,10 @@
     return arguments[arguments.length-1];
   };
 
-  %PrepareFunctionForOptimization(read);
   var args = []
   for (var i = 1; i < 30; ++i) {
     args.push(i);
     if (i%10 == 0) %OptimizeFunctionOnNextCall(read);
     assertEquals(i, read(...args));
-    if (i%10 == 0) %PrepareFunctionForOptimization(read);
   }
 })();

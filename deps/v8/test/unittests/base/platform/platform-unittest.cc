@@ -79,21 +79,8 @@ class ThreadLocalStorageTest : public Thread, public ::testing::Test {
 
 TEST_F(ThreadLocalStorageTest, DoTest) {
   Run();
-  CHECK(Start());
+  Start();
   Join();
-}
-
-TEST(StackTest, GetStackStart) { EXPECT_NE(nullptr, Stack::GetStackStart()); }
-
-TEST(StackTest, GetCurrentStackPosition) {
-  EXPECT_NE(nullptr, Stack::GetCurrentStackPosition());
-}
-
-TEST(StackTest, StackVariableInBounds) {
-  void* dummy;
-  ASSERT_GT(Stack::GetStackStart(), Stack::GetCurrentStackPosition());
-  EXPECT_GT(Stack::GetStackStart(), Stack::GetStackSlot(&dummy));
-  EXPECT_LT(Stack::GetCurrentStackPosition(), Stack::GetStackSlot(&dummy));
 }
 
 }  // namespace base

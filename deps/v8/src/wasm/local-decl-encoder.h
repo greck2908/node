@@ -5,7 +5,7 @@
 #ifndef V8_WASM_LOCAL_DECL_ENCODER_H_
 #define V8_WASM_LOCAL_DECL_ENCODER_H_
 
-#include "src/common/globals.h"
+#include "src/globals.h"
 #include "src/wasm/wasm-opcodes.h"
 #include "src/zone/zone-containers.h"
 #include "src/zone/zone.h"
@@ -14,10 +14,11 @@ namespace v8 {
 namespace internal {
 namespace wasm {
 
-// A helper for encoding local declarations prepended to the body of a function.
+// A helper for encoding local declarations prepended to the body of a
+// function.
 class V8_EXPORT_PRIVATE LocalDeclEncoder {
  public:
-  explicit LocalDeclEncoder(Zone* zone, const FunctionSig* s = nullptr)
+  explicit LocalDeclEncoder(Zone* zone, FunctionSig* s = nullptr)
       : sig(s), local_decls(zone), total(0) {}
 
   // Prepend local declarations by creating a new buffer and copying data
@@ -33,11 +34,11 @@ class V8_EXPORT_PRIVATE LocalDeclEncoder {
   size_t Size() const;
 
   bool has_sig() const { return sig != nullptr; }
-  const FunctionSig* get_sig() const { return sig; }
-  void set_sig(const FunctionSig* s) { sig = s; }
+  FunctionSig* get_sig() const { return sig; }
+  void set_sig(FunctionSig* s) { sig = s; }
 
  private:
-  const FunctionSig* sig;
+  FunctionSig* sig;
   ZoneVector<std::pair<uint32_t, ValueType>> local_decls;
   size_t total;
 };

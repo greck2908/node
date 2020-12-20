@@ -1,14 +1,14 @@
 'use strict';
 
-require('../common');
+const common = require('../common');
 const assert = require('assert');
 const { Worker } = require('worker_threads');
 
 {
-  const expectedErr = {
+  const expectedErr = common.expectsError({
     code: 'ERR_INVALID_ARG_TYPE',
-    name: 'TypeError'
-  };
+    type: TypeError
+  }, 2);
 
   assert.throws(() => {
     new Worker(__filename, { execArgv: 'hello' });
@@ -19,10 +19,10 @@ const { Worker } = require('worker_threads');
 }
 
 {
-  const expectedErr = {
+  const expectedErr = common.expectsError({
     code: 'ERR_WORKER_INVALID_EXEC_ARGV',
-    name: 'Error'
-  };
+    type: Error
+  }, 3);
   assert.throws(() => {
     new Worker(__filename, { execArgv: ['--foo'] });
   }, expectedErr);
@@ -31,19 +31,5 @@ const { Worker } = require('worker_threads');
   }, expectedErr);
   assert.throws(() => {
     new Worker(__filename, { execArgv: ['--redirect-warnings'] });
-  }, expectedErr);
-}
-
-{
-  const expectedErr = {
-    code: 'ERR_WORKER_INVALID_EXEC_ARGV',
-    name: 'Error'
-  };
-  assert.throws(() => {
-    new Worker(__filename, {
-      env: {
-        NODE_OPTIONS: '--nonexistent-options'
-      }
-    });
   }, expectedErr);
 }

@@ -1,53 +1,52 @@
 'use strict';
 
 const common = require('../common');
-const assert = require('assert');
 const fs = require('fs');
 
 [false, 1, {}, [], null, undefined].forEach((i) => {
-  assert.throws(
+  common.expectsError(
     () => fs.chown(i, 1, 1, common.mustNotCall()),
     {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError'
+      type: TypeError
     }
   );
-  assert.throws(
+  common.expectsError(
     () => fs.chownSync(i, 1, 1),
     {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError'
+      type: TypeError
     }
   );
 });
 
 [false, 'test', {}, [], null, undefined].forEach((i) => {
-  assert.throws(
+  common.expectsError(
     () => fs.chown('not_a_file_that_exists', i, 1, common.mustNotCall()),
     {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError'
+      type: TypeError
     }
   );
-  assert.throws(
+  common.expectsError(
     () => fs.chown('not_a_file_that_exists', 1, i, common.mustNotCall()),
     {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError'
+      type: TypeError
     }
   );
-  assert.throws(
+  common.expectsError(
     () => fs.chownSync('not_a_file_that_exists', i, 1),
     {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError'
+      type: TypeError
     }
   );
-  assert.throws(
+  common.expectsError(
     () => fs.chownSync('not_a_file_that_exists', 1, i),
     {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError'
+      type: TypeError
     }
   );
 });

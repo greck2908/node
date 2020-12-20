@@ -5,7 +5,7 @@
 #ifndef V8_INTERPRETER_BYTECODE_SOURCE_INFO_H_
 #define V8_INTERPRETER_BYTECODE_SOURCE_INFO_H_
 
-#include "src/common/globals.h"
+#include "src/globals.h"
 
 namespace v8 {
 namespace internal {

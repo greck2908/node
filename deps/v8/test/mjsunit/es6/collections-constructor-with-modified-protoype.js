@@ -24,7 +24,6 @@ function TestSetPrototypeModified(ctor) {
 
   ctor.prototype.add = originalPrototypeAdd;
 }
-%PrepareFunctionForOptimization(TestSetPrototypeModified);
 TestSetPrototypeModified(Set);
 TestSetPrototypeModified(Set);
 TestSetPrototypeModified(Set);
@@ -33,7 +32,6 @@ TestSetPrototypeModified(Set);
 assertOptimized(TestSetPrototypeModified);
 %DeoptimizeFunction(TestSetPrototypeModified);
 
-%PrepareFunctionForOptimization(TestSetPrototypeModified);
 TestSetPrototypeModified(WeakSet);
 TestSetPrototypeModified(WeakSet);
 TestSetPrototypeModified(WeakSet);
@@ -62,7 +60,6 @@ function TestMapPrototypeModified(ctor) {
 
   ctor.prototype.set = originalPrototypeSet;
 }
-%PrepareFunctionForOptimization(TestMapPrototypeModified);
 TestMapPrototypeModified(Map);
 TestMapPrototypeModified(Map);
 TestMapPrototypeModified(Map);
@@ -71,7 +68,6 @@ TestMapPrototypeModified(Map);
 assertOptimized(TestMapPrototypeModified);
 %DeoptimizeFunction(TestMapPrototypeModified);
 
-%PrepareFunctionForOptimization(TestMapPrototypeModified);
 TestMapPrototypeModified(WeakMap);
 TestMapPrototypeModified(WeakMap);
 TestMapPrototypeModified(WeakMap);

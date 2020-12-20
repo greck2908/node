@@ -20,7 +20,7 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
-require('../common');
+const common = require('../common');
 const assert = require('assert');
 
 const stream = require('stream');
@@ -54,16 +54,14 @@ class MyWritable extends stream.Writable {
   m.end();
 }());
 
-// Change default encoding to invalid value.
-assert.throws(() => {
-  const m = new MyWritable(
-    (isBuffer, type, enc) => {},
-    { decodeStrings: false });
+common.expectsError(function changeDefaultEncodingToInvalidValue() {
+  const m = new MyWritable(function(isBuffer, type, enc) {
+  }, { decodeStrings: false });
   m.setDefaultEncoding({});
   m.write('bar');
   m.end();
 }, {
-  name: 'TypeError',
+  type: TypeError,
   code: 'ERR_UNKNOWN_ENCODING',
   message: 'Unknown encoding: {}'
 });

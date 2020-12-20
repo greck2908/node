@@ -50,14 +50,6 @@ inline void SeqCst_MemoryFence() {
 #endif
 }
 
-inline Atomic8 Relaxed_CompareAndSwap(volatile Atomic8* ptr, Atomic8 old_value,
-                                      Atomic8 new_value) {
-  bool result = __atomic_compare_exchange_n(ptr, &old_value, new_value, false,
-                                            __ATOMIC_RELAXED, __ATOMIC_RELAXED);
-  USE(result);  // Make gcc compiler happy.
-  return old_value;
-}
-
 inline Atomic16 Relaxed_CompareAndSwap(volatile Atomic16* ptr,
                                        Atomic16 old_value, Atomic16 new_value) {
   __atomic_compare_exchange_n(ptr, &old_value, new_value, false,
@@ -82,6 +74,11 @@ inline Atomic32 Relaxed_AtomicIncrement(volatile Atomic32* ptr,
   return increment + __atomic_fetch_add(ptr, increment, __ATOMIC_RELAXED);
 }
 
+inline Atomic32 Barrier_AtomicIncrement(volatile Atomic32* ptr,
+                                        Atomic32 increment) {
+  return increment + __atomic_fetch_add(ptr, increment, __ATOMIC_SEQ_CST);
+}
+
 inline Atomic32 Acquire_CompareAndSwap(volatile Atomic32* ptr,
                                        Atomic32 old_value, Atomic32 new_value) {
   __atomic_compare_exchange_n(ptr, &old_value, new_value, false,
@@ -101,14 +98,6 @@ inline Atomic32 Release_CompareAndSwap(volatile Atomic32* ptr,
                                        Atomic32 old_value, Atomic32 new_value) {
   __atomic_compare_exchange_n(ptr, &old_value, new_value, false,
                               __ATOMIC_RELEASE, __ATOMIC_RELAXED);
-  return old_value;
-}
-
-inline Atomic32 AcquireRelease_CompareAndSwap(volatile Atomic32* ptr,
-                                              Atomic32 old_value,
-                                              Atomic32 new_value) {
-  __atomic_compare_exchange_n(ptr, &old_value, new_value, false,
-                              __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE);
   return old_value;
 }
 
@@ -163,6 +152,11 @@ inline Atomic64 Relaxed_AtomicIncrement(volatile Atomic64* ptr,
   return increment + __atomic_fetch_add(ptr, increment, __ATOMIC_RELAXED);
 }
 
+inline Atomic64 Barrier_AtomicIncrement(volatile Atomic64* ptr,
+                                        Atomic64 increment) {
+  return increment + __atomic_fetch_add(ptr, increment, __ATOMIC_SEQ_CST);
+}
+
 inline Atomic64 Acquire_CompareAndSwap(volatile Atomic64* ptr,
                                        Atomic64 old_value, Atomic64 new_value) {
   __atomic_compare_exchange_n(ptr, &old_value, new_value, false,
@@ -174,14 +168,6 @@ inline Atomic64 Release_CompareAndSwap(volatile Atomic64* ptr,
                                        Atomic64 old_value, Atomic64 new_value) {
   __atomic_compare_exchange_n(ptr, &old_value, new_value, false,
                               __ATOMIC_RELEASE, __ATOMIC_RELAXED);
-  return old_value;
-}
-
-inline Atomic64 AcquireRelease_CompareAndSwap(volatile Atomic64* ptr,
-                                              Atomic64 old_value,
-                                              Atomic64 new_value) {
-  __atomic_compare_exchange_n(ptr, &old_value, new_value, false,
-                              __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE);
   return old_value;
 }
 

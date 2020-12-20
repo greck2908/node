@@ -7,11 +7,7 @@
 
 function main() {
   var obj = {};
-  function foo() {
-    return obj[0];
-  };
-  %PrepareFunctionForOptimization(foo);
-  ;
+  function foo() { return obj[0]; };
   gc();
   obj.x = 10;
   %OptimizeFunctionOnNextCall(foo);

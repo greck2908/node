@@ -62,7 +62,7 @@ function test(keyPath, certPath, check, next) {
   const cert = fixtures.readSync(certPath).toString();
 
   const server = spawn(common.opensslCli, ['s_server',
-                                           '-accept', 0,
+                                           '-accept', common.PORT,
                                            '-cert', fixtures.path(certPath),
                                            '-key', fixtures.path(keyPath)]);
   server.stdout.pipe(process.stdout);
@@ -78,11 +78,10 @@ function test(keyPath, certPath, check, next) {
     console.log(state);
     switch (state) {
       case 'WAIT-ACCEPT':
-        const matches = serverStdoutBuffer.match(/ACCEPT .*?:(\d+)/);
-        if (matches) {
-          const port = matches[1];
+        if (/ACCEPT/.test(serverStdoutBuffer)) {
+          // Give s_server half a second to start up.
+          setTimeout(startClient, 500);
           state = 'WAIT-HELLO';
-          startClient(port);
         }
         break;
 
@@ -118,7 +117,7 @@ function test(keyPath, certPath, check, next) {
   });
 
 
-  function startClient(port) {
+  function startClient() {
     const s = new net.Stream();
 
     const sslcontext = tls.createSecureContext({ key, cert });
@@ -132,7 +131,7 @@ function test(keyPath, certPath, check, next) {
     pair.encrypted.pipe(s);
     s.pipe(pair.encrypted);
 
-    s.connect(port);
+    s.connect(common.PORT);
 
     s.on('connect', function() {
       console.log('client connected');

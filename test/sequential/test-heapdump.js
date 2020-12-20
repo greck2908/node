@@ -25,12 +25,11 @@ process.chdir(tmpdir.path);
 }
 
 [1, true, {}, [], null, Infinity, NaN].forEach((i) => {
-  assert.throws(() => writeHeapSnapshot(i), {
+  common.expectsError(() => writeHeapSnapshot(i), {
     code: 'ERR_INVALID_ARG_TYPE',
-    name: 'TypeError',
-    message: 'The "path" argument must be of type string or an instance of ' +
-             'Buffer or URL.' +
-             common.invalidArgTypeHelper(i)
+    type: TypeError,
+    message: 'The "path" argument must be one of type string, Buffer, or URL.' +
+             ` Received type ${typeof i}`
   });
 });
 

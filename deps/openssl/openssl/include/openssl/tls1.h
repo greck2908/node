@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2019 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2018 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright (c) 2002, Oracle and/or its affiliates. All rights reserved
  * Copyright 2005 Nokia. All rights reserved.
  *
@@ -147,9 +147,6 @@ extern "C" {
 
 /* Temporary extension type */
 # define TLSEXT_TYPE_renegotiate                 0xff01
-
-/* ExtensionType value from draft-ietf-quic-tls-27 */
-# define TLSEXT_TYPE_quic_transport_parameters   0xffa5
 
 # ifndef OPENSSL_NO_NEXTPROTONEG
 /* This is not an IANA defined extension number */
@@ -1225,7 +1222,7 @@ __owur int SSL_check_chain(SSL *s, X509 *x, EVP_PKEY *pk, STACK_OF(X509) *chain)
 /*
  * extended master secret
  */
-#  define TLS_MD_EXTENDED_MASTER_SECRET_CONST    "\x65\x78\x74\x65\x6e\x64\x65\x64\x20\x6d\x61\x73\x74\x65\x72\x20\x73\x65\x63\x72\x65\x74"
+#  define TLS_MD_EXTENDED_MASTER_SECRET_CONST    "\x65\x78\x74\x65\x63\x64\x65\x64\x20\x6d\x61\x73\x74\x65\x72\x20\x73\x65\x63\x72\x65\x74"
 # endif
 
 /* TLS Session Ticket extension struct */

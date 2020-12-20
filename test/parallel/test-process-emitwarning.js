@@ -74,8 +74,8 @@ process.emitWarning(warningThrowToString);
   [undefined, 'foo', 'bar'],
   [undefined]
 ].forEach((args) => {
-  assert.throws(
+  common.expectsError(
     () => process.emitWarning(...args),
-    { code: 'ERR_INVALID_ARG_TYPE', name: 'TypeError' }
+    { code: 'ERR_INVALID_ARG_TYPE', type: TypeError }
   );
 });

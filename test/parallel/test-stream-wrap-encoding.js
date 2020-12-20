@@ -16,7 +16,7 @@ const Duplex = require('stream').Duplex;
   const wrap = new StreamWrap(stream);
 
   wrap.on('error', common.expectsError({
-    name: 'Error',
+    type: Error,
     code: 'ERR_STREAM_WRAP',
     message: 'Stream has StringDecoder set or is in objectMode'
   }));
@@ -34,7 +34,7 @@ const Duplex = require('stream').Duplex;
   const wrap = new StreamWrap(stream);
 
   wrap.on('error', common.expectsError({
-    name: 'Error',
+    type: Error,
     code: 'ERR_STREAM_WRAP',
     message: 'Stream has StringDecoder set or is in objectMode'
   }));

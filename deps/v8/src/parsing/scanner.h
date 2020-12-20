@@ -8,19 +8,16 @@
 #define V8_PARSING_SCANNER_H_
 
 #include <algorithm>
-#include <memory>
 
-#include "include/v8.h"
+#include "src/allocation.h"
 #include "src/base/logging.h"
-#include "src/common/globals.h"
-#include "src/common/message-template.h"
-#include "src/parsing/literal-buffer.h"
-#include "src/parsing/parse-info.h"
+#include "src/char-predicates.h"
+#include "src/globals.h"
+#include "src/message-template.h"
 #include "src/parsing/token.h"
-#include "src/strings/char-predicates.h"
-#include "src/strings/unicode.h"
-#include "src/utils/allocation.h"
-#include "src/utils/pointer-with-payload.h"
+#include "src/pointer-with-payload.h"
+#include "src/unicode-decoder.h"
+#include "src/unicode.h"
 
 namespace v8 {
 namespace internal {
@@ -39,7 +36,7 @@ class Zone;
 // or one part of a surrogate pair that make a single 21 bit code point.
 class Utf16CharacterStream {
  public:
-  static constexpr uc32 kEndOfInput = static_cast<uc32>(-1);
+  static const uc32 kEndOfInput = -1;
 
   virtual ~Utf16CharacterStream() = default;
 
@@ -258,7 +255,7 @@ class V8_EXPORT_PRIVATE Scanner {
     Location() : beg_pos(0), end_pos(0) { }
 
     int length() const { return end_pos - beg_pos; }
-    bool IsValid() const { return base::IsInRange(beg_pos, 0, end_pos); }
+    bool IsValid() const { return IsInRange(beg_pos, 0, end_pos); }
 
     static Location invalid() { return Location(-1, 0); }
 
@@ -267,13 +264,10 @@ class V8_EXPORT_PRIVATE Scanner {
   };
 
   // -1 is outside of the range of any real source code.
-  static constexpr uc32 kEndOfInput = Utf16CharacterStream::kEndOfInput;
-  static constexpr uc32 kInvalidSequence = static_cast<uc32>(-1);
+  static const int kNoOctalLocation = -1;
+  static const uc32 kEndOfInput = Utf16CharacterStream::kEndOfInput;
 
-  static constexpr uc32 Invalid() { return Scanner::kInvalidSequence; }
-  static bool IsInvalid(uc32 c);
-
-  explicit Scanner(Utf16CharacterStream* source, UnoptimizedCompileFlags flags);
+  explicit Scanner(Utf16CharacterStream* source, bool is_module);
 
   void Initialize();
 
@@ -351,7 +345,7 @@ class V8_EXPORT_PRIVATE Scanner {
     if (peek_location().length() != N + 1) return false;
 
     Vector<const uint8_t> next = next_literal_one_byte_string();
-    const char* chars = reinterpret_cast<const char*>(next.begin());
+    const char* chars = reinterpret_cast<const char*>(next.start());
     return next.length() == N - 1 && strncmp(s, chars, N - 1) == 0;
   }
 
@@ -361,7 +355,7 @@ class V8_EXPORT_PRIVATE Scanner {
     if (!is_literal_one_byte()) return false;
 
     Vector<const uint8_t> current = literal_one_byte_string();
-    const char* chars = reinterpret_cast<const char*>(current.begin());
+    const char* chars = reinterpret_cast<const char*>(current.start());
     return current.length() == N - 1 && strncmp(s, chars, N - 1) == 0;
   }
 
@@ -398,7 +392,7 @@ class V8_EXPORT_PRIVATE Scanner {
   // Returns true if a pattern is scanned.
   bool ScanRegExpPattern();
   // Scans the input as regular expression flags. Returns the flags on success.
-  Maybe<int> ScanRegExpFlags();
+  Maybe<RegExp::Flags> ScanRegExpFlags();
 
   // Scans the input as a template literal
   Token::Value ScanTemplateContinuation() {
@@ -407,20 +401,120 @@ class V8_EXPORT_PRIVATE Scanner {
     return ScanTemplateSpan();
   }
 
-  template <typename LocalIsolate>
-  Handle<String> SourceUrl(LocalIsolate* isolate) const;
-  template <typename LocalIsolate>
-  Handle<String> SourceMappingUrl(LocalIsolate* isolate) const;
+  Handle<String> SourceUrl(Isolate* isolate) const;
+  Handle<String> SourceMappingUrl(Isolate* isolate) const;
 
   bool FoundHtmlComment() const { return found_html_comment_; }
 
+  bool allow_harmony_private_fields() const {
+    return allow_harmony_private_fields_;
+  }
+  void set_allow_harmony_private_fields(bool allow) {
+    allow_harmony_private_fields_ = allow;
+  }
+  bool allow_harmony_numeric_separator() const {
+    return allow_harmony_numeric_separator_;
+  }
+  void set_allow_harmony_numeric_separator(bool allow) {
+    allow_harmony_numeric_separator_ = allow;
+  }
+
   const Utf16CharacterStream* stream() const { return source_; }
+
+  // If the next characters in the stream are "#!", the line is skipped.
+  void SkipHashBang();
 
  private:
   // Scoped helper for saving & restoring scanner error state.
   // This is used for tagged template literals, in which normally forbidden
   // escape sequences are allowed.
   class ErrorState;
+
+  // LiteralBuffer -  Collector of chars of literals.
+  class LiteralBuffer {
+   public:
+    LiteralBuffer() : backing_store_(), position_(0), is_one_byte_(true) {}
+
+    ~LiteralBuffer() { backing_store_.Dispose(); }
+
+    V8_INLINE void AddChar(char code_unit) {
+      DCHECK(IsValidAscii(code_unit));
+      AddOneByteChar(static_cast<byte>(code_unit));
+    }
+
+    V8_INLINE void AddChar(uc32 code_unit) {
+      if (is_one_byte()) {
+        if (code_unit <= static_cast<uc32>(unibrow::Latin1::kMaxChar)) {
+          AddOneByteChar(static_cast<byte>(code_unit));
+          return;
+        }
+        ConvertToTwoByte();
+      }
+      AddTwoByteChar(code_unit);
+    }
+
+    bool is_one_byte() const { return is_one_byte_; }
+
+    bool Equals(Vector<const char> keyword) const {
+      return is_one_byte() && keyword.length() == position_ &&
+             (memcmp(keyword.start(), backing_store_.start(), position_) == 0);
+    }
+
+    Vector<const uint16_t> two_byte_literal() const {
+      DCHECK(!is_one_byte());
+      DCHECK_EQ(position_ & 0x1, 0);
+      return Vector<const uint16_t>(
+          reinterpret_cast<const uint16_t*>(backing_store_.start()),
+          position_ >> 1);
+    }
+
+    Vector<const uint8_t> one_byte_literal() const {
+      DCHECK(is_one_byte());
+      return Vector<const uint8_t>(
+          reinterpret_cast<const uint8_t*>(backing_store_.start()), position_);
+    }
+
+    int length() const { return is_one_byte() ? position_ : (position_ >> 1); }
+
+    void Start() {
+      position_ = 0;
+      is_one_byte_ = true;
+    }
+
+    Handle<String> Internalize(Isolate* isolate) const;
+
+   private:
+    static const int kInitialCapacity = 16;
+    static const int kGrowthFactor = 4;
+    static const int kMaxGrowth = 1 * MB;
+
+    inline bool IsValidAscii(char code_unit) {
+      // Control characters and printable characters span the range of
+      // valid ASCII characters (0-127). Chars are unsigned on some
+      // platforms which causes compiler warnings if the validity check
+      // tests the lower bound >= 0 as it's always true.
+      return iscntrl(code_unit) || isprint(code_unit);
+    }
+
+    V8_INLINE void AddOneByteChar(byte one_byte_char) {
+      DCHECK(is_one_byte());
+      if (position_ >= backing_store_.length()) ExpandBuffer();
+      backing_store_[position_] = one_byte_char;
+      position_ += kOneByteSize;
+    }
+
+    void AddTwoByteChar(uc32 code_unit);
+    int NewCapacity(int min_capacity);
+    void ExpandBuffer();
+    void ConvertToTwoByte();
+
+    Vector<byte> backing_store_;
+    int position_;
+
+    bool is_one_byte_;
+
+    DISALLOW_COPY_AND_ASSIGN(LiteralBuffer);
+  };
 
   // The current and look-ahead token.
   struct TokenDesc {
@@ -436,15 +530,14 @@ class V8_EXPORT_PRIVATE Scanner {
 #ifdef DEBUG
     bool CanAccessLiteral() const {
       return token == Token::PRIVATE_NAME || token == Token::ILLEGAL ||
-             token == Token::ESCAPED_KEYWORD || token == Token::UNINITIALIZED ||
-             token == Token::REGEXP_LITERAL ||
-             base::IsInRange(token, Token::NUMBER, Token::STRING) ||
+             token == Token::UNINITIALIZED || token == Token::REGEXP_LITERAL ||
+             IsInRange(token, Token::NUMBER, Token::STRING) ||
              Token::IsAnyIdentifier(token) || Token::IsKeyword(token) ||
-             base::IsInRange(token, Token::TEMPLATE_SPAN, Token::TEMPLATE_TAIL);
+             IsInRange(token, Token::TEMPLATE_SPAN, Token::TEMPLATE_TAIL);
     }
     bool CanAccessRawLiteral() const {
       return token == Token::ILLEGAL || token == Token::UNINITIALIZED ||
-             base::IsInRange(token, Token::TEMPLATE_SPAN, Token::TEMPLATE_TAIL);
+             IsInRange(token, Token::TEMPLATE_SPAN, Token::TEMPLATE_TAIL);
     }
 #endif  // DEBUG
   };
@@ -459,11 +552,11 @@ class V8_EXPORT_PRIVATE Scanner {
   };
 
   inline bool IsValidBigIntKind(NumberKind kind) {
-    return base::IsInRange(kind, BINARY, DECIMAL);
+    return IsInRange(kind, BINARY, DECIMAL);
   }
 
   inline bool IsDecimalNumberKind(NumberKind kind) {
-    return base::IsInRange(kind, DECIMAL, DECIMAL_WITH_LEADING_ZERO);
+    return IsInRange(kind, DECIMAL, DECIMAL_WITH_LEADING_ZERO);
   }
 
   static const int kCharacterLookaheadBufferSize = 1;
@@ -544,8 +637,7 @@ class V8_EXPORT_PRIVATE Scanner {
   }
 
   void PushBack(uc32 ch) {
-    DCHECK(IsInvalid(c0_) ||
-           base::IsInRange(c0_, 0u, unibrow::Utf16::kMaxNonSurrogateCharCode));
+    DCHECK_LE(c0_, static_cast<uc32>(unibrow::Utf16::kMaxNonSurrogateCharCode));
     source_->Back();
     c0_ = ch;
   }
@@ -580,18 +672,15 @@ class V8_EXPORT_PRIVATE Scanner {
   // token as a one-byte literal. E.g. Token::FUNCTION pretends to have a
   // literal "function".
   Vector<const uint8_t> literal_one_byte_string() const {
-    DCHECK(current().CanAccessLiteral() || Token::IsKeyword(current().token) ||
-           current().token == Token::ESCAPED_KEYWORD);
+    DCHECK(current().CanAccessLiteral() || Token::IsKeyword(current().token));
     return current().literal_chars.one_byte_literal();
   }
   Vector<const uint16_t> literal_two_byte_string() const {
-    DCHECK(current().CanAccessLiteral() || Token::IsKeyword(current().token) ||
-           current().token == Token::ESCAPED_KEYWORD);
+    DCHECK(current().CanAccessLiteral() || Token::IsKeyword(current().token));
     return current().literal_chars.two_byte_literal();
   }
   bool is_literal_one_byte() const {
-    DCHECK(current().CanAccessLiteral() || Token::IsKeyword(current().token) ||
-           current().token == Token::ESCAPED_KEYWORD);
+    DCHECK(current().CanAccessLiteral() || Token::IsKeyword(current().token));
     return current().literal_chars.is_one_byte();
   }
   // Returns the literal string for the next token (the token that
@@ -627,7 +716,7 @@ class V8_EXPORT_PRIVATE Scanner {
   // number can be 000000001, so it's very long in characters but its value is
   // small.
   template <bool capture_raw>
-  uc32 ScanUnlimitedLengthHexNumber(uc32 max_value, int beg_pos);
+  uc32 ScanUnlimitedLengthHexNumber(int max_value, int beg_pos);
 
   // Scans a single JavaScript token.
   V8_INLINE Token::Value ScanSingleToken();
@@ -649,9 +738,9 @@ class V8_EXPORT_PRIVATE Scanner {
 
   bool ScanDigitsWithNumericSeparators(bool (*predicate)(uc32 ch),
                                        bool is_check_first_digit);
-  bool ScanDecimalDigits(bool allow_numeric_separator);
+  bool ScanDecimalDigits();
   // Optimized function to scan decimal number as Smi.
-  bool ScanDecimalAsSmi(uint64_t* value, bool allow_numeric_separator);
+  bool ScanDecimalAsSmi(uint64_t* value);
   bool ScanDecimalAsSmiWithNumericSeparators(uint64_t* value);
   bool ScanHexDigits();
   bool ScanBinaryDigits();
@@ -708,8 +797,6 @@ class V8_EXPORT_PRIVATE Scanner {
   const TokenDesc& next() const { return *next_; }
   const TokenDesc& next_next() const { return *next_next_; }
 
-  UnoptimizedCompileFlags flags_;
-
   TokenDesc* current_;    // desc for current token (as returned by Next())
   TokenDesc* next_;       // desc for next token (one token look-ahead)
   TokenDesc* next_next_;  // desc for the token after next (after PeakAhead())
@@ -724,6 +811,12 @@ class V8_EXPORT_PRIVATE Scanner {
 
   // Whether this scanner encountered an HTML comment.
   bool found_html_comment_;
+
+  // Harmony flags to allow ESNext features.
+  bool allow_harmony_private_fields_;
+  bool allow_harmony_numeric_separator_;
+
+  const bool is_module_;
 
   // Values parsed from magic comments.
   LiteralBuffer source_url_;

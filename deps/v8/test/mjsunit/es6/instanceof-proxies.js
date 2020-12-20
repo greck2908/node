@@ -11,7 +11,6 @@
   function foo(x) {
     return x instanceof Array;
   }
-  %PrepareFunctionForOptimization(foo);
   assertTrue(foo([]));
   assertFalse(foo({}));
   %OptimizeFunctionOnNextCall(foo);
@@ -43,7 +42,6 @@
     }
     return false;
   }
-  %PrepareFunctionForOptimization(foo_catch);
   assertTrue(foo_catch(o));
   %OptimizeFunctionOnNextCall(foo_catch);
   assertTrue(foo_catch(o));

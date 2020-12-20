@@ -28,14 +28,6 @@ inline void SeqCst_MemoryFence() {
   std::atomic_thread_fence(std::memory_order_seq_cst);
 }
 
-inline Atomic8 Relaxed_CompareAndSwap(volatile Atomic8* ptr, Atomic8 old_value,
-                                      Atomic8 new_value) {
-  std::atomic_compare_exchange_strong_explicit(
-      helper::to_std_atomic(ptr), &old_value, new_value,
-      std::memory_order_relaxed, std::memory_order_relaxed);
-  return old_value;
-}
-
 inline Atomic16 Relaxed_CompareAndSwap(volatile Atomic16* ptr,
                                        Atomic16 old_value, Atomic16 new_value) {
   std::atomic_compare_exchange_strong_explicit(
@@ -65,6 +57,13 @@ inline Atomic32 Relaxed_AtomicIncrement(volatile Atomic32* ptr,
                                                     std::memory_order_relaxed);
 }
 
+inline Atomic32 Barrier_AtomicIncrement(volatile Atomic32* ptr,
+                                        Atomic32 increment) {
+  return increment + std::atomic_fetch_add_explicit(helper::to_std_atomic(ptr),
+                                                    increment,
+                                                    std::memory_order_seq_cst);
+}
+
 inline Atomic32 Acquire_CompareAndSwap(volatile Atomic32* ptr,
                                        Atomic32 old_value, Atomic32 new_value) {
   atomic_compare_exchange_strong_explicit(
@@ -87,15 +86,6 @@ inline Atomic32 Release_CompareAndSwap(volatile Atomic32* ptr,
   atomic_compare_exchange_strong_explicit(
       helper::to_std_atomic(ptr), &old_value, new_value,
       std::memory_order_release, std::memory_order_relaxed);
-  return old_value;
-}
-
-inline Atomic32 AcquireRelease_CompareAndSwap(volatile Atomic32* ptr,
-                                              Atomic32 old_value,
-                                              Atomic32 new_value) {
-  atomic_compare_exchange_strong_explicit(
-      helper::to_std_atomic(ptr), &old_value, new_value,
-      std::memory_order_acq_rel, std::memory_order_acquire);
   return old_value;
 }
 
@@ -162,6 +152,13 @@ inline Atomic64 Relaxed_AtomicIncrement(volatile Atomic64* ptr,
                                                     std::memory_order_relaxed);
 }
 
+inline Atomic64 Barrier_AtomicIncrement(volatile Atomic64* ptr,
+                                        Atomic64 increment) {
+  return increment + std::atomic_fetch_add_explicit(helper::to_std_atomic(ptr),
+                                                    increment,
+                                                    std::memory_order_seq_cst);
+}
+
 inline Atomic64 Acquire_CompareAndSwap(volatile Atomic64* ptr,
                                        Atomic64 old_value, Atomic64 new_value) {
   std::atomic_compare_exchange_strong_explicit(
@@ -175,15 +172,6 @@ inline Atomic64 Release_CompareAndSwap(volatile Atomic64* ptr,
   std::atomic_compare_exchange_strong_explicit(
       helper::to_std_atomic(ptr), &old_value, new_value,
       std::memory_order_release, std::memory_order_relaxed);
-  return old_value;
-}
-
-inline Atomic64 AcquireRelease_CompareAndSwap(volatile Atomic64* ptr,
-                                              Atomic64 old_value,
-                                              Atomic64 new_value) {
-  std::atomic_compare_exchange_strong_explicit(
-      helper::to_std_atomic(ptr), &old_value, new_value,
-      std::memory_order_acq_rel, std::memory_order_acquire);
   return old_value;
 }
 

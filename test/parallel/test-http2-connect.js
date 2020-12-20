@@ -9,11 +9,8 @@ const {
 } = require('../common');
 if (!hasCrypto)
   skip('missing crypto');
-const fixtures = require('../common/fixtures');
-const assert = require('assert');
-const { createServer, createSecureServer, connect } = require('http2');
+const { createServer, connect } = require('http2');
 const { connect: netConnect } = require('net');
-const { connect: tlsConnect } = require('tls');
 
 // Check for session connect callback and event
 {
@@ -72,59 +69,14 @@ const { connect: tlsConnect } = require('tls');
   connect(authority).on('error', () => {});
 }
 
-// Check for session connect callback on already connected TLS socket
-{
-  const serverOptions = {
-    key: fixtures.readKey('agent1-key.pem'),
-    cert: fixtures.readKey('agent1-cert.pem')
-  };
-  const server = createSecureServer(serverOptions);
-  server.listen(0, mustCall(() => {
-    const { port } = server.address();
-
-    const onSocketConnect = () => {
-      const authority = `https://localhost:${port}`;
-      const createConnection = mustCall(() => socket);
-      const options = { createConnection };
-      connect(authority, options, mustCall(onSessionConnect));
-    };
-
-    const onSessionConnect = (session) => {
-      session.close();
-      server.close();
-    };
-
-    const clientOptions = {
-      ALPNProtocols: ['h2'],
-      port,
-      rejectUnauthorized: false
-    };
-    const socket = tlsConnect(clientOptions, mustCall(onSocketConnect));
-  }));
-}
-
-// Check for error for init settings error
-{
-  createServer(function() {
-    connect(`http://localhost:${this.address().port}`, {
-      settings: {
-        maxFrameSize: 1   // An incorrect settings
-      }
-    }).on('error', expectsError({
-      code: 'ERR_HTTP2_INVALID_SETTING_VALUE',
-      name: 'RangeError'
-    }));
-  });
-}
-
 // Check for error for an invalid protocol (not http or https)
 {
   const authority = 'ssh://localhost';
-  assert.throws(() => {
+  expectsError(() => {
     connect(authority);
   }, {
     code: 'ERR_HTTP2_UNSUPPORTED_PROTOCOL',
-    name: 'Error'
+    type: Error
   });
 }
 

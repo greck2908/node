@@ -47,7 +47,6 @@ function TestAddingPropertyToDictionaryPrototype() {
   assertEquals(1, bar_func_called);
 }
 
-%EnsureFeedbackVectorForFunction(TestAddingPropertyToDictionaryPrototype);
 TestAddingPropertyToDictionaryPrototype();
 
 // Same as TestAddingPropertyToDictionaryPrototype, but using o["foo"] access
@@ -83,7 +82,6 @@ function TestAddingPropertyToDictionaryPrototype2() {
   assertEquals(1, bar_func_called);
 }
 
-%EnsureFeedbackVectorForFunction(TestAddingPropertyToDictionaryPrototype2);
 TestAddingPropertyToDictionaryPrototype2();
 
 function TestAddingPropertyToDictionaryPrototype_DefineProperty() {
@@ -115,7 +113,6 @@ function TestAddingPropertyToDictionaryPrototype_DefineProperty() {
   assertEquals(1, bar_func_called);
 }
 
-%EnsureFeedbackVectorForFunction(TestAddingPropertyToDictionaryPrototype_DefineProperty);
 TestAddingPropertyToDictionaryPrototype_DefineProperty();
 
 function TestAddingPropertyToDictionaryPrototype_DictionaryAddSlowPath() {
@@ -149,7 +146,6 @@ function TestAddingPropertyToDictionaryPrototype_DictionaryAddSlowPath() {
   assertEquals(1, bar_func_called);
 }
 
-%EnsureFeedbackVectorForFunction(TestAddingPropertyToDictionaryPrototype_DictionaryAddSlowPath);
 TestAddingPropertyToDictionaryPrototype_DictionaryAddSlowPath();
 
 function TestAddingAccessorPropertyToDictionaryPrototype() {
@@ -181,7 +177,6 @@ function TestAddingAccessorPropertyToDictionaryPrototype() {
   assertEquals(1, bar_func_called);
 }
 
-%EnsureFeedbackVectorForFunction(TestAddingAccessorPropertyToDictionaryPrototype);
 TestAddingAccessorPropertyToDictionaryPrototype();
 
 function TestRemovingPropertyFromDictionaryPrototype() {
@@ -213,7 +208,6 @@ function TestRemovingPropertyFromDictionaryPrototype() {
   assertEquals(10, bar_func_called);
 }
 
-%EnsureFeedbackVectorForFunction(TestRemovingPropertyFromDictionaryPrototype);
 TestRemovingPropertyFromDictionaryPrototype();
 
 // Same as TestRemovingPropertyFromDictionaryPrototype, but using o["foo"] access
@@ -248,7 +242,6 @@ function TestRemovingPropertyFromDictionaryPrototype2() {
   assertEquals(10, bar_func_called);
 }
 
-%EnsureFeedbackVectorForFunction(TestRemovingPropertyFromDictionaryPrototype2);
 TestRemovingPropertyFromDictionaryPrototype2();
 
 function TestAddingPropertyToDictionaryPrototype_Monomorphic() {
@@ -293,7 +286,6 @@ function TestAddingPropertyToDictionaryPrototype_Monomorphic() {
   assertEquals(1, bar_func_called);
 }
 
-%EnsureFeedbackVectorForFunction(TestAddingPropertyToDictionaryPrototype_Monomorphic);
 TestAddingPropertyToDictionaryPrototype_Monomorphic();
 
 function TestAddingKeyedPropertyToDictionaryPrototype_Monomorphic() {
@@ -339,7 +331,6 @@ function TestAddingKeyedPropertyToDictionaryPrototype_Monomorphic() {
   assertEquals(1, bar_func_called);
 }
 
-%EnsureFeedbackVectorForFunction(TestAddingKeyedPropertyToDictionaryPrototype_Monomorphic);
 TestAddingKeyedPropertyToDictionaryPrototype_Monomorphic();
 
 // Like TestAddingPropertyToDictionaryPrototype, except that the prototype isn't
@@ -378,7 +369,6 @@ function TestAddingPropertyToAlmostDictionaryPrototype() {
   assertEquals(1, bar_func_called);
 }
 
-%EnsureFeedbackVectorForFunction(TestAddingPropertyToAlmostDictionaryPrototype);
 TestAddingPropertyToAlmostDictionaryPrototype();
 
 function TestReconfiguringDataToAccessor() {
@@ -416,5 +406,4 @@ function TestReconfiguringDataToAccessor() {
   assertEquals(1, setter_called);
 }
 
-%EnsureFeedbackVectorForFunction(TestReconfiguringDataToAccessor);
 TestReconfiguringDataToAccessor();

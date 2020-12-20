@@ -160,7 +160,6 @@ function id(v) {
   function f() {
     return [...'abc'];
   }
-  %PrepareFunctionForOptimization(f);
   assertArrayEquals(['a', 'b', 'c'], f());
   %OptimizeFunctionOnNextCall(f);
   assertArrayEquals(['a', 'b', 'c'], f());
@@ -195,7 +194,6 @@ function id(v) {
     return ['a', ...['b', 'c', 'd'], 'e']
   }
 
-  %PrepareFunctionForOptimization(f);
   assertArrayEquals(['a', 'b', 'c', 'd', 'e'], f());
   %OptimizeFunctionOnNextCall(f);
   assertArrayEquals(['a', 'b', 'c', 'd', 'e'], f());
@@ -213,7 +211,6 @@ function id(v) {
     return ['a', ...['b', 'c', 'd'], 'e']
   }
 
-  %PrepareFunctionForOptimization(f);
   assertArrayEquals(['a', 'b', 'c', 'd', 'e'], f());
   %OptimizeFunctionOnNextCall(f);
   assertArrayEquals(['a', 'b', 'c', 'd', 'e'], f());
@@ -231,7 +228,6 @@ function id(v) {
     return ['a', ...['b', 'c', 'd'], 'e']
   }
 
-  %PrepareFunctionForOptimization(f);
   assertArrayEquals(['a', 'b', 'c', 'd', 'e'], f());
   %OptimizeFunctionOnNextCall(f);
   assertArrayEquals(['a', 'b', 'c', 'd', 'e'], f());

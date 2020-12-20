@@ -32,6 +32,7 @@ namespace node {
 
 using v8::Array;
 using v8::Context;
+using v8::Function;
 using v8::FunctionCallbackInfo;
 using v8::FunctionTemplate;
 using v8::Integer;
@@ -50,7 +51,8 @@ void TTYWrap::Initialize(Local<Object> target,
 
   Local<FunctionTemplate> t = env->NewFunctionTemplate(New);
   t->SetClassName(ttyString);
-  t->InstanceTemplate()->SetInternalFieldCount(StreamBase::kInternalFieldCount);
+  t->InstanceTemplate()
+    ->SetInternalFieldCount(StreamBase::kStreamBaseFieldCount);
   t->Inherit(LibuvStreamWrap::GetConstructorTemplate(env));
 
   env->SetProtoMethodNoSideEffect(t, "getWindowSize", TTYWrap::GetWindowSize);

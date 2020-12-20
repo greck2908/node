@@ -3,11 +3,7 @@
 // found in the LICENSE file.
 
 // Flags: --allow-natives-syntax --expose-gc --turbo-inline-array-builtins
-// Flags: --opt --no-always-opt --no-lazy-feedback-allocation
-
-// TODO(v8:10195): Fix these tests s.t. we assert deoptimization occurs when
-// expected (e.g. in a %DeoptimizeNow call), then remove
-// --no-lazy-feedback-allocation.
+// Flags: --opt --no-always-opt
 
 var a = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,0,0];
 var b = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
@@ -24,11 +20,9 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
         a.abc = 25;
       }
       return v;
-    };
-    %EnsureFeedbackVectorForFunction(callback);
+    }
     a.map(callback);
-  };
-  %PrepareFunctionForOptimization(eagerDeoptInCalled);
+  }
   eagerDeoptInCalled();
   eagerDeoptInCalled();
   %OptimizeFunctionOnNextCall(eagerDeoptInCalled);
@@ -46,11 +40,9 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
       result += v;
       a.length = (i == 13 && deopt) ? 25 : 27;
       return v;
-    };
-    %EnsureFeedbackVectorForFunction(callback);
+    }
     a.map(callback);
-  };
-  %PrepareFunctionForOptimization(eagerDeoptInCalled);
+  }
   eagerDeoptInCalled();
   eagerDeoptInCalled();
   %OptimizeFunctionOnNextCall(eagerDeoptInCalled);
@@ -71,11 +63,9 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
         a_noescape.length = 25;
       }
       return v;
-    };
-    %EnsureFeedbackVectorForFunction(callback);
+    }
     a_noescape.map(callback);
-  };
-  %PrepareFunctionForOptimization(eagerDeoptInCalled);
+  }
   eagerDeoptInCalled();
   eagerDeoptInCalled();
   %OptimizeFunctionOnNextCall(eagerDeoptInCalled);
@@ -100,11 +90,9 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
       gc(); gc();
       return v;
     };
-    %EnsureFeedbackVectorForFunction(callback);
     %NeverOptimizeFunction(callback);
     b.map(callback);
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   lazyDeopt();
   lazyDeopt();
   %OptimizeFunctionOnNextCall(lazyDeopt);
@@ -125,11 +113,9 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
       }
       return 2 * v;
     };
-    %EnsureFeedbackVectorForFunction(callback);
     %NeverOptimizeFunction(callback);
     return b.map(callback);
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   assertEquals([2,4,6], lazyDeopt());
   assertEquals([2,4,6], lazyDeopt());
   %OptimizeFunctionOnNextCall(lazyDeopt);
@@ -146,11 +132,9 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
           %DeoptimizeNow();
       }
       return v;
-    };
-    %EnsureFeedbackVectorForFunction(callback);
+    }
     b.map(callback);
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   lazyDeopt();
   lazyDeopt();
   %OptimizeFunctionOnNextCall(lazyDeopt);
@@ -171,11 +155,9 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
       }
       return v;
     };
-    %EnsureFeedbackVectorForFunction(callback);
     %NeverOptimizeFunction(callback);
     b.map(callback);
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   lazyDeopt();
   lazyDeopt();
   %OptimizeFunctionOnNextCall(lazyDeopt);
@@ -197,11 +179,9 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
           gc();
       }
       return v;
-    };
-    %EnsureFeedbackVectorForFunction(callback);
+    }
     c.map(callback);
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   lazyDeopt();
   lazyDeopt();
   %OptimizeFunctionOnNextCall(lazyDeopt);
@@ -223,15 +203,13 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
         throw("a");
       }
       return v;
-    };
-    %EnsureFeedbackVectorForFunction(callback);
+    }
     try {
       c.map(callback);
     } catch (e) {
       caught = true;
     }
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   lazyDeopt();
   lazyDeopt();
   %OptimizeFunctionOnNextCall(lazyDeopt);
@@ -254,15 +232,13 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
       }
       return v;
     };
-    %EnsureFeedbackVectorForFunction(callback);
     %NeverOptimizeFunction(callback);
     try {
       c.map(callback);
     } catch (e) {
       caught = true;
     }
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   lazyDeopt();
   lazyDeopt();
   %OptimizeFunctionOnNextCall(lazyDeopt);
@@ -284,7 +260,6 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
       }
       return 2 * v;
     };
-    %EnsureFeedbackVectorForFunction(callback);
     %NeverOptimizeFunction(callback);
     var result = 0;
     try {
@@ -294,8 +269,7 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
       result = "nope";
     }
     return result;
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   assertEquals([2,4,6,8], lazyDeopt(false));
   assertEquals([2,4,6,8], lazyDeopt(false));
   assertEquals("nope", lazyDeopt(true));
@@ -318,11 +292,9 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
       }
       return v;
     };
-    %EnsureFeedbackVectorForFunction(callback);
     var o = [1,2,3];
     b.map(callback);
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   lazyDeopt();
   lazyDeopt();
   %OptimizeFunctionOnNextCall(lazyDeopt);
@@ -342,12 +314,10 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
       }
       return v;
     };
-    %EnsureFeedbackVectorForFunction(callback);
     %NeverOptimizeFunction(callback);
     var o = [1,2,3];
     b.map(callback);
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   lazyDeopt();
   lazyDeopt();
   %OptimizeFunctionOnNextCall(lazyDeopt);
@@ -369,11 +339,9 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
       }
       return v;
     };
-    %EnsureFeedbackVectorForFunction(callback);
     var o = [1,2,3];
     b.map(callback);
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   lazyDeopt();
   lazyDeopt();
   %OptimizeFunctionOnNextCall(lazyDeopt);
@@ -393,10 +361,8 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
       }
       return v;
     };
-    %EnsureFeedbackVectorForFunction(callback);
     a.map(callback);
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   assertThrows(() => lazyDeopt());
   assertThrows(() => lazyDeopt());
   try {
@@ -427,11 +393,9 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
         // array.
         return v;
       }
-    };
-    %EnsureFeedbackVectorForFunction(callback);
+    }
     return c.map(callback);
-  };
-  %PrepareFunctionForOptimization(to_double);
+  }
   to_double();
   to_double();
   %OptimizeFunctionOnNextCall(to_double);
@@ -459,11 +423,9 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
         // Later, to PACKED_ELEMENTS.
         return v + 'hello';
       }
-    };
-    %EnsureFeedbackVectorForFunction(callback);
+    }
     return c.map(callback);
-  };
-  %PrepareFunctionForOptimization(to_fast);
+  }
   to_fast();
   to_fast();
   %OptimizeFunctionOnNextCall(to_fast);
@@ -481,10 +443,8 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
   function double_results() {
     // TurboFan recognizes the result is a double.
     var callback = v => v + 0.5;
-    %EnsureFeedbackVectorForFunction(callback);
     return a.map(callback);
   }
-  %PrepareFunctionForOptimization(double_results);
   double_results();
   double_results();
   %OptimizeFunctionOnNextCall(double_results);
@@ -501,7 +461,6 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
     var callback = v => "hello" + v.toString();
     return a.map(callback);
   }
-  %PrepareFunctionForOptimization(string_results);
   string_results();
   string_results();
   %OptimizeFunctionOnNextCall(string_results);
@@ -520,7 +479,6 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
       return v;
     });
   }
-  %PrepareFunctionForOptimization(withHoles);
   withHoles();
   withHoles();
   %OptimizeFunctionOnNextCall(withHoles);
@@ -538,7 +496,6 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
       return v;
     });
   }
-  %PrepareFunctionForOptimization(withHoles);
   withHoles();
   withHoles();
   %OptimizeFunctionOnNextCall(withHoles);
@@ -556,7 +513,6 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
   }
 
   let a = [1, 2, 3];
-  %PrepareFunctionForOptimization(unreliable);
   unreliable(a, false);
   unreliable(a, false);
   %OptimizeFunctionOnNextCall(unreliable);
@@ -575,8 +531,7 @@ var c = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25];
       return v;
     }
     a.map(callback);
-  };
-  %PrepareFunctionForOptimization(species_breakage);
+  }
   species_breakage();
   species_breakage();
   %OptimizeFunctionOnNextCall(species_breakage);

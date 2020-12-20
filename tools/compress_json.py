@@ -7,16 +7,14 @@ import zlib
 
 try:
     xrange          # Python 2
-    PY2 = True
 except NameError:
-    PY2 = False
     xrange = range  # Python 3
 
 
 if __name__ == '__main__':
-  with open(sys.argv[1]) as fp:
-    obj = json.load(fp)
-  text = json.dumps(obj, separators=(',', ':')).encode('utf-8')
+  fp = open(sys.argv[1])
+  obj = json.load(fp)
+  text = json.dumps(obj, separators=(',', ':'))
   data = zlib.compress(text, zlib.Z_BEST_COMPRESSION)
 
   # To make decompression a little easier, we prepend the compressed data
@@ -26,8 +24,8 @@ if __name__ == '__main__':
 
   step = 20
   slices = (data[i:i+step] for i in xrange(0, len(data), step))
-  slices = [','.join(str(ord(c) if PY2 else c) for c in s) for s in slices]
+  slices = [','.join(str(ord(c)) for c in s) for s in slices]
   text = ',\n'.join(slices)
 
-  with open(sys.argv[2], 'w') as fp:
-    fp.write(text)
+  fp = open(sys.argv[2], 'w')
+  fp.write(text)

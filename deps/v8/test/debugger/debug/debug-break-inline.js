@@ -63,7 +63,6 @@ function h() {
   debugger;
 }
 
-%PrepareFunctionForOptimization(f);
 f();f();f();
 %OptimizeFunctionOnNextCall(f);
 f();

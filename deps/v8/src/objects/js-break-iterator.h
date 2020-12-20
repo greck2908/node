@@ -12,10 +12,9 @@
 #include <set>
 #include <string>
 
+#include "src/objects.h"
 #include "src/objects/intl-objects.h"
 #include "src/objects/managed.h"
-#include "src/objects/objects.h"
-#include "torque-generated/field-offsets.h"
 
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
@@ -27,12 +26,11 @@ class BreakIterator;
 namespace v8 {
 namespace internal {
 
-class JSV8BreakIterator
-    : public TorqueGeneratedJSV8BreakIterator<JSV8BreakIterator, JSObject> {
+class JSV8BreakIterator : public JSObject {
  public:
-  V8_WARN_UNUSED_RESULT static MaybeHandle<JSV8BreakIterator> New(
-      Isolate* isolate, Handle<Map> map, Handle<Object> input_locales,
-      Handle<Object> input_options, const char* service);
+  V8_WARN_UNUSED_RESULT static MaybeHandle<JSV8BreakIterator> Initialize(
+      Isolate* isolate, Handle<JSV8BreakIterator> break_iterator,
+      Handle<Object> input_locales, Handle<Object> input_options);
 
   static Handle<JSObject> ResolvedOptions(
       Isolate* isolate, Handle<JSV8BreakIterator> break_iterator);
@@ -52,12 +50,44 @@ class JSV8BreakIterator
   static String BreakType(Isolate* isolate,
                           Handle<JSV8BreakIterator> break_iterator);
 
-  DECL_PRINTER(JSV8BreakIterator)
+  enum class Type { CHARACTER, WORD, SENTENCE, LINE, COUNT };
+  inline void set_type(Type type);
+  inline Type type() const;
 
+  Handle<String> TypeAsString() const;
+
+  DECL_CAST(JSV8BreakIterator)
+  DECL_PRINTER(JSV8BreakIterator)
+  DECL_VERIFIER(JSV8BreakIterator)
+
+  DECL_ACCESSORS(locale, String)
   DECL_ACCESSORS(break_iterator, Managed<icu::BreakIterator>)
   DECL_ACCESSORS(unicode_string, Managed<icu::UnicodeString>)
+  DECL_ACCESSORS(bound_adopt_text, Object)
+  DECL_ACCESSORS(bound_first, Object)
+  DECL_ACCESSORS(bound_next, Object)
+  DECL_ACCESSORS(bound_current, Object)
+  DECL_ACCESSORS(bound_break_type, Object)
 
-  TQ_OBJECT_CONSTRUCTORS(JSV8BreakIterator)
+// Layout description.
+#define BREAK_ITERATOR_FIELDS(V)        \
+  /* Pointer fields. */                 \
+  V(kLocaleOffset, kTaggedSize)         \
+  V(kTypeOffset, kTaggedSize)           \
+  V(kBreakIteratorOffset, kTaggedSize)  \
+  V(kUnicodeStringOffset, kTaggedSize)  \
+  V(kBoundAdoptTextOffset, kTaggedSize) \
+  V(kBoundFirstOffset, kTaggedSize)     \
+  V(kBoundNextOffset, kTaggedSize)      \
+  V(kBoundCurrentOffset, kTaggedSize)   \
+  V(kBoundBreakTypeOffset, kTaggedSize) \
+  /* Total Size */                      \
+  V(kSize, 0)
+
+  DEFINE_FIELD_OFFSET_CONSTANTS(JSObject::kHeaderSize, BREAK_ITERATOR_FIELDS)
+#undef BREAK_ITERATOR_FIELDS
+
+  OBJECT_CONSTRUCTORS(JSV8BreakIterator, JSObject);
 };
 
 }  // namespace internal

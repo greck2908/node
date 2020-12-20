@@ -91,8 +91,6 @@ static const char VAR_DELIM = '_';
 // Tag for localized display names (symbols) of currencies
 static const char CURRENCIES[] = "Currencies";
 static const char CURRENCIES_NARROW[] = "Currencies%narrow";
-static const char CURRENCIES_FORMAL[] = "Currencies%formal";
-static const char CURRENCIES_VARIANT[] = "Currencies%variant";
 static const char CURRENCYPLURALS[] = "CurrencyPlurals";
 
 // ISO codes mapping table
@@ -367,7 +365,10 @@ U_CDECL_END
 #if !UCONFIG_NO_SERVICE
 struct CReg;
 
-static UMutex gCRegLock;
+static UMutex *gCRegLock() {
+    static UMutex m = U_MUTEX_INITIALIZER;
+    return &m;
+}
 static CReg* gCRegHead = 0;
 
 struct CReg : public icu::UMemory {
@@ -393,14 +394,14 @@ struct CReg : public icu::UMemory {
         if (status && U_SUCCESS(*status) && _iso && _id) {
             CReg* n = new CReg(_iso, _id);
             if (n) {
-                umtx_lock(&gCRegLock);
+                umtx_lock(gCRegLock());
                 if (!gCRegHead) {
                     /* register for the first time */
                     ucln_common_registerCleanup(UCLN_COMMON_CURRENCY, currency_cleanup);
                 }
                 n->next = gCRegHead;
                 gCRegHead = n;
-                umtx_unlock(&gCRegLock);
+                umtx_unlock(gCRegLock());
                 return n;
             }
             *status = U_MEMORY_ALLOCATION_ERROR;
@@ -410,7 +411,7 @@ struct CReg : public icu::UMemory {
 
     static UBool unreg(UCurrRegistryKey key) {
         UBool found = FALSE;
-        umtx_lock(&gCRegLock);
+        umtx_lock(gCRegLock());
 
         CReg** p = &gCRegHead;
         while (*p) {
@@ -423,13 +424,13 @@ struct CReg : public icu::UMemory {
             p = &((*p)->next);
         }
 
-        umtx_unlock(&gCRegLock);
+        umtx_unlock(gCRegLock());
         return found;
     }
 
     static const UChar* get(const char* id) {
         const UChar* result = NULL;
-        umtx_lock(&gCRegLock);
+        umtx_lock(gCRegLock());
         CReg* p = gCRegHead;
 
         /* register cleanup of the mutex */
@@ -441,7 +442,7 @@ struct CReg : public icu::UMemory {
             }
             p = p->next;
         }
-        umtx_unlock(&gCRegLock);
+        umtx_unlock(gCRegLock());
         return result;
     }
 
@@ -651,7 +652,7 @@ ucurr_getName(const UChar* currency,
     }
 
     int32_t choice = (int32_t) nameStyle;
-    if (choice < 0 || choice > 4) {
+    if (choice < 0 || choice > 2) {
         *ec = U_ILLEGAL_ARGUMENT_ERROR;
         return 0;
     }
@@ -686,22 +687,9 @@ ucurr_getName(const UChar* currency,
     ec2 = U_ZERO_ERROR;
     LocalUResourceBundlePointer rb(ures_open(U_ICUDATA_CURR, loc, &ec2));
 
-    if (nameStyle == UCURR_NARROW_SYMBOL_NAME || nameStyle == UCURR_FORMAL_SYMBOL_NAME || nameStyle == UCURR_VARIANT_SYMBOL_NAME) {
+    if (nameStyle == UCURR_NARROW_SYMBOL_NAME) {
         CharString key;
-        switch (nameStyle) {
-        case UCURR_NARROW_SYMBOL_NAME:
-            key.append(CURRENCIES_NARROW, ec2);
-            break;
-        case UCURR_FORMAL_SYMBOL_NAME:
-            key.append(CURRENCIES_FORMAL, ec2);
-            break;
-        case UCURR_VARIANT_SYMBOL_NAME:
-            key.append(CURRENCIES_VARIANT, ec2);
-            break;
-        default:
-            *ec = U_UNSUPPORTED_ERROR;
-            return 0;
-        }
+        key.append(CURRENCIES_NARROW, ec2);
         key.append("/", ec2);
         key.append(buf, ec2);
         s = ures_getStringByKeyWithFallback(rb.getAlias(), key.data(), len, &ec2);
@@ -728,9 +716,7 @@ ucurr_getName(const UChar* currency,
 
     // We no longer support choice format data in names.  Data should not contain
     // choice patterns.
-    if (isChoiceFormat != NULL) {
-        *isChoiceFormat = FALSE;
-    }
+    *isChoiceFormat = FALSE;
     if (U_SUCCESS(ec2)) {
         U_ASSERT(s != NULL);
         return s;
@@ -881,7 +867,7 @@ getCurrencyNameCount(const char* loc, int32_t* total_currency_name_count, int32_
     *total_currency_name_count = 0;
     *total_currency_symbol_count = 0;
     const UChar* s = NULL;
-    char locale[ULOC_FULLNAME_CAPACITY] = "";
+    char locale[ULOC_FULLNAME_CAPACITY];
     uprv_strcpy(locale, loc);
     const icu::Hashtable *currencySymbolsEquiv = getCurrSymbolsEquiv();
     for (;;) {
@@ -956,7 +942,7 @@ collectCurrencyNames(const char* locale,
     // Look up the Currencies resource for the given locale.
     UErrorCode ec2 = U_ZERO_ERROR;
 
-    char loc[ULOC_FULLNAME_CAPACITY] = "";
+    char loc[ULOC_FULLNAME_CAPACITY];
     uloc_getName(locale, loc, sizeof(loc), &ec2);
     if (U_FAILURE(ec2) || ec2 == U_STRING_NOT_TERMINATED_WARNING) {
         ec = U_ILLEGAL_ARGUMENT_ERROR;
@@ -1370,7 +1356,10 @@ static CurrencyNameCacheEntry* currCache[CURRENCY_NAME_CACHE_NUM] = {NULL};
 // It is a simple round-robin replacement strategy.
 static int8_t currentCacheEntryIndex = 0;
 
-static UMutex gCurrencyCacheMutex;
+static UMutex *gCurrencyCacheMutex() {
+    static UMutex m = U_MUTEX_INITIALIZER;
+    return &m;
+}
 
 // Cache deletion
 static void
@@ -1419,7 +1408,7 @@ getCacheEntry(const char* locale, UErrorCode& ec) {
     CurrencyNameStruct* currencySymbols = NULL;
     CurrencyNameCacheEntry* cacheEntry = NULL;
 
-    umtx_lock(&gCurrencyCacheMutex);
+    umtx_lock(gCurrencyCacheMutex());
     // in order to handle racing correctly,
     // not putting 'search' in a separate function.
     int8_t found = -1;
@@ -1434,13 +1423,13 @@ getCacheEntry(const char* locale, UErrorCode& ec) {
         cacheEntry = currCache[found];
         ++(cacheEntry->refCount);
     }
-    umtx_unlock(&gCurrencyCacheMutex);
+    umtx_unlock(gCurrencyCacheMutex());
     if (found == -1) {
         collectCurrencyNames(locale, &currencyNames, &total_currency_name_count, &currencySymbols, &total_currency_symbol_count, ec);
         if (U_FAILURE(ec)) {
             return NULL;
         }
-        umtx_lock(&gCurrencyCacheMutex);
+        umtx_lock(gCurrencyCacheMutex());
         // check again.
         for (int8_t i = 0; i < CURRENCY_NAME_CACHE_NUM; ++i) {
             if (currCache[i]!= NULL &&
@@ -1479,19 +1468,19 @@ getCacheEntry(const char* locale, UErrorCode& ec) {
             cacheEntry = currCache[found];
             ++(cacheEntry->refCount);
         }
-        umtx_unlock(&gCurrencyCacheMutex);
+        umtx_unlock(gCurrencyCacheMutex());
     }
 
     return cacheEntry;
 }
 
 static void releaseCacheEntry(CurrencyNameCacheEntry* cacheEntry) {
-    umtx_lock(&gCurrencyCacheMutex);
+    umtx_lock(gCurrencyCacheMutex());
     --(cacheEntry->refCount);
     if (cacheEntry->refCount == 0) {  // remove
         deleteCacheEntry(cacheEntry);
     }
-    umtx_unlock(&gCurrencyCacheMutex);
+    umtx_unlock(gCurrencyCacheMutex());
 }
 
 U_CAPI void
@@ -1612,9 +1601,10 @@ uprv_getStaticCurrencyName(const UChar* iso, const char* loc,
 {
     U_NAMESPACE_USE
 
+    UBool isChoiceFormat;
     int32_t len;
     const UChar* currname = ucurr_getName(iso, loc, UCURR_SYMBOL_NAME,
-                                          nullptr /* isChoiceFormat */, &len, &ec);
+                                          &isChoiceFormat, &len, &ec);
     if (U_SUCCESS(ec)) {
         result.setTo(currname, len);
     }
@@ -1625,7 +1615,7 @@ ucurr_getDefaultFractionDigits(const UChar* currency, UErrorCode* ec) {
     return ucurr_getDefaultFractionDigitsForUsage(currency,UCURR_USAGE_STANDARD,ec);
 }
 
-U_CAPI int32_t U_EXPORT2
+U_DRAFT int32_t U_EXPORT2
 ucurr_getDefaultFractionDigitsForUsage(const UChar* currency, const UCurrencyUsage usage, UErrorCode* ec) {
     int32_t fracDigits = 0;
     if (U_SUCCESS(*ec)) {
@@ -1648,7 +1638,7 @@ ucurr_getRoundingIncrement(const UChar* currency, UErrorCode* ec) {
     return ucurr_getRoundingIncrementForUsage(currency, UCURR_USAGE_STANDARD, ec);
 }
 
-U_CAPI double U_EXPORT2
+U_DRAFT double U_EXPORT2
 ucurr_getRoundingIncrementForUsage(const UChar* currency, const UCurrencyUsage usage, UErrorCode* ec) {
     double result = 0.0;
 
@@ -2274,6 +2264,7 @@ ucurr_countCurrencies(const char* locale,
         // local variables
         UErrorCode localStatus = U_ZERO_ERROR;
         char id[ULOC_FULLNAME_CAPACITY];
+        uloc_getKeywordValue(locale, "currency", id, ULOC_FULLNAME_CAPACITY, &localStatus);
 
         // get country or country_variant in `id'
         idForLocale(locale, id, sizeof(id), ec);
@@ -2389,6 +2380,7 @@ ucurr_forLocaleAndDate(const char* locale,
             // local variables
             UErrorCode localStatus = U_ZERO_ERROR;
             char id[ULOC_FULLNAME_CAPACITY];
+            resLen = uloc_getKeywordValue(locale, "currency", id, ULOC_FULLNAME_CAPACITY, &localStatus);
 
             // get country or country_variant in `id'
             idForLocale(locale, id, sizeof(id), ec);

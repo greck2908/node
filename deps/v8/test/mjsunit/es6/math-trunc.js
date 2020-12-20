@@ -32,7 +32,6 @@ var test_id = 0;
 function testTrunc(expected, input) {
   var test = new Function('n',
                           '"' + (test_id++) + '";return Math.trunc(n)');
-  %PrepareFunctionForOptimization(test);
   assertEquals(expected, test(input));
   assertEquals(expected, test(input));
   assertEquals(expected, test(input));
@@ -42,7 +41,6 @@ function testTrunc(expected, input) {
   var test_double_input = new Function(
       'n',
       '"' + (test_id++) + '";return Math.trunc(+n)');
-  %PrepareFunctionForOptimization(test_double_input);
   assertEquals(expected, test_double_input(input));
   assertEquals(expected, test_double_input(input));
   assertEquals(expected, test_double_input(input));
@@ -52,7 +50,6 @@ function testTrunc(expected, input) {
   var test_double_output = new Function(
       'n',
       '"' + (test_id++) + '";return Math.trunc(n) + -0.0');
-  %PrepareFunctionForOptimization(test_double_output);
   assertEquals(expected, test_double_output(input));
   assertEquals(expected, test_double_output(input));
   assertEquals(expected, test_double_output(input));
@@ -66,7 +63,6 @@ function test() {
   function itrunc(x) {
     return 1 / Math.trunc(x);
   }
-  %PrepareFunctionForOptimization(itrunc);
   assertEquals(Infinity, itrunc(0));
   assertEquals(-Infinity, itrunc(-0));
   assertEquals(Infinity, itrunc(Math.PI / 4));

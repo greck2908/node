@@ -541,9 +541,6 @@ class DebugWrapper {
       case "boolean": {
         break;
       }
-      case "function": {
-        value = obj.description;
-      }
       default: {
         break;
       }
@@ -632,12 +629,6 @@ class DebugWrapper {
 
     const result = reply.result.result;
     return this.reconstructRemoteObject(result);
-  }
-
-  evaluateGlobalREPL(expr) {
-    return %RuntimeEvaluateREPL(expr).then(value => {
-      return value[".repl_result"];
-    });
   }
 
   eventDataException(params) {

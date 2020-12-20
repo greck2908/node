@@ -46,10 +46,8 @@ using v8::HandleScope;
 using v8::Local;
 using v8::MaybeLocal;
 using v8::Object;
-using v8::PropertyAttribute;
 using v8::ReadOnly;
 using v8::Signature;
-using v8::String;
 using v8::Value;
 
 
@@ -66,7 +64,8 @@ void LibuvStreamWrap::Initialize(Local<Object> target,
   };
   Local<FunctionTemplate> sw =
       FunctionTemplate::New(env->isolate(), is_construct_call_callback);
-  sw->InstanceTemplate()->SetInternalFieldCount(StreamReq::kInternalFieldCount);
+  sw->InstanceTemplate()->SetInternalFieldCount(
+      StreamReq::kStreamReqField + 1 + 3);
   Local<String> wrapString =
       FIXED_ONE_BYTE_STRING(env->isolate(), "ShutdownWrap");
   sw->SetClassName(wrapString);
@@ -79,7 +78,7 @@ void LibuvStreamWrap::Initialize(Local<Object> target,
   // - callback
   // - handle
   sw->InstanceTemplate()->Set(
-      env->oncomplete_string(),
+      FIXED_ONE_BYTE_STRING(env->isolate(), "oncomplete"),
       v8::Null(env->isolate()));
   sw->InstanceTemplate()->Set(FIXED_ONE_BYTE_STRING(env->isolate(), "callback"),
       v8::Null(env->isolate()));
@@ -95,8 +94,7 @@ void LibuvStreamWrap::Initialize(Local<Object> target,
 
   Local<FunctionTemplate> ww =
       FunctionTemplate::New(env->isolate(), is_construct_call_callback);
-  ww->InstanceTemplate()->SetInternalFieldCount(
-      StreamReq::kInternalFieldCount);
+  ww->InstanceTemplate()->SetInternalFieldCount(StreamReq::kStreamReqField + 1);
   Local<String> writeWrapString =
       FIXED_ONE_BYTE_STRING(env->isolate(), "WriteWrap");
   ww->SetClassName(writeWrapString);
@@ -138,11 +136,11 @@ Local<FunctionTemplate> LibuvStreamWrap::GetConstructorTemplate(
         FIXED_ONE_BYTE_STRING(env->isolate(), "LibuvStreamWrap"));
     tmpl->Inherit(HandleWrap::GetConstructorTemplate(env));
     tmpl->InstanceTemplate()->SetInternalFieldCount(
-        StreamBase::kInternalFieldCount);
+        StreamBase::kStreamBaseFieldCount);
     Local<FunctionTemplate> get_write_queue_size =
         FunctionTemplate::New(env->isolate(),
                               GetWriteQueueSize,
-                              Local<Value>(),
+                              env->as_callback_data(),
                               Signature::New(env->isolate(), tmpl));
     tmpl->PrototypeTemplate()->SetAccessorProperty(
         env->write_queue_size_string(),

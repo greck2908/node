@@ -113,14 +113,14 @@ const rangeFile = fixtures.path('x.txt');
     'The value of "start" is out of range. It must be <= "end" (here: 2).' +
     ' Received 10';
 
-  assert.throws(
+  common.expectsError(
     () => {
       fs.createReadStream(rangeFile, Object.create({ start: 10, end: 2 }));
     },
     {
       code: 'ERR_OUT_OF_RANGE',
       message,
-      name: 'RangeError'
+      type: RangeError
     });
 }
 

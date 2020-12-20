@@ -16,8 +16,11 @@
 namespace v8 {
 namespace internal {
 
+CAST_ACCESSOR(EmbedderDataArray)
 
-TQ_OBJECT_CONSTRUCTORS_IMPL(EmbedderDataArray)
+SMI_ACCESSORS(EmbedderDataArray, length, kLengthOffset)
+
+OBJECT_CONSTRUCTORS_IMPL(EmbedderDataArray, HeapObject)
 
 Address EmbedderDataArray::slots_start() {
   return FIELD_ADDR(*this, OffsetOfElementAt(0));

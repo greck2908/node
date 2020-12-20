@@ -1,15 +1,15 @@
 'use strict';
 
 // Tests below are not from WPT.
-require('../common');
+const common = require('../common');
 const assert = require('assert');
 
 const ref = new URL('http://example.com/path');
 const url = new URL('http://example.com/path');
-assert.throws(() => {
+common.expectsError(() => {
   url.href = '';
 }, {
-  name: 'TypeError'
+  type: TypeError
 });
 
 assert.deepStrictEqual(url, ref);

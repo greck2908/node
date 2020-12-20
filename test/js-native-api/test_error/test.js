@@ -60,30 +60,40 @@ assert.throws(() => {
   test_error.throwTypeError();
 }, /^TypeError: type error$/);
 
-[42, {}, [], Symbol('xyzzy'), true, 'ball', undefined, null, NaN]
-  .forEach((value) => assert.throws(
+function testThrowArbitrary(value) {
+  assert.throws(
     () => test_error.throwArbitrary(value),
     (err) => {
       assert.strictEqual(err, value);
       return true;
-    }
-  ));
+    });
+}
 
-assert.throws(
+testThrowArbitrary(42);
+testThrowArbitrary({});
+testThrowArbitrary([]);
+testThrowArbitrary(Symbol('xyzzy'));
+testThrowArbitrary(true);
+testThrowArbitrary('ball');
+testThrowArbitrary(undefined);
+testThrowArbitrary(null);
+testThrowArbitrary(NaN);
+
+common.expectsError(
   () => test_error.throwErrorCode(),
   {
     code: 'ERR_TEST_CODE',
     message: 'Error [error]'
   });
 
-assert.throws(
+common.expectsError(
   () => test_error.throwRangeErrorCode(),
   {
     code: 'ERR_TEST_CODE',
     message: 'RangeError [range error]'
   });
 
-assert.throws(
+common.expectsError(
   () => test_error.throwTypeErrorCode(),
   {
     code: 'ERR_TEST_CODE',

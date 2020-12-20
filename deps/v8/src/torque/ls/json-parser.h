@@ -17,7 +17,7 @@ namespace ls {
 
 struct JsonParserResult {
   JsonValue value;
-  base::Optional<TorqueMessage> error;
+  base::Optional<TorqueError> error;
 };
 
 V8_EXPORT_PRIVATE JsonParserResult ParseJson(const std::string& input);

@@ -26,20 +26,20 @@ function onStream(stream, headers, flags) {
   }, { waitForTrailers: true });
   stream.on('wantTrailers', () => {
     stream.sendTrailers({ [trailerKey]: trailerValue });
-    assert.throws(
+    common.expectsError(
       () => stream.sendTrailers({}),
       {
         code: 'ERR_HTTP2_TRAILERS_ALREADY_SENT',
-        name: 'Error'
+        type: Error
       }
     );
   });
 
-  assert.throws(
+  common.expectsError(
     () => stream.sendTrailers({}),
     {
       code: 'ERR_HTTP2_TRAILERS_NOT_READY',
-      name: 'Error'
+      type: Error
     }
   );
 }
@@ -58,11 +58,11 @@ server.on('listening', common.mustCall(function() {
     assert.strictEqual(headers[trailerKey], trailerValue);
   }));
   req.on('close', common.mustCall(() => {
-    assert.throws(
+    common.expectsError(
       () => req.sendTrailers({}),
       {
         code: 'ERR_HTTP2_INVALID_STREAM',
-        name: 'Error'
+        type: Error
       }
     );
     server.close();

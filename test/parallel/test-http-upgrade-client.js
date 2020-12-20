@@ -34,7 +34,7 @@ const Countdown = require('../common/countdown');
 const expectedRecvData = 'nurtzo';
 
 // Create a TCP server
-const server = net.createServer(function(c) {
+const srv = net.createServer(function(c) {
   c.on('data', function(d) {
     c.write('HTTP/1.1 101\r\n');
     c.write('hello: world\r\n');
@@ -49,7 +49,7 @@ const server = net.createServer(function(c) {
   });
 });
 
-server.listen(0, '127.0.0.1', common.mustCall(function() {
+srv.listen(0, '127.0.0.1', common.mustCall(function() {
   const port = this.address().port;
   const headers = [
     {
@@ -63,7 +63,7 @@ server.listen(0, '127.0.0.1', common.mustCall(function() {
       ['Origin', 'http://www.websocket.org']
     ]
   ];
-  const countdown = new Countdown(headers.length, () => server.close());
+  const countdown = new Countdown(headers.length, () => srv.close());
 
   headers.forEach(function(h) {
     const req = http.get({

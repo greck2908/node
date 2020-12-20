@@ -20,32 +20,24 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
-const {
-  isWindows,
-  mustCall,
-  mustCallAtLeast,
-} = require('../common');
+const common = require('../common');
 const assert = require('assert');
 const os = require('os');
-const debug = require('util').debuglog('test');
 
 const spawn = require('child_process').spawn;
 
-const env = {
-  ...process.env,
+const env = Object.assign({}, process.env, {
   'HELLO': 'WORLD',
   'UNDEFINED': undefined,
   'NULL': null,
-  'EMPTY': '',
-  'duplicate': 'lowercase',
-  'DUPLICATE': 'uppercase',
-};
+  'EMPTY': ''
+});
 Object.setPrototypeOf(env, {
   'FOO': 'BAR'
 });
 
 let child;
-if (isWindows) {
+if (common.isWindows) {
   child = spawn('cmd.exe', ['/c', 'set'], { env });
 } else {
   child = spawn('/usr/bin/env', [], { env });
@@ -56,22 +48,15 @@ let response = '';
 
 child.stdout.setEncoding('utf8');
 
-child.stdout.on('data', mustCallAtLeast((chunk) => {
-  debug(`stdout: ${chunk}`);
+child.stdout.on('data', (chunk) => {
+  console.log(`stdout: ${chunk}`);
   response += chunk;
-}));
+});
 
-child.stdout.on('end', mustCall(() => {
+process.on('exit', () => {
   assert.ok(response.includes('HELLO=WORLD'));
   assert.ok(response.includes('FOO=BAR'));
   assert.ok(!response.includes('UNDEFINED=undefined'));
   assert.ok(response.includes('NULL=null'));
   assert.ok(response.includes(`EMPTY=${os.EOL}`));
-  if (isWindows) {
-    assert.ok(response.includes('DUPLICATE=uppercase'));
-    assert.ok(!response.includes('duplicate=lowercase'));
-  } else {
-    assert.ok(response.includes('DUPLICATE=uppercase'));
-    assert.ok(response.includes('duplicate=lowercase'));
-  }
-}));
+});

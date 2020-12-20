@@ -31,11 +31,11 @@ assert.strictEqual(counts[NODE_PERFORMANCE_ENTRY_TYPE_FUNCTION], 0);
 
 {
   [1, null, undefined, {}, [], Infinity].forEach((i) => {
-    assert.throws(
+    common.expectsError(
       () => new PerformanceObserver(i),
       {
         code: 'ERR_INVALID_CALLBACK',
-        name: 'TypeError',
+        type: TypeError,
         message: `Callback must be a function. Received ${inspect(i)}`
       }
     );
@@ -43,31 +43,25 @@ assert.strictEqual(counts[NODE_PERFORMANCE_ENTRY_TYPE_FUNCTION], 0);
   const observer = new PerformanceObserver(common.mustNotCall());
 
   [1, null, undefined].forEach((input) => {
-    assert.throws(
+    common.expectsError(
       () => observer.observe(input),
       {
         code: 'ERR_INVALID_ARG_TYPE',
-        name: 'TypeError',
-        message: 'The "options" argument must be of type object.' +
-                 common.invalidArgTypeHelper(input)
+        type: TypeError,
+        message: 'The "options" argument must be of type Object. ' +
+                 `Received type ${typeof input}`
       });
   });
 
   [1, undefined, null, {}, Infinity].forEach((i) => {
-    assert.throws(() => observer.observe({ entryTypes: i }),
-                  {
-                    code: 'ERR_INVALID_ARG_VALUE',
-                    name: 'TypeError',
-                    message: "The property 'options.entryTypes' is invalid. " +
-                      `Received ${inspect(i)}`
-                  });
+    common.expectsError(() => observer.observe({ entryTypes: i }),
+                        {
+                          code: 'ERR_INVALID_OPT_VALUE',
+                          type: TypeError,
+                          message: 'The value "[object Object]" is invalid ' +
+                                   'for option "entryTypes"'
+                        });
   });
-
-  const obs = new PerformanceObserver(common.mustNotCall());
-  obs.observe({ entryTypes: ['mark', 'mark'] });
-  obs.disconnect();
-  performance.mark('42');
-  assert.strictEqual(counts[NODE_PERFORMANCE_ENTRY_TYPE_MARK], 0);
 }
 
 // Test Non-Buffered
@@ -88,10 +82,8 @@ assert.strictEqual(counts[NODE_PERFORMANCE_ENTRY_TYPE_FUNCTION], 0);
     countdown.dec();
   }
   assert.strictEqual(counts[NODE_PERFORMANCE_ENTRY_TYPE_MARK], 0);
-  assert.strictEqual(counts[NODE_PERFORMANCE_ENTRY_TYPE_NODE], 0);
-  observer.observe({ entryTypes: ['mark', 'node'] });
+  observer.observe({ entryTypes: ['mark'] });
   assert.strictEqual(counts[NODE_PERFORMANCE_ENTRY_TYPE_MARK], 1);
-  assert.strictEqual(counts[NODE_PERFORMANCE_ENTRY_TYPE_NODE], 1);
   performance.mark('test1');
   performance.mark('test2');
   performance.mark('test3');

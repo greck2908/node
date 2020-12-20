@@ -3,7 +3,7 @@ const common = require('../common.js');
 const querystring = require('querystring');
 
 const bench = common.createBenchmark(main, {
-  type: ['noencode', 'encodemany', 'encodelast', 'array', 'multiprimitives'],
+  type: ['noencode', 'encodemany', 'encodelast', 'array'],
   n: [1e6],
 });
 
@@ -28,12 +28,7 @@ function main({ type, n }) {
       foo: [],
       baz: ['bar'],
       xyzzy: ['bar', 'quux', 'thud']
-    },
-    multiprimitives: {
-      foo: false,
-      bar: -13.37,
-      baz: '',
-    },
+    }
   };
   const input = inputs[type];
 
@@ -43,7 +38,7 @@ function main({ type, n }) {
     querystring.stringify(inputs[name]);
 
   bench.start();
-  for (let i = 0; i < n; i += 1)
+  for (var i = 0; i < n; i += 1)
     querystring.stringify(input);
   bench.end(n);
 }

@@ -35,7 +35,6 @@ if (!%IsConcurrentRecompilationSupported()) {
 }
 
 function test(fun) {
-  %PrepareFunctionForOptimization(fun);
   fun();
   fun();
   // Mark for concurrent optimization.

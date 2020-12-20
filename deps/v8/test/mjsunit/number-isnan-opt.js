@@ -7,7 +7,6 @@
 (function() {
   function foo(x) { return Number.isNaN(x); }
 
-  %PrepareFunctionForOptimization(foo);
   assertTrue(foo(+undefined));
   assertFalse(foo(undefined));
   %OptimizeFunctionOnNextCall(foo);
@@ -18,7 +17,6 @@
 (function() {
   function foo(x) { return Number.isNaN(+x); }
 
-  %PrepareFunctionForOptimization(foo);
   assertTrue(foo(+undefined));
   assertFalse(foo(0));
   %OptimizeFunctionOnNextCall(foo);
@@ -29,7 +27,6 @@
 (function() {
   function foo(x) { return Number.isNaN(x|0); }
 
-  %PrepareFunctionForOptimization(foo);
   assertFalse(foo(+undefined));
   assertFalse(foo(0));
   %OptimizeFunctionOnNextCall(foo);
@@ -40,7 +37,6 @@
 (function() {
   function foo(x) { return Number.isNaN("" + x); }
 
-  %PrepareFunctionForOptimization(foo);
   assertFalse(foo(undefined));
   assertFalse(foo(0));
   %OptimizeFunctionOnNextCall(foo);
@@ -51,7 +47,6 @@
 (function() {
   function foo(x) { return Number.isNaN(0/0); }
 
-  %PrepareFunctionForOptimization(foo);
   assertTrue(foo());
   assertTrue(foo());
   %OptimizeFunctionOnNextCall(foo);

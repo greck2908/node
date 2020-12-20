@@ -3,36 +3,38 @@
 // found in the LICENSE file.
 
 #include "src/wasm/wasm-features.h"
-#include "src/execution/isolate.h"
-#include "src/flags/flags.h"
-#include "src/handles/handles-inl.h"
+#include "src/flags.h"
+#include "src/handles-inl.h"
+#include "src/isolate.h"
 
 namespace v8 {
 namespace internal {
 namespace wasm {
 
-// static
-WasmFeatures WasmFeatures::FromFlags() {
-  WasmFeatures features = WasmFeatures::None();
-#define FLAG_REF(feat, ...) \
-  if (FLAG_experimental_wasm_##feat) features.Add(kFeature_##feat);
-  FOREACH_WASM_FEATURE(FLAG_REF)
+#define COMMA ,
+#define SPACE
+#define DO_UNION(feat, desc, val) dst->feat |= src.feat;
+#define FLAG_REF(feat, desc, val) FLAG_experimental_wasm_##feat
+
+void UnionFeaturesInto(WasmFeatures* dst, const WasmFeatures& src) {
+  FOREACH_WASM_FEATURE(DO_UNION, SPACE);
+}
+
+WasmFeatures WasmFeaturesFromFlags() {
+  return WasmFeatures{FOREACH_WASM_FEATURE(FLAG_REF, COMMA)};
+}
+
+WasmFeatures WasmFeaturesFromIsolate(Isolate* isolate) {
+  WasmFeatures features = WasmFeaturesFromFlags();
+  features.threads |=
+      isolate->AreWasmThreadsEnabled(handle(isolate->context(), isolate));
+  return features;
+}
+
+#undef DO_UNION
 #undef FLAG_REF
-  return features;
-}
-
-// static
-WasmFeatures WasmFeatures::FromIsolate(Isolate* isolate) {
-  WasmFeatures features = WasmFeatures::FromFlags();
-  if (isolate->AreWasmThreadsEnabled(handle(isolate->context(), isolate))) {
-    features.Add(kFeature_threads);
-  }
-  if (isolate->IsWasmSimdEnabled(handle(isolate->context(), isolate))) {
-    features.Add(kFeature_simd);
-  }
-  return features;
-}
-
+#undef SPACE
+#undef COMMA
 }  // namespace wasm
 }  // namespace internal
 }  // namespace v8

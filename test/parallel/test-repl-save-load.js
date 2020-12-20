@@ -44,9 +44,8 @@ testMe._domain.on('error', function(reason) {
 });
 
 const testFile = [
-  'let inner = (function() {',
-  '  return {one:1};',
-  '})()'
+  'var top = function() {',
+  'var inner = {one:1};'
 ];
 const saveFileName = join(tmpdir.path, 'test.save.js');
 
@@ -61,7 +60,8 @@ assert.strictEqual(fs.readFileSync(saveFileName, 'utf8'),
                    testFile.join('\n'));
 
 // Make sure that the REPL data is "correct".
-testMe.complete('inner.o', common.mustSucceed((data) => {
+testMe.complete('inner.o', common.mustCall(function(error, data) {
+  assert.ifError(error);
   assert.deepStrictEqual(data, works);
 }));
 
@@ -72,7 +72,8 @@ putIn.run(['.clear']);
 putIn.run([`.load ${saveFileName}`]);
 
 // Make sure that the REPL data is "correct".
-testMe.complete('inner.o', common.mustSucceed((data) => {
+testMe.complete('inner.o', common.mustCall(function(error, data) {
+  assert.ifError(error);
   assert.deepStrictEqual(data, works);
 }));
 

@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-stack-trace-frames
-
 var realms = [Realm.current(), Realm.create()];
 
 // Check stack trace filtering across security contexts.
@@ -36,17 +34,17 @@ function assertNotIn(thrower, error) {
 
 Realm.eval(realms[1], script);
 assertSame(2, Realm.shared.error_0.length);
-assertSame(4, Realm.shared.error_1.length);
+assertSame(3, Realm.shared.error_1.length);
 
-assertTrue(Realm.shared.thrower_1 === Realm.shared.error_1[2].getFunction());
+assertTrue(Realm.shared.thrower_1 === Realm.shared.error_1[1].getFunction());
 assertNotIn(Realm.shared.thrower_0, Realm.shared.error_0);
 assertNotIn(Realm.shared.thrower_0, Realm.shared.error_1);
 
 Realm.eval(realms[0], script);
-assertSame(6, Realm.shared.error_0.length);
-assertSame(4, Realm.shared.error_1.length);
+assertSame(4, Realm.shared.error_0.length);
+assertSame(3, Realm.shared.error_1.length);
 
-assertTrue(Realm.shared.thrower_0 === Realm.shared.error_0[2].getFunction());
+assertTrue(Realm.shared.thrower_0 === Realm.shared.error_0[1].getFunction());
 assertNotIn(Realm.shared.thrower_1, Realm.shared.error_0);
 assertNotIn(Realm.shared.thrower_1, Realm.shared.error_1);
 

@@ -4,18 +4,18 @@
 
 #include "src/builtins/builtins-utils-inl.h"
 #include "src/builtins/builtins.h"
+#include "src/conversions.h"
+#include "src/counters.h"
 #include "src/heap/heap-inl.h"  // For ToBoolean. TODO(jkummerow): Drop.
-#include "src/logging/counters.h"
-#include "src/numbers/conversions.h"
-#include "src/objects/objects-inl.h"
+#include "src/objects-inl.h"
 #ifdef V8_INTL_SUPPORT
 #include "src/objects/intl-objects.h"
 #endif
 #include "src/regexp/regexp-utils.h"
-#include "src/strings/string-builder-inl.h"
-#include "src/strings/string-case.h"
-#include "src/strings/unicode-inl.h"
-#include "src/strings/unicode.h"
+#include "src/string-builder-inl.h"
+#include "src/string-case.h"
+#include "src/unicode-inl.h"
+#include "src/unicode.h"
 
 namespace v8 {
 namespace internal {
@@ -40,16 +40,14 @@ bool IsValidCodePoint(Isolate* isolate, Handle<Object> value) {
   return true;
 }
 
-static constexpr uc32 kInvalidCodePoint = static_cast<uc32>(-1);
-
 uc32 NextCodePoint(Isolate* isolate, BuiltinArguments args, int index) {
   Handle<Object> value = args.at(1 + index);
-  ASSIGN_RETURN_ON_EXCEPTION_VALUE(
-      isolate, value, Object::ToNumber(isolate, value), kInvalidCodePoint);
+  ASSIGN_RETURN_ON_EXCEPTION_VALUE(isolate, value,
+                                   Object::ToNumber(isolate, value), -1);
   if (!IsValidCodePoint(isolate, value)) {
     isolate->Throw(*isolate->factory()->NewRangeError(
         MessageTemplate::kInvalidCodePoint, value));
-    return kInvalidCodePoint;
+    return -1;
   }
   return DoubleToUint32(value->Number());
 }
@@ -71,7 +69,7 @@ BUILTIN(StringFromCodePoint) {
   int index;
   for (index = 0; index < length; index++) {
     code = NextCodePoint(isolate, args, index);
-    if (code == kInvalidCodePoint) {
+    if (code < 0) {
       return ReadOnlyRoots(isolate).exception();
     }
     if (code > String::kMaxOneByteCharCode) {
@@ -101,7 +99,7 @@ BUILTIN(StringFromCodePoint) {
       break;
     }
     code = NextCodePoint(isolate, args, index);
-    if (code == kInvalidCodePoint) {
+    if (code < 0) {
       return ReadOnlyRoots(isolate).exception();
     }
   }
@@ -138,32 +136,31 @@ BUILTIN(StringPrototypeLocaleCompare) {
   HandleScope handle_scope(isolate);
 
   isolate->CountUsage(v8::Isolate::UseCounterFeature::kStringLocaleCompare);
-  const char* method = "String.prototype.localeCompare";
 
 #ifdef V8_INTL_SUPPORT
-  TO_THIS_STRING(str1, method);
+  TO_THIS_STRING(str1, "String.prototype.localeCompare");
   Handle<String> str2;
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
       isolate, str2, Object::ToString(isolate, args.atOrUndefined(isolate, 1)));
   RETURN_RESULT_OR_FAILURE(
-      isolate, Intl::StringLocaleCompare(
-                   isolate, str1, str2, args.atOrUndefined(isolate, 2),
-                   args.atOrUndefined(isolate, 3), method));
+      isolate, Intl::StringLocaleCompare(isolate, str1, str2,
+                                         args.atOrUndefined(isolate, 2),
+                                         args.atOrUndefined(isolate, 3)));
 #else
   DCHECK_EQ(2, args.length());
 
-  TO_THIS_STRING(str1, method);
+  TO_THIS_STRING(str1, "String.prototype.localeCompare");
   Handle<String> str2;
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, str2,
                                      Object::ToString(isolate, args.at(1)));
 
-  if (str1.is_identical_to(str2)) return Smi::zero();  // Equal.
+  if (str1.is_identical_to(str2)) return Smi::kZero;  // Equal.
   int str1_length = str1->length();
   int str2_length = str2->length();
 
   // Decide trivial cases without flattening.
   if (str1_length == 0) {
-    if (str2_length == 0) return Smi::zero();  // Equal.
+    if (str2_length == 0) return Smi::kZero;  // Equal.
     return Smi::FromInt(-str2_length);
   } else {
     if (str2_length == 0) return Smi::FromInt(str1_length);
@@ -211,10 +208,14 @@ BUILTIN(StringPrototypeNormalize) {
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, form,
                                      Object::ToString(isolate, form_input));
 
-  if (!(String::Equals(isolate, form, isolate->factory()->NFC_string()) ||
-        String::Equals(isolate, form, isolate->factory()->NFD_string()) ||
-        String::Equals(isolate, form, isolate->factory()->NFKC_string()) ||
-        String::Equals(isolate, form, isolate->factory()->NFKD_string()))) {
+  if (!(String::Equals(isolate, form,
+                       isolate->factory()->NewStringFromStaticChars("NFC")) ||
+        String::Equals(isolate, form,
+                       isolate->factory()->NewStringFromStaticChars("NFD")) ||
+        String::Equals(isolate, form,
+                       isolate->factory()->NewStringFromStaticChars("NFKC")) ||
+        String::Equals(isolate, form,
+                       isolate->factory()->NewStringFromStaticChars("NFKD")))) {
     Handle<String> valid_forms =
         isolate->factory()->NewStringFromStaticChars("NFC, NFD, NFKC, NFKD");
     THROW_NEW_ERROR_RETURN_FAILURE(
@@ -260,23 +261,23 @@ V8_WARN_UNUSED_RESULT static Object ConvertCaseHelper(
   unibrow::uchar chars[Converter::kMaxWidth];
   // We can assume that the string is not empty
   uc32 current = stream.GetNext();
-  bool ignore_overflow = Converter::kIsToLower || result.IsSeqTwoByteString();
+  bool ignore_overflow = Converter::kIsToLower || result->IsSeqTwoByteString();
   for (int i = 0; i < result_length;) {
     bool has_next = stream.HasMore();
     uc32 next = has_next ? stream.GetNext() : 0;
     int char_length = mapping->get(current, next, chars);
     if (char_length == 0) {
       // The case conversion of this character is the character itself.
-      result.Set(i, current);
+      result->Set(i, current);
       i++;
     } else if (char_length == 1 &&
                (ignore_overflow || !ToUpperOverflows(current))) {
       // Common case: converting the letter resulted in one character.
       DCHECK(static_cast<uc32>(chars[0]) != current);
-      result.Set(i, chars[0]);
+      result->Set(i, chars[0]);
       has_changed_character = true;
       i++;
-    } else if (result_length == string.length()) {
+    } else if (result_length == string->length()) {
       bool overflows = ToUpperOverflows(current);
       // We've assumed that the result would be as long as the
       // input but here is a character that converts to several
@@ -317,7 +318,7 @@ V8_WARN_UNUSED_RESULT static Object ConvertCaseHelper(
                                              : Smi::FromInt(current_length);
     } else {
       for (int j = 0; j < char_length; j++) {
-        result.Set(i, chars[j]);
+        result->Set(i, chars[j]);
         i++;
       }
       has_changed_character = true;
@@ -360,7 +361,7 @@ V8_WARN_UNUSED_RESULT static Object ConvertCase(
     bool has_changed_character = false;
     int index_to_first_unprocessed = FastAsciiConvert<Converter::kIsToLower>(
         reinterpret_cast<char*>(result->GetChars(no_gc)),
-        reinterpret_cast<const char*>(flat_content.ToOneByteVector().begin()),
+        reinterpret_cast<const char*>(flat_content.ToOneByteVector().start()),
         length, &has_changed_character);
     // If not ASCII, we discard the result and take the 2 byte path.
     if (index_to_first_unprocessed == length)
@@ -375,9 +376,9 @@ V8_WARN_UNUSED_RESULT static Object ConvertCase(
   }
 
   Object answer = ConvertCaseHelper(isolate, *s, *result, length, mapping);
-  if (answer.IsException(isolate) || answer.IsString()) return answer;
+  if (answer->IsException(isolate) || answer->IsString()) return answer;
 
-  DCHECK(answer.IsSmi());
+  DCHECK(answer->IsSmi());
   length = Smi::ToInt(answer);
   if (s->IsOneByteRepresentation() && length > 0) {
     ASSIGN_RETURN_FAILURE_ON_EXCEPTION(

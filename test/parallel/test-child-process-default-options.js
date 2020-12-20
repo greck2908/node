@@ -20,16 +20,15 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
-const { isWindows } = require('../common');
+const common = require('../common');
 const assert = require('assert');
 
 const spawn = require('child_process').spawn;
-const debug = require('util').debuglog('test');
 
 process.env.HELLO = 'WORLD';
 
 let child;
-if (isWindows) {
+if (common.isWindows) {
   child = spawn('cmd.exe', ['/c', 'set'], {});
 } else {
   child = spawn('/usr/bin/env', [], {});
@@ -40,7 +39,7 @@ let response = '';
 child.stdout.setEncoding('utf8');
 
 child.stdout.on('data', function(chunk) {
-  debug(`stdout: ${chunk}`);
+  console.log(`stdout: ${chunk}`);
   response += chunk;
 });
 

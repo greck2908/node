@@ -1,15 +1,11 @@
 #include "base_object-inl.h"
-#include "debug_utils-inl.h"
 #include "env-inl.h"
-#include "memory_tracker-inl.h"
 #include "node.h"
 #include "node_errors.h"
-#include "node_external_reference.h"
 #include "node_internals.h"
 #include "node_process.h"
 #include "util-inl.h"
 #include "uv.h"
-#include "v8-fast-api-calls.h"
 #include "v8.h"
 
 #include <vector>
@@ -34,29 +30,24 @@ typedef int mode_t;
 
 namespace node {
 
-using v8::ApiObject;
 using v8::Array;
 using v8::ArrayBuffer;
-using v8::BackingStore;
-using v8::CFunction;
-using v8::ConstructorBehavior;
+using v8::BigUint64Array;
 using v8::Context;
 using v8::Float64Array;
+using v8::Function;
 using v8::FunctionCallbackInfo;
-using v8::FunctionTemplate;
-using v8::Global;
 using v8::HeapStatistics;
 using v8::Integer;
 using v8::Isolate;
 using v8::Local;
+using v8::Name;
 using v8::NewStringType;
 using v8::Number;
 using v8::Object;
-using v8::ObjectTemplate;
-using v8::SideEffectType;
-using v8::Signature;
 using v8::String;
 using v8::Uint32;
+using v8::Uint32Array;
 using v8::Value;
 
 namespace per_process {
@@ -97,33 +88,28 @@ static void Chdir(const FunctionCallbackInfo<Value>& args) {
   }
 }
 
-inline Local<ArrayBuffer> get_fields_array_buffer(
-    const FunctionCallbackInfo<Value>& args,
-    size_t index,
-    size_t array_length) {
-  CHECK(args[index]->IsFloat64Array());
-  Local<Float64Array> arr = args[index].As<Float64Array>();
-  CHECK_EQ(arr->Length(), array_length);
-  return arr->Buffer();
-}
-
 // CPUUsage use libuv's uv_getrusage() this-process resource usage accessor,
 // to access ru_utime (user CPU time used) and ru_stime (system CPU time used),
 // which are uv_timeval_t structs (long tv_sec, long tv_usec).
 // Returns those values as Float64 microseconds in the elements of the array
 // passed to the function.
 static void CPUUsage(const FunctionCallbackInfo<Value>& args) {
-  Environment* env = Environment::GetCurrent(args);
   uv_rusage_t rusage;
 
   // Call libuv to get the values we'll return.
   int err = uv_getrusage(&rusage);
-  if (err)
-    return env->ThrowUVException(err, "uv_getrusage");
+  if (err) {
+    // On error, return the strerror version of the error code.
+    Local<String> errmsg = OneByteString(args.GetIsolate(), uv_strerror(err));
+    return args.GetReturnValue().Set(errmsg);
+  }
 
   // Get the double array pointer from the Float64Array argument.
-  Local<ArrayBuffer> ab = get_fields_array_buffer(args, 0, 2);
-  double* fields = static_cast<double*>(ab->GetBackingStore()->Data());
+  CHECK(args[0]->IsFloat64Array());
+  Local<Float64Array> array = args[0].As<Float64Array>();
+  CHECK_EQ(array->Length(), 2);
+  Local<ArrayBuffer> ab = array->Buffer();
+  double* fields = static_cast<double*>(ab->GetContents().Data());
 
   // Set the Float64Array elements to be user / system values in microseconds.
   fields[0] = MICROS_PER_SEC * rusage.ru_utime.tv_sec + rusage.ru_utime.tv_usec;
@@ -146,27 +132,51 @@ static void Cwd(const FunctionCallbackInfo<Value>& args) {
   args.GetReturnValue().Set(cwd);
 }
 
+
+// Hrtime exposes libuv's uv_hrtime() high-resolution timer.
+
+// This is the legacy version of hrtime before BigInt was introduced in
+// JavaScript.
+// The value returned by uv_hrtime() is a 64-bit int representing nanoseconds,
+// so this function instead fills in an Uint32Array with 3 entries,
+// to avoid any integer overflow possibility.
+// The first two entries contain the second part of the value
+// broken into the upper/lower 32 bits to be converted back in JS,
+// because there is no Uint64Array in JS.
+// The third entry contains the remaining nanosecond part of the value.
+static void Hrtime(const FunctionCallbackInfo<Value>& args) {
+  uint64_t t = uv_hrtime();
+
+  Local<ArrayBuffer> ab = args[0].As<Uint32Array>()->Buffer();
+  uint32_t* fields = static_cast<uint32_t*>(ab->GetContents().Data());
+
+  fields[0] = (t / NANOS_PER_SEC) >> 32;
+  fields[1] = (t / NANOS_PER_SEC) & 0xffffffff;
+  fields[2] = t % NANOS_PER_SEC;
+}
+
+static void HrtimeBigInt(const FunctionCallbackInfo<Value>& args) {
+  Local<ArrayBuffer> ab = args[0].As<BigUint64Array>()->Buffer();
+  uint64_t* fields = static_cast<uint64_t*>(ab->GetContents().Data());
+  fields[0] = uv_hrtime();
+}
+
 static void Kill(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   Local<Context> context = env->context();
 
-  if (args.Length() < 2) {
-    THROW_ERR_MISSING_ARGS(env, "Bad argument.");
-  }
+  if (args.Length() != 2)
+    return env->ThrowError("Bad argument.");
 
   int pid;
   if (!args[0]->Int32Value(context).To(&pid)) return;
   int sig;
   if (!args[1]->Int32Value(context).To(&sig)) return;
+    // TODO(joyeecheung): white list the signals?
 
-  uv_pid_t own_pid = uv_os_getpid();
-  if (sig > 0 &&
-      (pid == 0 || pid == -1 || pid == own_pid || pid == -own_pid) &&
-      !HasSignalJSHandler(sig)) {
-    // This is most likely going to terminate this process.
-    // It's not an exact method but it might be close enough.
-    RunAtExit(env);
-  }
+#if HAVE_INSPECTOR
+  profiler::EndStartedProfilers(env);
+#endif
 
   int err = uv_kill(pid, sig);
   args.GetReturnValue().Set(err);
@@ -185,27 +195,35 @@ static void MemoryUsage(const FunctionCallbackInfo<Value>& args) {
   HeapStatistics v8_heap_stats;
   isolate->GetHeapStatistics(&v8_heap_stats);
 
-  NodeArrayBufferAllocator* array_buffer_allocator =
-      env->isolate_data()->node_allocator();
-
   // Get the double array pointer from the Float64Array argument.
-  Local<ArrayBuffer> ab = get_fields_array_buffer(args, 0, 5);
-  double* fields = static_cast<double*>(ab->GetBackingStore()->Data());
+  CHECK(args[0]->IsFloat64Array());
+  Local<Float64Array> array = args[0].As<Float64Array>();
+  CHECK_EQ(array->Length(), 4);
+  Local<ArrayBuffer> ab = array->Buffer();
+  double* fields = static_cast<double*>(ab->GetContents().Data());
 
   fields[0] = rss;
   fields[1] = v8_heap_stats.total_heap_size();
   fields[2] = v8_heap_stats.used_heap_size();
   fields[3] = v8_heap_stats.external_memory();
-  fields[4] = array_buffer_allocator == nullptr ?
-      0 : array_buffer_allocator->total_mem_usage();
 }
 
 void RawDebug(const FunctionCallbackInfo<Value>& args) {
   CHECK(args.Length() == 1 && args[0]->IsString() &&
         "must be called with a single string");
   Utf8Value message(args.GetIsolate(), args[0]);
-  FPrintF(stderr, "%s\n", message);
+  PrintErrorString("%s\n", *message);
   fflush(stderr);
+}
+
+static void StartProfilerIdleNotifier(const FunctionCallbackInfo<Value>& args) {
+  Environment* env = Environment::GetCurrent(args);
+  env->StartProfilerIdleNotifier();
+}
+
+static void StopProfilerIdleNotifier(const FunctionCallbackInfo<Value>& args) {
+  Environment* env = Environment::GetCurrent(args);
+  env->StopProfilerIdleNotifier();
 }
 
 static void Umask(const FunctionCallbackInfo<Value>& args) {
@@ -275,8 +293,11 @@ static void ResourceUsage(const FunctionCallbackInfo<Value>& args) {
   if (err)
     return env->ThrowUVException(err, "uv_getrusage");
 
-  Local<ArrayBuffer> ab = get_fields_array_buffer(args, 0, 16);
-  double* fields = static_cast<double*>(ab->GetBackingStore()->Data());
+  CHECK(args[0]->IsFloat64Array());
+  Local<Float64Array> array = args[0].As<Float64Array>();
+  CHECK_EQ(array->Length(), 16);
+  Local<ArrayBuffer> ab = array->Buffer();
+  double* fields = static_cast<double*>(ab->GetContents().Data());
 
   fields[0] = MICROS_PER_SEC * rusage.ru_utime.tv_sec + rusage.ru_utime.tv_usec;
   fields[1] = MICROS_PER_SEC * rusage.ru_stime.tv_sec + rusage.ru_stime.tv_usec;
@@ -300,8 +321,8 @@ static void ResourceUsage(const FunctionCallbackInfo<Value>& args) {
 static void DebugProcess(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
 
-  if (args.Length() < 1) {
-    return THROW_ERR_MISSING_ARGS(env, "Invalid number of arguments.");
+  if (args.Length() != 1) {
+    return env->ThrowError("Invalid number of arguments.");
   }
 
   CHECK(args[0]->IsNumber());
@@ -325,8 +346,9 @@ static void DebugProcess(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   Isolate* isolate = args.GetIsolate();
 
-  if (args.Length() < 1) {
-    return THROW_ERR_MISSING_ARGS(env, "Invalid number of arguments.");
+  if (args.Length() != 1) {
+    env->ThrowError("Invalid number of arguments.");
+    return;
   }
 
   HANDLE process = nullptr;
@@ -336,7 +358,7 @@ static void DebugProcess(const FunctionCallbackInfo<Value>& args) {
   LPTHREAD_START_ROUTINE* handler = nullptr;
   DWORD pid = 0;
 
-  auto cleanup = OnScopeLeave([&]() {
+  OnScopeLeave cleanup([&]() {
     if (process != nullptr) CloseHandle(process);
     if (thread != nullptr) CloseHandle(thread);
     if (handler != nullptr) UnmapViewOfFile(handler);
@@ -406,122 +428,9 @@ static void DebugEnd(const FunctionCallbackInfo<Value>& args) {
 
 static void ReallyExit(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
-  RunAtExit(env);
+  WaitForInspectorDisconnect(env);
   int code = args[0]->Int32Value(env->context()).FromMaybe(0);
   env->Exit(code);
-}
-
-class FastHrtime : public BaseObject {
- public:
-  static Local<Object> New(Environment* env) {
-    Local<FunctionTemplate> ctor = FunctionTemplate::New(env->isolate());
-    ctor->Inherit(BaseObject::GetConstructorTemplate(env));
-    Local<ObjectTemplate> otmpl = ctor->InstanceTemplate();
-    otmpl->SetInternalFieldCount(FastHrtime::kInternalFieldCount);
-
-    auto create_func = [env](auto fast_func, auto slow_func) {
-      auto cfunc = CFunction::Make(fast_func);
-      return FunctionTemplate::New(env->isolate(),
-                                   slow_func,
-                                   Local<Value>(),
-                                   Local<Signature>(),
-                                   0,
-                                   ConstructorBehavior::kThrow,
-                                   SideEffectType::kHasNoSideEffect,
-                                   &cfunc);
-    };
-
-    otmpl->Set(FIXED_ONE_BYTE_STRING(env->isolate(), "hrtime"),
-               create_func(FastNumber, SlowNumber));
-    otmpl->Set(FIXED_ONE_BYTE_STRING(env->isolate(), "hrtimeBigInt"),
-               create_func(FastBigInt, SlowBigInt));
-
-    Local<Object> obj = otmpl->NewInstance(env->context()).ToLocalChecked();
-
-    Local<ArrayBuffer> ab =
-        ArrayBuffer::New(env->isolate(),
-            std::max(sizeof(uint64_t), sizeof(uint32_t) * 3));
-    new FastHrtime(env, obj, ab);
-    obj->Set(
-           env->context(), FIXED_ONE_BYTE_STRING(env->isolate(), "buffer"), ab)
-        .ToChecked();
-
-    return obj;
-  }
-
- private:
-  FastHrtime(Environment* env,
-             Local<Object> object,
-             Local<ArrayBuffer> ab)
-      : BaseObject(env, object),
-        array_buffer_(env->isolate(), ab),
-        backing_store_(ab->GetBackingStore()) {
-    MakeWeak();
-  }
-
-  void MemoryInfo(MemoryTracker* tracker) const override {
-    tracker->TrackField("array_buffer", array_buffer_);
-  }
-  SET_MEMORY_INFO_NAME(FastHrtime)
-  SET_SELF_SIZE(FastHrtime)
-
-  static FastHrtime* FromV8ApiObject(ApiObject api_object) {
-    Object* v8_object = reinterpret_cast<Object*>(&api_object);
-    return static_cast<FastHrtime*>(
-        v8_object->GetAlignedPointerFromInternalField(BaseObject::kSlot));
-  }
-
-  // This is the legacy version of hrtime before BigInt was introduced in
-  // JavaScript.
-  // The value returned by uv_hrtime() is a 64-bit int representing nanoseconds,
-  // so this function instead fills in an Uint32Array with 3 entries,
-  // to avoid any integer overflow possibility.
-  // The first two entries contain the second part of the value
-  // broken into the upper/lower 32 bits to be converted back in JS,
-  // because there is no Uint64Array in JS.
-  // The third entry contains the remaining nanosecond part of the value.
-  static void NumberImpl(FastHrtime* receiver) {
-    uint64_t t = uv_hrtime();
-    uint32_t* fields = static_cast<uint32_t*>(receiver->backing_store_->Data());
-    fields[0] = (t / NANOS_PER_SEC) >> 32;
-    fields[1] = (t / NANOS_PER_SEC) & 0xffffffff;
-    fields[2] = t % NANOS_PER_SEC;
-  }
-
-  static void FastNumber(ApiObject receiver) {
-    NumberImpl(FromV8ApiObject(receiver));
-  }
-
-  static void SlowNumber(const FunctionCallbackInfo<Value>& args) {
-    NumberImpl(FromJSObject<FastHrtime>(args.Holder()));
-  }
-
-  static void BigIntImpl(FastHrtime* receiver) {
-    uint64_t t = uv_hrtime();
-    uint64_t* fields = static_cast<uint64_t*>(receiver->backing_store_->Data());
-    fields[0] = t;
-  }
-
-  static void FastBigInt(ApiObject receiver) {
-    BigIntImpl(FromV8ApiObject(receiver));
-  }
-
-  static void SlowBigInt(const FunctionCallbackInfo<Value>& args) {
-    BigIntImpl(FromJSObject<FastHrtime>(args.Holder()));
-  }
-
-  Global<ArrayBuffer> array_buffer_;
-  std::shared_ptr<BackingStore> backing_store_;
-};
-
-static void GetFastAPIs(const FunctionCallbackInfo<Value>& args) {
-  Environment* env = Environment::GetCurrent(args);
-  Local<Object> ret = Object::New(env->isolate());
-  ret->Set(env->context(),
-           FIXED_ONE_BYTE_STRING(env->isolate(), "hrtime"),
-           FastHrtime::New(env))
-      .ToChecked();
-  args.GetReturnValue().Set(ret);
 }
 
 static void InitializeProcessMethods(Local<Object> target,
@@ -539,10 +448,16 @@ static void InitializeProcessMethods(Local<Object> target,
     env->SetMethod(target, "chdir", Chdir);
   }
 
+  env->SetMethod(
+      target, "_startProfilerIdleNotifier", StartProfilerIdleNotifier);
+  env->SetMethod(target, "_stopProfilerIdleNotifier", StopProfilerIdleNotifier);
+
   env->SetMethod(target, "umask", Umask);
   env->SetMethod(target, "_rawDebug", RawDebug);
   env->SetMethod(target, "memoryUsage", MemoryUsage);
   env->SetMethod(target, "cpuUsage", CPUUsage);
+  env->SetMethod(target, "hrtime", Hrtime);
+  env->SetMethod(target, "hrtimeBigInt", HrtimeBigInt);
   env->SetMethod(target, "resourceUsage", ResourceUsage);
 
   env->SetMethod(target, "_getActiveRequests", GetActiveRequests);
@@ -554,38 +469,9 @@ static void InitializeProcessMethods(Local<Object> target,
   env->SetMethod(target, "reallyExit", ReallyExit);
   env->SetMethodNoSideEffect(target, "uptime", Uptime);
   env->SetMethod(target, "patchProcessObject", PatchProcessObject);
-  env->SetMethod(target, "getFastAPIs", GetFastAPIs);
-}
-
-void RegisterProcessMethodsExternalReferences(
-    ExternalReferenceRegistry* registry) {
-  registry->Register(DebugProcess);
-  registry->Register(DebugEnd);
-  registry->Register(Abort);
-  registry->Register(CauseSegfault);
-  registry->Register(Chdir);
-
-  registry->Register(Umask);
-  registry->Register(RawDebug);
-  registry->Register(MemoryUsage);
-  registry->Register(CPUUsage);
-  registry->Register(ResourceUsage);
-
-  registry->Register(GetActiveRequests);
-  registry->Register(GetActiveHandles);
-  registry->Register(Kill);
-
-  registry->Register(Cwd);
-  registry->Register(binding::DLOpen);
-  registry->Register(ReallyExit);
-  registry->Register(Uptime);
-  registry->Register(PatchProcessObject);
-  registry->Register(GetFastAPIs);
 }
 
 }  // namespace node
 
 NODE_MODULE_CONTEXT_AWARE_INTERNAL(process_methods,
                                    node::InitializeProcessMethods)
-NODE_MODULE_EXTERNAL_REFERENCE(process_methods,
-                               node::RegisterProcessMethodsExternalReferences)

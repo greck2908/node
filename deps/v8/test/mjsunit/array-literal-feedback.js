@@ -62,9 +62,8 @@ function assertKind(expected, obj, name_opt) {
 function get_literal(x) {
   var literal = [1, 2, x];
   return literal;
-};
+}
 
-%PrepareFunctionForOptimization(get_literal);
 get_literal(3);
 // It's important to store a from before we crankshaft get_literal, because
 // mementos won't be created from crankshafted code at all.
@@ -85,7 +84,6 @@ assertEquals([1, 2, 3], b);
 assertUnoptimized(get_literal);
 
 // Optimize again
-%PrepareFunctionForOptimization(get_literal);
 get_literal(3);
 %OptimizeFunctionOnNextCall(get_literal);
 b = get_literal(3);
@@ -111,8 +109,7 @@ assertOptimized(get_literal);
 (function changeOptimizedEmptyArrayKind() {
   function f() {
     return new Array();
-  };
-  %PrepareFunctionForOptimization(f);
+  }
   var a = f();
   assertKind('packed smi elements', a);
   a = f();
@@ -128,8 +125,7 @@ assertOptimized(get_literal);
 (function changeOptimizedArrayLiteralKind() {
   function f() {
     return [1, 2];
-  };
-  %PrepareFunctionForOptimization(f);
+  }
   var a = f();
   assertKind('packed smi elements', a);
 
@@ -164,8 +160,7 @@ assertOptimized(get_literal);
 (function changeOptimizedEmptyArrayLiteralKind() {
   function f() {
     return [];
-  };
-  %PrepareFunctionForOptimization(f);
+  }
   var a = f();
   assertKind('packed smi elements', a);
   assertFalse(isHoley(a));
@@ -195,8 +190,7 @@ assertOptimized(get_literal);
     var literal = [];
     %HeapObjectVerify(literal);
     return literal;
-  };
-  %PrepareFunctionForOptimization(f);
+  }
   var a = f();
   assertKind('packed smi elements', a);
   assertFalse(isHoley(a));

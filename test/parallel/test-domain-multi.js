@@ -26,8 +26,6 @@ const common = require('../common');
 const domain = require('domain');
 const http = require('http');
 
-process.on('warning', common.mustNotCall());
-
 const a = domain.create();
 a.enter(); // This will be our "root" domain
 

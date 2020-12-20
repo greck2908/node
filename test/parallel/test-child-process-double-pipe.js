@@ -20,22 +20,17 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
-const {
-  isWindows,
-  mustCall,
-  mustCallAtLeast,
-} = require('../common');
+const common = require('../common');
 const assert = require('assert');
 const os = require('os');
 const spawn = require('child_process').spawn;
-const debug = require('util').debuglog('test');
 
 // We're trying to reproduce:
 // $ echo "hello\nnode\nand\nworld" | grep o | sed s/o/a/
 
 let grep, sed, echo;
 
-if (isWindows) {
+if (common.isWindows) {
   grep = spawn('grep', ['--binary', 'o']);
   sed = spawn('sed', ['--binary', 's/o/O/']);
   echo = spawn('cmd.exe',
@@ -47,76 +42,74 @@ if (isWindows) {
   echo = spawn('echo', ['hello\nnode\nand\nworld\n']);
 }
 
-// If the spawn function leaks file descriptors to subprocesses, grep and sed
-// hang.
-// This happens when calling pipe(2) and then forgetting to set the
-// FD_CLOEXEC flag on the resulting file descriptors.
-//
-// This test checks child processes exit, meaning they don't hang like
-// explained above.
+/*
+ * grep and sed hang if the spawn function leaks file descriptors to child
+ * processes.
+ * This happens when calling pipe(2) and then forgetting to set the
+ * FD_CLOEXEC flag on the resulting file descriptors.
+ *
+ * This test checks child processes exit, meaning they don't hang like
+ * explained above.
+ */
 
 
 // pipe echo | grep
-echo.stdout.on('data', mustCallAtLeast((data) => {
-  debug(`grep stdin write ${data.length}`);
+echo.stdout.on('data', function(data) {
+  console.error(`grep stdin write ${data.length}`);
   if (!grep.stdin.write(data)) {
     echo.stdout.pause();
   }
-}));
+});
 
-// TODO(@jasnell): This does not appear to ever be
-// emitted. It's not clear if it is necessary.
-grep.stdin.on('drain', (data) => {
+grep.stdin.on('drain', function(data) {
   echo.stdout.resume();
 });
 
 // Propagate end from echo to grep
-echo.stdout.on('end', mustCall((code) => {
+echo.stdout.on('end', function(code) {
   grep.stdin.end();
-}));
+});
 
-echo.on('exit', mustCall(() => {
-  debug('echo exit');
-}));
+echo.on('exit', function() {
+  console.error('echo exit');
+});
 
-grep.on('exit', mustCall(() => {
-  debug('grep exit');
-}));
+grep.on('exit', function() {
+  console.error('grep exit');
+});
 
-sed.on('exit', mustCall(() => {
-  debug('sed exit');
-}));
+sed.on('exit', function() {
+  console.error('sed exit');
+});
 
 
 // pipe grep | sed
-grep.stdout.on('data', mustCallAtLeast((data) => {
-  debug(`grep stdout ${data.length}`);
+grep.stdout.on('data', function(data) {
+  console.error(`grep stdout ${data.length}`);
   if (!sed.stdin.write(data)) {
     grep.stdout.pause();
   }
-}));
+});
 
-// TODO(@jasnell): This does not appear to ever be
-// emitted. It's not clear if it is necessary.
-sed.stdin.on('drain', (data) => {
+sed.stdin.on('drain', function(data) {
   grep.stdout.resume();
 });
 
 // Propagate end from grep to sed
-grep.stdout.on('end', mustCall((code) => {
-  debug('grep stdout end');
+grep.stdout.on('end', function(code) {
+  console.error('grep stdout end');
   sed.stdin.end();
-}));
+});
 
 
 let result = '';
 
 // print sed's output
-sed.stdout.on('data', mustCallAtLeast((data) => {
+sed.stdout.on('data', function(data) {
   result += data.toString('utf8', 0, data.length);
-  debug(data);
-}));
+  console.log(data);
+});
 
-sed.stdout.on('end', mustCall((code) => {
+sed.stdout.on('end', function(code) {
   assert.strictEqual(result, `hellO${os.EOL}nOde${os.EOL}wOrld${os.EOL}`);
-}));
+});

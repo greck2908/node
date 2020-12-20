@@ -294,7 +294,7 @@ Win32NumberFormat &Win32NumberFormat::operator=(const Win32NumberFormat &other)
     return *this;
 }
 
-Win32NumberFormat *Win32NumberFormat::clone() const
+Format *Win32NumberFormat::clone(void) const
 {
     return new Win32NumberFormat(*this);
 }

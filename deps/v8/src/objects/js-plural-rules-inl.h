@@ -9,9 +9,9 @@
 #ifndef V8_OBJECTS_JS_PLURAL_RULES_INL_H_
 #define V8_OBJECTS_JS_PLURAL_RULES_INL_H_
 
-#include "src/api/api-inl.h"
+#include "src/api-inl.h"
+#include "src/objects-inl.h"
 #include "src/objects/js-plural-rules.h"
-#include "src/objects/objects-inl.h"
 
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
@@ -19,24 +19,27 @@
 namespace v8 {
 namespace internal {
 
-TQ_OBJECT_CONSTRUCTORS_IMPL(JSPluralRules)
+OBJECT_CONSTRUCTORS_IMPL(JSPluralRules, JSObject)
 
+ACCESSORS(JSPluralRules, locale, String, kLocaleOffset)
+SMI_ACCESSORS(JSPluralRules, flags, kFlagsOffset)
 ACCESSORS(JSPluralRules, icu_plural_rules, Managed<icu::PluralRules>,
-          kIcuPluralRulesOffset)
-ACCESSORS(JSPluralRules, icu_number_formatter,
-          Managed<icu::number::LocalizedNumberFormatter>,
-          kIcuNumberFormatterOffset)
+          kICUPluralRulesOffset)
+ACCESSORS(JSPluralRules, icu_decimal_format, Managed<icu::DecimalFormat>,
+          kICUDecimalFormatOffset)
 
 inline void JSPluralRules::set_type(Type type) {
-  DCHECK_LE(type, TypeBit::kMax);
+  DCHECK_LT(type, Type::COUNT);
   int hints = flags();
-  hints = TypeBit::update(hints, type);
+  hints = TypeBits::update(hints, type);
   set_flags(hints);
 }
 
 inline JSPluralRules::Type JSPluralRules::type() const {
-  return TypeBit::decode(flags());
+  return TypeBits::decode(flags());
 }
+
+CAST_ACCESSOR(JSPluralRules)
 
 }  // namespace internal
 }  // namespace v8

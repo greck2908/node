@@ -74,12 +74,12 @@ const char *PersianCalendar::getType() const {
     return "persian";
 }
 
-PersianCalendar* PersianCalendar::clone() const {
+Calendar* PersianCalendar::clone() const {
     return new PersianCalendar(*this);
 }
 
 PersianCalendar::PersianCalendar(const Locale& aLocale, UErrorCode& success)
-  :   Calendar(TimeZone::forLocaleOrDefault(aLocale), aLocale, success)
+  :   Calendar(TimeZone::createDefault(), aLocale, success)
 {
     setTimeInMillis(getNow(), success); // Call this again now that the vtable is set up properly.
 }

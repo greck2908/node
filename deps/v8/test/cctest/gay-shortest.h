@@ -28,7 +28,7 @@
 #ifndef GAY_SHORTEST_H_
 #define GAY_SHORTEST_H_
 
-#include "src/utils/vector.h"
+#include "src/vector.h"
 
 namespace v8 {
 namespace internal {

@@ -173,31 +173,31 @@ assert.strictEqual(decoder.write(Buffer.from('f4', 'hex')), '');
 assert.strictEqual(decoder.write(Buffer.from('bde5', 'hex')), '\ufffd\ufffd');
 assert.strictEqual(decoder.end(), '\ufffd');
 
-assert.throws(
+common.expectsError(
   () => new StringDecoder(1),
   {
     code: 'ERR_UNKNOWN_ENCODING',
-    name: 'TypeError',
+    type: TypeError,
     message: 'Unknown encoding: 1'
   }
 );
 
-assert.throws(
+common.expectsError(
   () => new StringDecoder('test'),
   {
     code: 'ERR_UNKNOWN_ENCODING',
-    name: 'TypeError',
+    type: TypeError,
     message: 'Unknown encoding: test'
   }
 );
 
-assert.throws(
+common.expectsError(
   () => new StringDecoder('utf8').write(null),
   {
     code: 'ERR_INVALID_ARG_TYPE',
-    name: 'TypeError',
-    message: 'The "buf" argument must be an instance of Buffer, TypedArray,' +
-      ' or DataView. Received null'
+    type: TypeError,
+    message: 'The "buf" argument must be one of type Buffer, TypedArray,' +
+      ' or DataView. Received type object'
   }
 );
 

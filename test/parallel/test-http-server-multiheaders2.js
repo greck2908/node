@@ -69,7 +69,7 @@ const multipleForbidden = [
   // 'Content-Length',
 ];
 
-const server = http.createServer(function(req, res) {
+const srv = http.createServer(function(req, res) {
   multipleForbidden.forEach(function(header) {
     assert.strictEqual(req.headers[header.toLowerCase()], 'foo',
                        `header parsed incorrectly: ${header}`);
@@ -83,7 +83,7 @@ const server = http.createServer(function(req, res) {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('EOF');
 
-  server.close();
+  srv.close();
 });
 
 function makeHeader(value) {
@@ -98,7 +98,7 @@ const headers = []
   .concat(multipleAllowed.map(makeHeader('bar')))
   .concat(multipleForbidden.map(makeHeader('bar')));
 
-server.listen(0, function() {
+srv.listen(0, function() {
   http.get({
     host: 'localhost',
     port: this.address().port,

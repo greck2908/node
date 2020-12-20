@@ -21,43 +21,47 @@
 
 'use strict';
 
-const {
-  mustCall,
-  mustNotCall,
-} = require('../common');
+require('../common');
 const assert = require('assert');
-const debug = require('util').debuglog('test');
 
 const { spawn } = require('child_process');
 const fixtures = require('../common/fixtures');
 
 const sub = fixtures.path('echo.js');
 
+let gotHelloWorld = false;
+let gotEcho = false;
+
 const child = spawn(process.argv[0], [sub]);
 
-child.stderr.on('data', mustNotCall());
+child.stderr.on('data', function(data) {
+  console.log(`parent stderr: ${data}`);
+});
 
 child.stdout.setEncoding('utf8');
 
-const messages = [
-  'hello world\r\n',
-  'echo me\r\n',
-];
-
-child.stdout.on('data', mustCall((data) => {
-  debug(`child said: ${JSON.stringify(data)}`);
-  const test = messages.shift();
-  debug(`testing for '${test}'`);
-  assert.strictEqual(data, test);
-  if (messages.length) {
-    debug(`writing '${messages[0]}'`);
-    child.stdin.write(messages[0]);
+child.stdout.on('data', function(data) {
+  console.log(`child said: ${JSON.stringify(data)}`);
+  if (!gotHelloWorld) {
+    console.error('testing for hello world');
+    assert.strictEqual(data, 'hello world\r\n');
+    gotHelloWorld = true;
+    console.error('writing echo me');
+    child.stdin.write('echo me\r\n');
   } else {
-    assert.strictEqual(messages.length, 0);
+    console.error('testing for echo me');
+    assert.strictEqual(data, 'echo me\r\n');
+    gotEcho = true;
     child.stdin.end();
   }
-}, messages.length));
+});
 
-child.stdout.on('end', mustCall((data) => {
-  debug('child end');
-}));
+child.stdout.on('end', function(data) {
+  console.log('child end');
+});
+
+
+process.on('exit', function() {
+  assert.ok(gotHelloWorld);
+  assert.ok(gotEcho);
+});

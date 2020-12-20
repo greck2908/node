@@ -17,9 +17,9 @@
 #include "src/base/platform/condition-variable.h"
 #include "src/base/platform/mutex.h"
 #include "src/base/platform/semaphore.h"
-#include "src/common/globals.h"
-#include "src/handles/maybe-handles.h"
-#include "src/utils/identity-map.h"
+#include "src/globals.h"
+#include "src/identity-map.h"
+#include "src/maybe-handles.h"
 #include "testing/gtest/include/gtest/gtest_prod.h"  // nogncheck
 
 namespace v8 {
@@ -35,6 +35,7 @@ class BackgroundCompileTask;
 class CancelableTaskManager;
 class UnoptimizedCompileJob;
 class CompilerDispatcherTracer;
+class DeferredHandles;
 class FunctionLiteral;
 class Isolate;
 class ParseInfo;
@@ -74,7 +75,7 @@ class Handle;
 // thread.
 class V8_EXPORT_PRIVATE CompilerDispatcher {
  public:
-  using JobId = uintptr_t;
+  typedef uintptr_t JobId;
 
   CompilerDispatcher(Isolate* isolate, Platform* platform,
                      size_t max_stack_size);
@@ -135,8 +136,8 @@ class V8_EXPORT_PRIVATE CompilerDispatcher {
     bool aborted;
   };
 
-  using JobMap = std::map<JobId, std::unique_ptr<Job>>;
-  using SharedToJobIdMap = IdentityMap<JobId, FreeStoreAllocationPolicy>;
+  typedef std::map<JobId, std::unique_ptr<Job>> JobMap;
+  typedef IdentityMap<JobId, FreeStoreAllocationPolicy> SharedToJobIdMap;
 
   void WaitForJobIfRunningOnBackground(Job* job);
   JobMap::const_iterator GetJobFor(Handle<SharedFunctionInfo> shared) const;
@@ -150,6 +151,7 @@ class V8_EXPORT_PRIVATE CompilerDispatcher {
   JobMap::const_iterator RemoveJob(JobMap::const_iterator job);
 
   Isolate* isolate_;
+  AccountingAllocator* allocator_;
   WorkerThreadRuntimeCallStats* worker_thread_runtime_call_stats_;
   TimedHistogram* background_compile_timer_;
   std::shared_ptr<v8::TaskRunner> taskrunner_;

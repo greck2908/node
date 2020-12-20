@@ -9,6 +9,9 @@ const bench = common.createBenchmark(main, {
 });
 
 function main({ n, len, cipher }) {
+  // Default cipher for tests.
+  if (cipher === '')
+    cipher = 'aes-128-gcm';
   const message = Buffer.alloc(len, 'b');
   const key = crypto.randomBytes(keylen[cipher]);
   const iv = crypto.randomBytes(12);
@@ -22,7 +25,7 @@ function AEAD_Bench(cipher, message, associate_data, key, iv, n, len) {
   const bits = written * 8;
   const mbits = bits / (1024 * 1024);
 
-  for (let i = 0; i < n; i++) {
+  for (var i = 0; i < n; i++) {
     const alice = crypto.createCipheriv(cipher, key, iv);
     alice.setAAD(associate_data);
     const enc = alice.update(message);

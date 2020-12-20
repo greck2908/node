@@ -12,7 +12,7 @@
 #include "src/compiler/node-properties.h"
 #include "src/compiler/simplified-operator.h"
 #include "src/compiler/type-cache.h"
-#include "src/execution/isolate-inl.h"
+#include "src/isolate-inl.h"
 
 namespace v8 {
 namespace internal {
@@ -26,9 +26,9 @@ TypedOptimization::TypedOptimization(Editor* editor,
       jsgraph_(jsgraph),
       broker_(broker),
       true_type_(
-          Type::Constant(broker, factory()->true_value(), graph()->zone())),
-      false_type_(
-          Type::Constant(broker, factory()->false_value(), graph()->zone())),
+          Type::HeapConstant(broker, factory()->true_value(), graph()->zone())),
+      false_type_(Type::HeapConstant(broker, factory()->false_value(),
+                                     graph()->zone())),
       type_cache_(TypeCache::Get()) {}
 
 TypedOptimization::~TypedOptimization() = default;
@@ -38,12 +38,8 @@ Reduction TypedOptimization::Reduce(Node* node) {
   switch (node->opcode()) {
     case IrOpcode::kConvertReceiver:
       return ReduceConvertReceiver(node);
-    case IrOpcode::kMaybeGrowFastElements:
-      return ReduceMaybeGrowFastElements(node);
     case IrOpcode::kCheckHeapObject:
       return ReduceCheckHeapObject(node);
-    case IrOpcode::kCheckBounds:
-      return ReduceCheckBounds(node);
     case IrOpcode::kCheckNotTaggedHole:
       return ReduceCheckNotTaggedHole(node);
     case IrOpcode::kCheckMaps:
@@ -117,26 +113,6 @@ base::Optional<MapRef> GetStableMapFromObjectType(JSHeapBroker* broker,
   return {};
 }
 
-Node* ResolveSameValueRenames(Node* node) {
-  while (true) {
-    switch (node->opcode()) {
-      case IrOpcode::kCheckHeapObject:
-      case IrOpcode::kCheckNumber:
-      case IrOpcode::kCheckSmi:
-      case IrOpcode::kFinishRegion:
-      case IrOpcode::kTypeGuard:
-        if (node->IsDead()) {
-          return node;
-        } else {
-          node = node->InputAt(0);
-          continue;
-        }
-      default:
-        return node;
-    }
-  }
-}
-
 }  // namespace
 
 Reduction TypedOptimization::ReduceConvertReceiver(Node* node) {
@@ -159,48 +135,6 @@ Reduction TypedOptimization::ReduceCheckHeapObject(Node* node) {
   if (!input_type.Maybe(Type::SignedSmall())) {
     ReplaceWithValue(node, input);
     return Replace(input);
-  }
-  return NoChange();
-}
-
-Reduction TypedOptimization::ReduceMaybeGrowFastElements(Node* node) {
-  Node* const elements = NodeProperties::GetValueInput(node, 1);
-  Node* const index = NodeProperties::GetValueInput(node, 2);
-  Node* const length = NodeProperties::GetValueInput(node, 3);
-  Node* const effect = NodeProperties::GetEffectInput(node);
-  Node* const control = NodeProperties::GetControlInput(node);
-
-  Type const index_type = NodeProperties::GetType(index);
-  Type const length_type = NodeProperties::GetType(length);
-  CHECK(index_type.Is(Type::Unsigned31()));
-  CHECK(length_type.Is(Type::Unsigned31()));
-
-  if (!index_type.IsNone() && !length_type.IsNone() &&
-      index_type.Max() < length_type.Min()) {
-    Node* check_bounds = graph()->NewNode(
-        simplified()->CheckBounds(FeedbackSource{},
-                                  CheckBoundsFlag::kAbortOnOutOfBounds),
-        index, length, effect, control);
-    ReplaceWithValue(node, elements, check_bounds);
-    return Replace(check_bounds);
-  }
-
-  return NoChange();
-}
-
-Reduction TypedOptimization::ReduceCheckBounds(Node* node) {
-  CheckBoundsParameters const& p = CheckBoundsParametersOf(node->op());
-  Node* const input = NodeProperties::GetValueInput(node, 0);
-  Type const input_type = NodeProperties::GetType(input);
-  if (p.flags() & CheckBoundsFlag::kConvertStringAndMinusZero &&
-      !input_type.Maybe(Type::String()) &&
-      !input_type.Maybe(Type::MinusZero())) {
-    NodeProperties::ChangeOp(
-        node,
-        simplified()->CheckBounds(
-            p.check_parameters().feedback(),
-            p.flags().without(CheckBoundsFlag::kConvertStringAndMinusZero)));
-    return Changed(node);
   }
   return NoChange();
 }
@@ -331,7 +265,7 @@ Reduction TypedOptimization::ReduceNumberFloor(Node* node) {
       //   NumberToUint32(NumberDivide(lhs, rhs))
       //
       // and just smash the type [0...lhs.Max] on the {node},
-      // as the truncated result must be lower than {lhs}'s maximum
+      // as the truncated result must be loewr than {lhs}'s maximum
       // value (note that {rhs} cannot be less than 1 due to the
       // plain-number type constraint on the {node}).
       NodeProperties::ChangeOp(node, simplified()->NumberToUint32());
@@ -375,12 +309,6 @@ Reduction TypedOptimization::ReducePhi(Node* node) {
   // after lowering based on types, i.e. a SpeculativeNumberAdd has a more
   // precise type than the JSAdd that was in the graph when the Typer was run.
   DCHECK_EQ(IrOpcode::kPhi, node->opcode());
-  // Prevent new types from being propagated through loop-related Phis for now.
-  // This is to avoid slow convergence of type narrowing when we learn very
-  // precise information about loop variables.
-  if (NodeProperties::GetControlInput(node, 0)->opcode() == IrOpcode::kLoop) {
-    return NoChange();
-  }
   int arity = node->op()->ValueInputCount();
   Type type = NodeProperties::GetType(node->InputAt(0));
   for (int i = 1; i < arity; ++i) {
@@ -579,10 +507,7 @@ Reduction TypedOptimization::ReduceSameValue(Node* node) {
   Node* const rhs = NodeProperties::GetValueInput(node, 1);
   Type const lhs_type = NodeProperties::GetType(lhs);
   Type const rhs_type = NodeProperties::GetType(rhs);
-  if (ResolveSameValueRenames(lhs) == ResolveSameValueRenames(rhs)) {
-    if (NodeProperties::GetType(node).IsNone()) {
-      return NoChange();
-    }
+  if (lhs == rhs) {
     // SameValue(x,x) => #true
     return Replace(jsgraph()->TrueConstant());
   } else if (lhs_type.Is(Type::Unique()) && rhs_type.Is(Type::Unique())) {

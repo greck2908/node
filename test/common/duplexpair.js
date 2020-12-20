@@ -24,12 +24,8 @@ class DuplexSocket extends Duplex {
   _write(chunk, encoding, callback) {
     assert.notStrictEqual(this[kOtherSide], null);
     assert.strictEqual(this[kOtherSide][kCallback], null);
-    if (chunk.length === 0) {
-      process.nextTick(callback);
-    } else {
-      this[kOtherSide].push(chunk);
-      this[kOtherSide][kCallback] = callback;
-    }
+    this[kOtherSide][kCallback] = callback;
+    this[kOtherSide].push(chunk);
   }
 
   _final(callback) {

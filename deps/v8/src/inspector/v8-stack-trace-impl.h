@@ -18,12 +18,15 @@ namespace v8_inspector {
 
 class AsyncStackTrace;
 class V8Debugger;
+class WasmTranslation;
 struct V8StackTraceId;
 
 class StackFrame {
  public:
   explicit StackFrame(v8::Isolate* isolate, v8::Local<v8::StackFrame> frame);
   ~StackFrame() = default;
+
+  void translate(WasmTranslation* wasmTranslation);
 
   const String16& functionName() const;
   const String16& scriptId() const;
@@ -75,8 +78,6 @@ class V8StackTraceImpl : public V8StackTrace {
   StringView topFunctionName() const override;
   std::unique_ptr<protocol::Runtime::API::StackTrace> buildInspectorObject()
       const override;
-  std::unique_ptr<protocol::Runtime::API::StackTrace> buildInspectorObject(
-      int maxAsyncDepth) const override;
   std::unique_ptr<StringBuffer> toString() const override;
 
   bool isEqualIgnoringTopFrame(V8StackTraceImpl* stackTrace) const;

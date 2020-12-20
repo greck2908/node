@@ -19,7 +19,8 @@ session.post('Runtime.evaluate', {
   expression: 'a',
   throwOnSideEffect: true,
   contextId: 2 // context's id
-}, common.mustSucceed((res) => {
+}, common.mustCall((error, res) => {
+  assert.ifError(error),
   assert.deepStrictEqual(res, {
     result: {
       type: 'number',

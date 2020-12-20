@@ -323,7 +323,7 @@ CompoundTransliterator& CompoundTransliterator::operator=(
 /**
  * Transliterator API.
  */
-CompoundTransliterator* CompoundTransliterator::clone() const {
+Transliterator* CompoundTransliterator::clone(void) const {
     return new CompoundTransliterator(*this);
 }
 

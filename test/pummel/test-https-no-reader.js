@@ -43,10 +43,10 @@ const server = https.createServer(options, function(req, res) {
   res.end();
 });
 
-server.listen(0, function() {
+server.listen(common.PORT, function() {
   const req = https.request({
     method: 'POST',
-    port: server.address().port,
+    port: common.PORT,
     rejectUnauthorized: false
   }, function(res) {
     res.read(0);

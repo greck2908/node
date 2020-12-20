@@ -2,7 +2,6 @@
 
 const common = require('../common');
 
-const assert = require('assert');
 const dns = require('dns');
 
 const localhost = [ '127.0.0.1' ];
@@ -14,7 +13,7 @@ const localhost = [ '127.0.0.1' ];
     const resolver = new dns.Resolver();
     resolver.resolve('localhost', common.mustCall());
 
-    assert.throws(resolver.setServers.bind(resolver, localhost), {
+    common.expectsError(resolver.setServers.bind(resolver, localhost), {
       code: 'ERR_DNS_SET_SERVERS_FAILED',
       message: /^c-ares failed to set servers: "There are pending queries\." \[.+\]$/g
     });

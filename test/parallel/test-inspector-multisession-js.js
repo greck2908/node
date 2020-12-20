@@ -57,7 +57,7 @@ async function test() {
 }
 
 const interval = setInterval(() => {}, 1000);
-test().then(common.mustCall(() => {
+test().then(() => {
   clearInterval(interval);
   console.log('Done!');
-}));
+});

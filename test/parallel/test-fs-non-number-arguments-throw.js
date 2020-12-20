@@ -14,31 +14,31 @@ fs.writeFileSync(tempFile, 'abc\ndef');
 const sanity = 'def';
 const saneEmitter = fs.createReadStream(tempFile, { start: 4, end: 6 });
 
-assert.throws(
+common.expectsError(
   () => {
     fs.createReadStream(tempFile, { start: '4', end: 6 });
   },
   {
     code: 'ERR_INVALID_ARG_TYPE',
-    name: 'TypeError'
+    type: TypeError
   });
 
-assert.throws(
+common.expectsError(
   () => {
     fs.createReadStream(tempFile, { start: 4, end: '6' });
   },
   {
     code: 'ERR_INVALID_ARG_TYPE',
-    name: 'TypeError'
+    type: TypeError
   });
 
-assert.throws(
+common.expectsError(
   () => {
     fs.createWriteStream(tempFile, { start: '4' });
   },
   {
     code: 'ERR_INVALID_ARG_TYPE',
-    name: 'TypeError'
+    type: TypeError
   });
 
 saneEmitter.on('data', common.mustCall(function(data) {

@@ -5,9 +5,9 @@
 #ifndef V8_OBJECTS_JS_COLLECTION_ITERATOR_H_
 #define V8_OBJECTS_JS_COLLECTION_ITERATOR_H_
 
-#include "src/common/globals.h"
+#include "src/globals.h"
+#include "src/objects.h"
 #include "src/objects/js-objects.h"
-#include "src/objects/objects.h"
 #include "src/objects/smi.h"
 
 // Has to be the last include (doesn't have include guards):
@@ -16,13 +16,20 @@
 namespace v8 {
 namespace internal {
 
-class JSCollectionIterator
-    : public TorqueGeneratedJSCollectionIterator<JSCollectionIterator,
-                                                 JSObject> {
+class JSCollectionIterator : public JSObject {
  public:
+  // [table]: the backing hash table mapping keys to values.
+  DECL_ACCESSORS(table, Object)
+
+  // [index]: The index into the data table.
+  DECL_ACCESSORS(index, Object)
+
   void JSCollectionIteratorPrint(std::ostream& os, const char* name);
 
-  TQ_OBJECT_CONSTRUCTORS(JSCollectionIterator)
+  DEFINE_FIELD_OFFSET_CONSTANTS(JSObject::kHeaderSize,
+                                TORQUE_GENERATED_JSCOLLECTION_ITERATOR_FIELDS)
+
+  OBJECT_CONSTRUCTORS(JSCollectionIterator, JSObject);
 };
 
 // OrderedHashTableIterator is an iterator that iterates over the keys and

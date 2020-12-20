@@ -7,13 +7,13 @@
 
 #include <vector>
 
-#include "src/common/globals.h"
-#include "src/handles/handles.h"
+#include "src/globals.h"
+#include "src/handles.h"
 
 namespace v8 {
 namespace debug {
 struct LiveEditResult;
-}  // namespace debug
+}
 namespace internal {
 
 class Script;

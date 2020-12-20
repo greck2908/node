@@ -25,8 +25,9 @@ function getEnabledCategoriesFromCommandLine() {
   const indexOfCatFlag = process.execArgv.indexOf('--trace-event-categories');
   if (indexOfCatFlag === -1) {
     return undefined;
+  } else {
+    return process.execArgv[indexOfCatFlag + 1];
   }
-  return process.execArgv[indexOfCatFlag + 1];
 }
 
 const isChild = process.argv[2] === 'child';
@@ -34,21 +35,21 @@ const enabledCategories = getEnabledCategoriesFromCommandLine();
 
 assert.strictEqual(getEnabledCategories(), enabledCategories);
 [1, 'foo', true, false, null, undefined].forEach((i) => {
-  assert.throws(() => createTracing(i), {
+  common.expectsError(() => createTracing(i), {
     code: 'ERR_INVALID_ARG_TYPE',
-    name: 'TypeError'
+    type: TypeError
   });
-  assert.throws(() => createTracing({ categories: i }), {
+  common.expectsError(() => createTracing({ categories: i }), {
     code: 'ERR_INVALID_ARG_TYPE',
-    name: 'TypeError'
+    type: TypeError
   });
 });
 
-assert.throws(
+common.expectsError(
   () => createTracing({ categories: [] }),
   {
     code: 'ERR_TRACE_EVENTS_CATEGORY_REQUIRED',
-    name: 'TypeError'
+    type: TypeError
   }
 );
 
@@ -149,7 +150,8 @@ function testApiInChildProcess(execArgs, cb) {
     const file = path.join(tmpdir.path, 'node_trace.1.log');
 
     assert(fs.existsSync(file));
-    fs.readFile(file, common.mustSucceed((data) => {
+    fs.readFile(file, common.mustCall((err, data) => {
+      assert.ifError(err);
       const traces = JSON.parse(data.toString()).traceEvents
         .filter((trace) => trace.cat !== '__metadata');
       assert.strictEqual(traces.length,

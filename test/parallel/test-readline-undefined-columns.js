@@ -5,8 +5,6 @@ const assert = require('assert');
 const PassThrough = require('stream').PassThrough;
 const readline = require('readline');
 
-common.skipIfDumbTerminal();
-
 // Checks that tab completion still works
 // when output column size is undefined
 

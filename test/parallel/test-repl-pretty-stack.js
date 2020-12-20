@@ -5,9 +5,9 @@ const fixtures = require('../common/fixtures');
 const assert = require('assert');
 const repl = require('repl');
 
-const stackRegExp = /(at .*REPL\d+:)[0-9]+:[0-9]+/g;
+const stackRegExp = /(at .*repl:)[0-9]+:[0-9]+/g;
 
-function run({ command, expected, ...extraREPLOptions }, i) {
+function run({ command, expected, ...extraREPLOptions }) {
   let accum = '';
 
   const inputStream = new ArrayStream();
@@ -25,7 +25,6 @@ function run({ command, expected, ...extraREPLOptions }, i) {
   });
 
   r.write(`${command}\n`);
-  console.log(i);
   assert.strictEqual(
     accum.replace(stackRegExp, '$1*:*'),
     expected.replace(stackRegExp, '$1*:*')
@@ -37,39 +36,39 @@ const tests = [
   {
     // Test .load for a file that throws.
     command: `.load ${fixtures.path('repl-pretty-stack.js')}`,
-    expected: 'Uncaught Error: Whoops!\n    at REPL1:*:*\n' +
-              '    at d (REPL1:*:*)\n    at c (REPL1:*:*)\n' +
-              '    at b (REPL1:*:*)\n    at a (REPL1:*:*)\n'
+    expected: 'Thrown:\nError: Whoops!\n    at repl:*:*\n' +
+              '    at d (repl:*:*)\n    at c (repl:*:*)\n' +
+              '    at b (repl:*:*)\n    at a (repl:*:*)\n'
   },
   {
     command: 'let x y;',
-    expected: 'let x y;\n      ^\n\n' +
-              'Uncaught SyntaxError: Unexpected identifier\n'
+    expected: 'Thrown:\n' +
+              'let x y;\n      ^\n\nSyntaxError: Unexpected identifier\n'
   },
   {
     command: 'throw new Error(\'Whoops!\')',
-    expected: 'Uncaught Error: Whoops!\n'
+    expected: 'Thrown:\nError: Whoops!\n'
   },
   {
     command: '(() => { const err = Error(\'Whoops!\'); ' +
              'err.foo = \'bar\'; throw err; })()',
-    expected: "Uncaught Error: Whoops!\n    at REPL4:*:* {\n  foo: 'bar'\n}\n",
+    expected: "Thrown:\nError: Whoops!\n    at repl:*:* {\n  foo: 'bar'\n}\n",
   },
   {
     command: '(() => { const err = Error(\'Whoops!\'); ' +
              'err.foo = \'bar\'; throw err; })()',
-    expected: 'Uncaught Error: Whoops!\n    at REPL5:*:* {\n  foo: ' +
+    expected: 'Thrown:\nError: Whoops!\n    at repl:*:* {\n  foo: ' +
               "\u001b[32m'bar'\u001b[39m\n}\n",
     useColors: true
   },
   {
     command: 'foo = bar;',
-    expected: 'Uncaught ReferenceError: bar is not defined\n'
+    expected: 'Thrown:\nReferenceError: bar is not defined\n'
   },
   // Test anonymous IIFE.
   {
     command: '(function() { throw new Error(\'Whoops!\'); })()',
-    expected: 'Uncaught Error: Whoops!\n    at REPL7:*:*\n'
+    expected: 'Thrown:\nError: Whoops!\n    at repl:*:*\n'
   }
 ];
 

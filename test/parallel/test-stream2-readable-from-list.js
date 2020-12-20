@@ -19,7 +19,7 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-// Flags: --expose-internals
+// Flags: --expose_internals
 'use strict';
 require('../common');
 const assert = require('assert');

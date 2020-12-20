@@ -11,9 +11,10 @@ namespace v8 {
 namespace base {
 
 using Address = RegionAllocator::Address;
-using RegionState = RegionAllocator::RegionState;
 using v8::internal::KB;
 using v8::internal::MB;
+
+class RegionAllocatorTest : public ::testing::TestWithParam<int> {};
 
 TEST(RegionAllocatorTest, SimpleAllocateRegionAt) {
   const size_t kPageSize = 4 * KB;
@@ -78,7 +79,7 @@ TEST(RegionAllocatorTest, SimpleAllocateRegion) {
   CHECK_EQ(ra.free_size(), 0);
 }
 
-TEST(RegionAllocatorTest, AllocateRegionRandom) {
+TEST_P(RegionAllocatorTest, AllocateRegionRandom) {
   const size_t kPageSize = 8 * KB;
   const size_t kPageCountLog = 16;
   const size_t kPageCount = (size_t{1} << kPageCountLog);
@@ -86,7 +87,7 @@ TEST(RegionAllocatorTest, AllocateRegionRandom) {
   const Address kBegin = static_cast<Address>(153 * MB);
   const Address kEnd = kBegin + kSize;
 
-  base::RandomNumberGenerator rng(::testing::FLAGS_gtest_random_seed);
+  base::RandomNumberGenerator rng(GetParam());
   RegionAllocator ra(kBegin, kSize, kPageSize);
 
   std::set<Address> allocated_pages;
@@ -186,8 +187,8 @@ TEST(RegionAllocatorTest, MergeLeftToRightCoalecsingRegions) {
   CHECK_EQ(ra.free_size(), 0);
 }
 
-TEST(RegionAllocatorTest, MergeRightToLeftCoalecsingRegions) {
-  base::RandomNumberGenerator rng(::testing::FLAGS_gtest_random_seed);
+TEST_P(RegionAllocatorTest, MergeRightToLeftCoalecsingRegions) {
+  base::RandomNumberGenerator rng(GetParam());
   const size_t kPageSize = 4 * KB;
   const size_t kPageCountLog = 10;
   const size_t kPageCount = (size_t{1} << kPageCountLog);
@@ -349,30 +350,6 @@ TEST(RegionAllocatorTest, TrimRegion) {
   // Check that the whole region is free and can be fully allocated.
   CHECK_EQ(ra.free_size(), kSize);
   CHECK_EQ(ra.AllocateRegion(kSize), kBegin);
-}
-
-TEST(RegionAllocatorTest, AllocateExcluded) {
-  const size_t kPageSize = 4 * KB;
-  const size_t kPageCount = 64;
-  const size_t kSize = kPageSize * kPageCount;
-  const Address kBegin = static_cast<Address>(kPageSize * 153);
-
-  RegionAllocator ra(kBegin, kSize, kPageSize);
-
-  Address address = kBegin + 13 * kPageSize;
-  size_t size = 37 * kPageSize;
-  CHECK(ra.AllocateRegionAt(address, size, RegionState::kExcluded));
-
-  // The region is not free and cannot be allocated at again.
-  CHECK(!ra.IsFree(address, size));
-  CHECK(!ra.AllocateRegionAt(address, size));
-  auto region_iter = ra.FindRegion(address);
-
-  CHECK((*region_iter)->is_excluded());
-
-  // It's not possible to free or trim an excluded region.
-  CHECK_EQ(ra.FreeRegion(address), 0);
-  CHECK_EQ(ra.TrimRegion(address, kPageSize), 0);
 }
 
 }  // namespace base

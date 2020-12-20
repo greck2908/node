@@ -32,8 +32,10 @@ function usingPredefined() {
 }
 
 function main({ n, method, args }) {
-  let fn;
+  var fn;
   switch (method) {
+    // '' is a default case for tests
+    case '':
     case 'restAndSpread':
       fn = usingRestAndSpread;
       break;
@@ -51,7 +53,7 @@ function main({ n, method, args }) {
   }
 
   bench.start();
-  for (let i = 0; i < n; i++)
+  for (var i = 0; i < n; i++)
     fn('part 1', 'part', 2, 'part 3', 'part', 4);
   bench.end(n);
 }

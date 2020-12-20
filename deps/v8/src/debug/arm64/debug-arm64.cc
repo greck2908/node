@@ -6,11 +6,11 @@
 
 #include "src/debug/debug.h"
 
-#include "src/codegen/arm64/macro-assembler-arm64-inl.h"
+#include "src/arm64/macro-assembler-arm64-inl.h"
 #include "src/debug/liveedit.h"
-#include "src/execution/frame-constants.h"
-#include "src/execution/frames-inl.h"
-#include "src/objects/objects-inl.h"
+#include "src/frame-constants.h"
+#include "src/frames-inl.h"
+#include "src/objects-inl.h"
 
 namespace v8 {
 namespace internal {
@@ -35,18 +35,20 @@ void DebugCodegen::GenerateFrameDropperTrampoline(MacroAssembler* masm) {
   // - Leave the frame.
   // - Restart the frame by calling the function.
   __ Mov(fp, x1);
-  __ Ldr(x1, MemOperand(fp, StandardFrameConstants::kFunctionOffset));
+  __ Ldr(x1, MemOperand(fp, JavaScriptFrameConstants::kFunctionOffset));
 
   __ Mov(sp, fp);
-  __ Pop<TurboAssembler::kAuthLR>(fp, lr);
+  __ Pop(fp, lr);  // Frame, Return address.
 
   __ LoadTaggedPointerField(
       x0, FieldMemOperand(x1, JSFunction::kSharedFunctionInfoOffset));
   __ Ldrh(x0,
           FieldMemOperand(x0, SharedFunctionInfo::kFormalParameterCountOffset));
-  __ mov(x3, x0);
+  __ mov(x2, x0);
 
-  __ InvokeFunctionWithNewTarget(x1, x3, x0, JUMP_FUNCTION);
+  ParameterCount dummy1(x2);
+  ParameterCount dummy2(x0);
+  __ InvokeFunction(x1, dummy1, dummy2, JUMP_FUNCTION);
 }
 
 

@@ -92,7 +92,7 @@ NormalizationTransliterator::NormalizationTransliterator(const NormalizationTran
 /**
  * Transliterator API.
  */
-NormalizationTransliterator* NormalizationTransliterator::clone() const {
+Transliterator* NormalizationTransliterator::clone(void) const {
     return new NormalizationTransliterator(*this);
 }
 

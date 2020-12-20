@@ -1,9 +1,8 @@
 'use strict';
 
-require('../common');
-const assert = require('assert');
+const common = require('../common');
 
 // Should be an invalid package path.
-assert.throws(() => require('package.json'),
-              { code: 'MODULE_NOT_FOUND' }
+common.expectsError(() => require('package.json'),
+                    { code: 'MODULE_NOT_FOUND' }
 );

@@ -6,14 +6,14 @@ const bench = common.createBenchmark(main, {
 });
 
 function main({ n }) {
-  let j = 0;
+  var j = 0;
   bench.start();
   function cb() {
     j++;
     if (j === n)
       bench.end(n);
   }
-  for (let i = 0; i < n; i++) {
+  for (var i = 0; i < n; i++) {
     setTimeout(cb, 1);
   }
 }

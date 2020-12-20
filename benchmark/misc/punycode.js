@@ -45,23 +45,26 @@ function usingICU(val) {
 }
 
 function runPunycode(n, val) {
-  for (let i = 0; i < n; i++)
+  var i = 0;
+  for (; i < n; i++)
     usingPunycode(val);
   bench.start();
-  for (let i = 0; i < n; i++)
+  for (i = 0; i < n; i++)
     usingPunycode(val);
   bench.end(n);
 }
 
 function runICU(n, val) {
   bench.start();
-  for (let i = 0; i < n; i++)
+  for (var i = 0; i < n; i++)
     usingICU(val);
   bench.end(n);
 }
 
 function main({ n, val, method }) {
   switch (method) {
+    // '' is a default case for tests
+    case '':
     case 'punycode':
       runPunycode(n, val);
       break;

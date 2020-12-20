@@ -3,11 +3,7 @@
 // found in the LICENSE file.
 
 // Flags: --allow-natives-syntax --expose-gc --turbo-inline-array-builtins
-// Flags: --opt --no-always-opt --no-lazy-feedback-allocation
-
-// TODO(v8:10195): Fix these tests s.t. we assert deoptimization occurs when
-// expected (e.g. in a %DeoptimizeNow call), then remove
-// --no-lazy-feedback-allocation.
+// Flags: --opt --no-always-opt
 
 // Unknown field access leads to soft-deopt unrelated to filter, should still
 // lead to correct result.
@@ -27,8 +23,7 @@
       return true;
     }
     return a.filter(callback);
-  };
-  %PrepareFunctionForOptimization(eagerDeoptInCalled);
+  }
   eagerDeoptInCalled();
   eagerDeoptInCalled();
   %OptimizeFunctionOnNextCall(eagerDeoptInCalled);
@@ -48,8 +43,7 @@
       return i == 0 ? false : true;
     }
     return a.filter(callback);
-  };
-  %PrepareFunctionForOptimization(eagerDeoptInCalled);
+  }
   var like_a = [1,2,3,4,5,6,7,8,9,10];
   assertEquals(like_a.slice(1), eagerDeoptInCalled());
   eagerDeoptInCalled();
@@ -72,8 +66,7 @@
       return true;
     }
     return a.filter(callback);
-  };
-  %PrepareFunctionForOptimization(lazyChanger);
+  }
   assertEquals(a, lazyChanger());
   lazyChanger();
   %OptimizeFunctionOnNextCall(lazyChanger);
@@ -95,8 +88,7 @@
       return true;
     }
     return a.filter(callback);
-  };
-  %PrepareFunctionForOptimization(lazyDeselection);
+  }
   assertEquals(a, lazyDeselection());
   lazyDeselection();
   %OptimizeFunctionOnNextCall(lazyDeselection);
@@ -119,8 +111,7 @@
       return true;
     }
     a_noescape.filter(callback);
-  };
-  %PrepareFunctionForOptimization(eagerDeoptInCalled);
+  }
   eagerDeoptInCalled();
   eagerDeoptInCalled();
   %OptimizeFunctionOnNextCall(eagerDeoptInCalled);
@@ -147,8 +138,7 @@
     };
     %NeverOptimizeFunction(callback);
     b.filter(callback);
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   lazyDeopt();
   lazyDeopt();
   %OptimizeFunctionOnNextCall(lazyDeopt);
@@ -170,8 +160,7 @@
       return true;
     }
     a.filter(callback);
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   lazyDeopt();
   lazyDeopt();
   %OptimizeFunctionOnNextCall(lazyDeopt);
@@ -195,8 +184,7 @@
     };
     %NeverOptimizeFunction(callback);
     a.filter(callback);
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   lazyDeopt();
   lazyDeopt();
   %OptimizeFunctionOnNextCall(lazyDeopt);
@@ -221,8 +209,7 @@
       return true;
     }
     a.filter(callback);
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   lazyDeopt();
   lazyDeopt();
   %OptimizeFunctionOnNextCall(lazyDeopt);
@@ -251,8 +238,7 @@
     } catch (e) {
       caught = true;
     }
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   lazyDeopt();
   lazyDeopt();
   %OptimizeFunctionOnNextCall(lazyDeopt);
@@ -282,8 +268,7 @@
     } catch (e) {
       caught = true;
     }
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   lazyDeopt();
   lazyDeopt();
   %OptimizeFunctionOnNextCall(lazyDeopt);
@@ -314,8 +299,7 @@
       result = "nope";
     }
     return result;
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   assertEquals([1,2,3,4], lazyDeopt(false));
   assertEquals([1,2,3,4], lazyDeopt(false));
   assertEquals("nope", lazyDeopt(true));
@@ -342,8 +326,7 @@
     };
     var o = [1,2,3];
     b.filter(callback);
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   lazyDeopt();
   lazyDeopt();
   %OptimizeFunctionOnNextCall(lazyDeopt);
@@ -368,8 +351,7 @@
     %NeverOptimizeFunction(callback);
     var o = [1,2,3];
     b.filter(callback);
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   lazyDeopt();
   lazyDeopt();
   %OptimizeFunctionOnNextCall(lazyDeopt);
@@ -395,8 +377,7 @@
     };
     var o = [1,2,3];
     b.filter(callback);
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   lazyDeopt();
   lazyDeopt();
   %OptimizeFunctionOnNextCall(lazyDeopt);
@@ -420,8 +401,7 @@
       return true;
     };
     a.filter(callback);
-  };
-  %PrepareFunctionForOptimization(lazyDeopt);
+  }
   assertThrows(() => lazyDeopt());
   assertThrows(() => lazyDeopt());
   try {
@@ -448,7 +428,6 @@
       return true;
     });
   }
-  %PrepareFunctionForOptimization(withHoles);
   withHoles();
   withHoles();
   %OptimizeFunctionOnNextCall(withHoles);
@@ -466,7 +445,6 @@
       return true;
     });
   }
-  %PrepareFunctionForOptimization(withHoles);
   withHoles();
   withHoles();
   %OptimizeFunctionOnNextCall(withHoles);
@@ -483,7 +461,6 @@
     return a.filter(x => x % 2 === 0, side_effect(a, b));
   }
 
-  %PrepareFunctionForOptimization(unreliable);
   let a = [1, 2, 3];
   unreliable(a, false);
   unreliable(a, false);
@@ -503,8 +480,7 @@
       return true;
     }
     a.filter(callback);
-  };
-  %PrepareFunctionForOptimization(species_breakage);
+  }
   species_breakage();
   species_breakage();
   %OptimizeFunctionOnNextCall(species_breakage);

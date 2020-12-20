@@ -1,26 +1,31 @@
 'use strict';
 
 // Check that spawn child doesn't create duplicated entries
-const common = require('../common');
-const kRepetitions = 2;
+require('../common');
+const Countdown = require('../common/countdown');
+const REPETITIONS = 2;
 const assert = require('assert');
 const fixtures = require('../common/fixtures');
-const { promisify, debuglog } = require('util');
-const debug = debuglog('test');
-
-const { execFile } = require('child_process');
-const execFilePromise = promisify(execFile);
+const { spawn } = require('child_process');
 const targetScript = fixtures.path('guess-hash-seed.js');
+const seeds = [];
 
-const requiredCallback = common.mustCall((results) => {
-  const seeds = results.map((val) => val.stdout.trim());
-  debug(`Seeds: ${seeds}`);
+const requiredCallback = () => {
+  console.log(`Seeds: ${seeds}`);
   assert.strictEqual(new Set(seeds).size, seeds.length);
-  assert.strictEqual(seeds.length, kRepetitions);
-});
+  assert.strictEqual(seeds.length, REPETITIONS);
+};
 
-const generateSeed = () => execFilePromise(process.execPath, [targetScript]);
-const subprocesses = [...new Array(kRepetitions)].map(generateSeed);
+const countdown = new Countdown(REPETITIONS, requiredCallback);
 
-Promise.all(subprocesses)
-  .then(requiredCallback);
+for (let i = 0; i < REPETITIONS; ++i) {
+  let result = '';
+  const subprocess = spawn(process.execPath, [targetScript]);
+  subprocess.stdout.setEncoding('utf8');
+  subprocess.stdout.on('data', (data) => { result += data; });
+
+  subprocess.on('exit', () => {
+    seeds.push(result.trim());
+    countdown.dec();
+  });
+}

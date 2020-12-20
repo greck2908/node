@@ -48,13 +48,11 @@ class U_I18N_API ImmutablePatternModifier : public MicroPropsGenerator, public U
 
     void applyToMicros(MicroProps& micros, const DecimalQuantity& quantity, UErrorCode& status) const;
 
-    const Modifier* getModifier(Signum signum, StandardPlural::Form plural) const;
-
-    // Non-const method:
-    void addToChain(const MicroPropsGenerator* parent);
+    const Modifier* getModifier(int8_t signum, StandardPlural::Form plural) const;
 
   private:
-    ImmutablePatternModifier(AdoptingModifierStore* pm, const PluralRules* rules);
+    ImmutablePatternModifier(AdoptingModifierStore* pm, const PluralRules* rules,
+                             const MicroPropsGenerator* parent);
 
     const LocalPointer<AdoptingModifierStore> pm;
     const PluralRules* rules;
@@ -124,18 +122,16 @@ class U_I18N_API MutablePatternModifier
      *
      * @param symbols
      *            The desired instance of DecimalFormatSymbols.
-     * @param currency
-     *            The currency to be used when substituting currency values into the affixes.
+     * @param currencySymbols
+     *            The currency symbols to be used when substituting currency values into the affixes.
      * @param unitWidth
      *            The width used to render currencies.
      * @param rules
      *            Required if the triple currency sign, "¤¤¤", appears in the pattern, which can be determined from the
      *            convenience method {@link #needsPlurals()}.
-     * @param status
-     *            Set if an error occurs while loading currency data.
      */
-    void setSymbols(const DecimalFormatSymbols* symbols, const CurrencyUnit& currency,
-                    UNumberUnitWidth unitWidth, const PluralRules* rules, UErrorCode& status);
+    void setSymbols(const DecimalFormatSymbols* symbols, const CurrencySymbols* currencySymbols,
+                    UNumberUnitWidth unitWidth, const PluralRules* rules);
 
     /**
      * Sets attributes of the current number being processed.
@@ -146,7 +142,7 @@ class U_I18N_API MutablePatternModifier
      *            The plural form of the number, required only if the pattern contains the triple
      *            currency sign, "¤¤¤" (and as indicated by {@link #needsPlurals()}).
      */
-    void setNumberProperties(Signum signum, StandardPlural::Form plural);
+    void setNumberProperties(int8_t signum, StandardPlural::Form plural);
 
     /**
      * Returns true if the pattern represented by this MurkyModifier requires a plural keyword in order to localize.
@@ -169,11 +165,26 @@ class U_I18N_API MutablePatternModifier
      */
     ImmutablePatternModifier *createImmutable(UErrorCode &status);
 
+    /**
+     * Creates a new quantity-dependent Modifier that behaves the same as the current instance, but which is immutable
+     * and can be saved for future use. The number properties in the current instance are mutated; all other properties
+     * are left untouched.
+     *
+     * <p>
+     * CREATES A NEW HEAP OBJECT; THE CALLER GETS OWNERSHIP.
+     *
+     * @param parent
+     *            The QuantityChain to which to chain this immutable.
+     * @return An immutable that supports both positive and negative numbers.
+     */
+    ImmutablePatternModifier *
+    createImmutableAndChain(const MicroPropsGenerator *parent, UErrorCode &status);
+
     MicroPropsGenerator &addToChain(const MicroPropsGenerator *parent);
 
     void processQuantity(DecimalQuantity &, MicroProps &micros, UErrorCode &status) const U_OVERRIDE;
 
-    int32_t apply(FormattedStringBuilder &output, int32_t leftIndex, int32_t rightIndex,
+    int32_t apply(NumberStringBuilder &output, int32_t leftIndex, int32_t rightIndex,
                   UErrorCode &status) const U_OVERRIDE;
 
     int32_t getPrefixLength() const U_OVERRIDE;
@@ -182,7 +193,7 @@ class U_I18N_API MutablePatternModifier
 
     bool isStrong() const U_OVERRIDE;
 
-    bool containsField(Field field) const U_OVERRIDE;
+    bool containsField(UNumberFormatFields field) const U_OVERRIDE;
 
     void getParameters(Parameters& output) const U_OVERRIDE;
 
@@ -208,11 +219,11 @@ class U_I18N_API MutablePatternModifier
     // Symbol details (initialized in setSymbols)
     const DecimalFormatSymbols *fSymbols;
     UNumberUnitWidth fUnitWidth;
-    CurrencySymbols fCurrencySymbols;
+    const CurrencySymbols *fCurrencySymbols;
     const PluralRules *fRules;
 
     // Number details (initialized in setNumberProperties)
-    Signum fSignum;
+    int8_t fSignum;
     StandardPlural::Form fPlural;
 
     // QuantityChain details (initialized in addToChain)
@@ -229,17 +240,17 @@ class U_I18N_API MutablePatternModifier
      * CREATES A NEW HEAP OBJECT; THE CALLER GETS OWNERSHIP.
      *
      * @param a
-     *            A working FormattedStringBuilder object; passed from the outside to prevent the need to create many new
+     *            A working NumberStringBuilder object; passed from the outside to prevent the need to create many new
      *            instances if this method is called in a loop.
      * @param b
-     *            Another working FormattedStringBuilder object.
+     *            Another working NumberStringBuilder object.
      * @return The constant modifier object.
      */
     ConstantMultiFieldModifier *createConstantModifier(UErrorCode &status);
 
-    int32_t insertPrefix(FormattedStringBuilder &sb, int position, UErrorCode &status);
+    int32_t insertPrefix(NumberStringBuilder &sb, int position, UErrorCode &status);
 
-    int32_t insertSuffix(FormattedStringBuilder &sb, int position, UErrorCode &status);
+    int32_t insertSuffix(NumberStringBuilder &sb, int position, UErrorCode &status);
 
     void prepareAffix(bool isPrefix);
 };

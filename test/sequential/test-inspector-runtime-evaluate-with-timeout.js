@@ -1,3 +1,4 @@
+// Flags: --expose-internals
 'use strict';
 
 const common = require('../common');
@@ -22,4 +23,4 @@ common.skipIfInspectorDisabled();
     }
   );
   session.disconnect();
-})().then(common.mustCall());
+})();

@@ -1,14 +1,13 @@
 'use strict';
 const common = require('../common');
-const assert = require('assert');
 
 process.setUncaughtExceptionCaptureCallback(common.mustNotCall());
 
-assert.throws(
+common.expectsError(
   () => require('domain'),
   {
     code: 'ERR_DOMAIN_CALLBACK_NOT_AVAILABLE',
-    name: 'Error',
+    type: Error,
     message: /^A callback was registered.*with using the `domain` module/
   }
 );

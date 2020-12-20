@@ -691,36 +691,36 @@ static int16_t countOnes(uint32_t* mask, int32_t len) {
 
 /* internal function! */
 static UEnumeration *selectForMask(const UConverterSelector* sel,
-                                   uint32_t *theMask, UErrorCode *status) {
-  LocalMemory<uint32_t> mask(theMask);
+                                   uint32_t *mask, UErrorCode *status) {
   // this is the context we will use. Store a table of indices to which
   // encodings are legit.
-  LocalMemory<Enumerator> result(static_cast<Enumerator *>(uprv_malloc(sizeof(Enumerator))));
-  if (result.isNull()) {
+  struct Enumerator* result = (Enumerator*)uprv_malloc(sizeof(Enumerator));
+  if (result == NULL) {
+    uprv_free(mask);
     *status = U_MEMORY_ALLOCATION_ERROR;
-    return nullptr;
+    return NULL;
   }
-  result->index = nullptr;  // this will be allocated later!
+  result->index = NULL;  // this will be allocated later!
   result->length = result->cur = 0;
   result->sel = sel;
 
-  LocalMemory<UEnumeration> en(static_cast<UEnumeration *>(uprv_malloc(sizeof(UEnumeration))));
-  if (en.isNull()) {
+  UEnumeration *en = (UEnumeration *)uprv_malloc(sizeof(UEnumeration));
+  if (en == NULL) {
     // TODO(markus): Combine Enumerator and UEnumeration into one struct.
+    uprv_free(mask);
+    uprv_free(result);
     *status = U_MEMORY_ALLOCATION_ERROR;
-    return nullptr;
+    return NULL;
   }
-  memcpy(en.getAlias(), &defaultEncodings, sizeof(UEnumeration));
+  memcpy(en, &defaultEncodings, sizeof(UEnumeration));
+  en->context = result;
 
   int32_t columns = (sel->encodingsCount+31)/32;
-  int16_t numOnes = countOnes(mask.getAlias(), columns);
+  int16_t numOnes = countOnes(mask, columns);
   // now, we know the exact space we need for index
   if (numOnes > 0) {
-    result->index = static_cast<int16_t*>(uprv_malloc(numOnes * sizeof(int16_t)));
-    if (result->index == nullptr) {
-      *status = U_MEMORY_ALLOCATION_ERROR;
-      return nullptr;
-    }
+    result->index = (int16_t*) uprv_malloc(numOnes * sizeof(int16_t));
+
     int32_t i, j;
     int16_t k = 0;
     for (j = 0 ; j < columns; j++) {
@@ -734,8 +734,8 @@ static UEnumeration *selectForMask(const UConverterSelector* sel,
     }
   } //otherwise, index will remain NULL (and will never be touched by
     //the enumerator code anyway)
-  en->context = result.orphan();
-  return en.orphan();
+  uprv_free(mask);
+  return en;
 }
 
 /* check a string against the selector - UTF16 version */

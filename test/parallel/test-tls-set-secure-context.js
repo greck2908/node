@@ -82,7 +82,6 @@ function makeRequest(port, id) {
       headers: { id }
     };
 
-    let errored = false;
     https.get(`https://localhost:${port}`, options, (res) => {
       let response = '';
 
@@ -96,10 +95,7 @@ function makeRequest(port, id) {
         resolve(response);
       }));
     }).on('error', (err) => {
-      errored = true;
       reject(err);
-    }).on('finish', () => {
-      assert.strictEqual(errored, false);
     });
   });
 }

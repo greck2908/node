@@ -9,6 +9,10 @@ const bench = common.createBenchmark(main, {
 });
 
 function main({ n, type }) {
+  // Default value for tests.
+  if (type === '')
+    type = 'extend';
+
   let fn;
   if (type === 'extend') {
     fn = util._extend;
@@ -18,13 +22,13 @@ function main({ n, type }) {
 
   // Force-optimize the method to test so that the benchmark doesn't
   // get disrupted by the optimizer kicking in halfway through.
-  for (let i = 0; i < type.length * 10; i += 1)
+  for (var i = 0; i < type.length * 10; i += 1)
     fn({}, process.env);
 
   const obj = new Proxy({}, { set: function(a, b, c) { return true; } });
 
   bench.start();
-  for (let j = 0; j < n; j += 1)
+  for (var j = 0; j < n; j += 1)
     fn(obj, process.env);
   bench.end(n);
 }

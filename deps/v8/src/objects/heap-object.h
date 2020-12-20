@@ -5,11 +5,10 @@
 #ifndef V8_OBJECTS_HEAP_OBJECT_H_
 #define V8_OBJECTS_HEAP_OBJECT_H_
 
-#include "src/common/globals.h"
-#include "src/roots/roots.h"
+#include "src/globals.h"
+#include "src/roots.h"
 
-#include "src/objects/objects.h"
-#include "src/objects/tagged-field.h"
+#include "src/objects.h"
 
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
@@ -23,30 +22,27 @@ class Heap;
 // objects.
 class HeapObject : public Object {
  public:
-  bool is_null() const {
-    return static_cast<Tagged_t>(ptr()) == static_cast<Tagged_t>(kNullAddress);
-  }
+  bool is_null() const { return ptr() == kNullAddress; }
 
   // [map]: Contains a map which contains the object's reflective
   // information.
-  DECL_GETTER(map, Map)
+  inline Map map() const;
   inline void set_map(Map value);
 
-  inline ObjectSlot map_slot() const;
+  inline MapWordSlot map_slot() const;
 
   // The no-write-barrier version.  This is OK if the object is white and in
   // new space, or if the value is an immortal immutable object, like the maps
   // of primitive (non-JS) objects like strings, heap numbers etc.
   inline void set_map_no_write_barrier(Map value);
 
-  // Access the map using acquire load and release store.
-  DECL_GETTER(synchronized_map, Map)
-  inline void synchronized_set_map(Map value);
+  // Get the map using acquire load.
+  inline Map synchronized_map() const;
+  inline MapWord synchronized_map_word() const;
 
-  // Compare-and-swaps map word using release store, returns true if the map
-  // word was actually swapped.
-  inline bool synchronized_compare_and_swap_map_word(MapWord old_map_word,
-                                                     MapWord new_map_word);
+  // Set the map using release store
+  inline void synchronized_set_map(Map value);
+  inline void synchronized_set_map_word(MapWord map_word);
 
   // Initialize the map immediately after the object is allocated.
   // Do not use this outside Heap.
@@ -55,53 +51,41 @@ class HeapObject : public Object {
 
   // During garbage collection, the map word of a heap object does not
   // necessarily contain a map pointer.
-  DECL_GETTER(map_word, MapWord)
+  inline MapWord map_word() const;
   inline void set_map_word(MapWord map_word);
 
-  // Access the map word using acquire load and release store.
-  DECL_GETTER(synchronized_map_word, MapWord)
-  inline void synchronized_set_map_word(MapWord map_word);
-
-  // This method exists to help remove GetIsolate/GetHeap from HeapObject, in a
+  // TODO(v8:7464): Once RO_SPACE is shared between isolates, this method can be
+  // removed as ReadOnlyRoots will be accessible from a global variable. For now
+  // this method exists to help remove GetIsolate/GetHeap from HeapObject, in a
   // way that doesn't require passing Isolate/Heap down huge call chains or to
   // places where it might not be safe to access it.
   inline ReadOnlyRoots GetReadOnlyRoots() const;
-  // This version is intended to be used for the isolate values produced by
-  // i::GetIsolateForPtrCompr(HeapObject) function which may return nullptr.
-  inline ReadOnlyRoots GetReadOnlyRoots(const Isolate* isolate) const;
 
-#define IS_TYPE_FUNCTION_DECL(Type) \
-  V8_INLINE bool Is##Type() const;  \
-  V8_INLINE bool Is##Type(const Isolate* isolate) const;
+#define IS_TYPE_FUNCTION_DECL(Type) V8_INLINE bool Is##Type() const;
   HEAP_OBJECT_TYPE_LIST(IS_TYPE_FUNCTION_DECL)
-  IS_TYPE_FUNCTION_DECL(HashTableBase)
-  IS_TYPE_FUNCTION_DECL(SmallOrderedHashTable)
 #undef IS_TYPE_FUNCTION_DECL
 
   bool IsExternal(Isolate* isolate) const;
 
 // Oddball checks are faster when they are raw pointer comparisons, so the
 // isolate/read-only roots overloads should be preferred where possible.
-#define IS_TYPE_FUNCTION_DECL(Type, Value)              \
-  V8_INLINE bool Is##Type(Isolate* isolate) const;      \
-  V8_INLINE bool Is##Type(LocalIsolate* isolate) const; \
-  V8_INLINE bool Is##Type(ReadOnlyRoots roots) const;   \
+#define IS_TYPE_FUNCTION_DECL(Type, Value)            \
+  V8_INLINE bool Is##Type(Isolate* isolate) const;    \
+  V8_INLINE bool Is##Type(ReadOnlyRoots roots) const; \
   V8_INLINE bool Is##Type() const;
   ODDBALL_LIST(IS_TYPE_FUNCTION_DECL)
-  IS_TYPE_FUNCTION_DECL(NullOrUndefined, /* unused */)
 #undef IS_TYPE_FUNCTION_DECL
 
-#define DECL_STRUCT_PREDICATE(NAME, Name, name) \
-  V8_INLINE bool Is##Name() const;              \
-  V8_INLINE bool Is##Name(const Isolate* isolate) const;
+  V8_INLINE bool IsNullOrUndefined(Isolate* isolate) const;
+  V8_INLINE bool IsNullOrUndefined(ReadOnlyRoots roots) const;
+  V8_INLINE bool IsNullOrUndefined() const;
+
+#define DECL_STRUCT_PREDICATE(NAME, Name, name) V8_INLINE bool Is##Name() const;
   STRUCT_LIST(DECL_STRUCT_PREDICATE)
 #undef DECL_STRUCT_PREDICATE
 
   // Converts an address to a HeapObject pointer.
-  static inline HeapObject FromAddress(Address address) {
-    DCHECK_TAG_ALIGNED(address);
-    return HeapObject(address + kHeapObjectTag);
-  }
+  static inline HeapObject FromAddress(Address address);
 
   // Returns the address of this HeapObject.
   inline Address address() const { return ptr() - kHeapObjectTag; }
@@ -189,7 +173,7 @@ class HeapObject : public Object {
   bool CanBeRehashed() const;
 
   // Rehash the object based on the layout inferred from its map.
-  void RehashBasedOnMap(Isolate* isolate);
+  void RehashBasedOnMap(ReadOnlyRoots root);
 
   // Layout description.
 #define HEAP_OBJECT_FIELDS(V) \
@@ -202,8 +186,6 @@ class HeapObject : public Object {
 
   STATIC_ASSERT(kMapOffset == Internals::kHeapObjectMapOffset);
 
-  using MapField = TaggedField<MapWord, HeapObject::kMapOffset>;
-
   inline Address GetFieldAddress(int field_offset) const;
 
  protected:
@@ -215,8 +197,15 @@ class HeapObject : public Object {
   OBJECT_CONSTRUCTORS(HeapObject, Object);
 };
 
-OBJECT_CONSTRUCTORS_IMPL(HeapObject, Object)
-CAST_ACCESSOR(HeapObject)
+// Helper class for objects that can never be in RO space.
+class NeverReadOnlySpaceObject {
+ public:
+  // The Heap the object was allocated in. Used also to access Isolate.
+  static inline Heap* GetHeap(const HeapObject object);
+
+  // Convenience method to get current isolate.
+  static inline Isolate* GetIsolate(const HeapObject object);
+};
 
 }  // namespace internal
 }  // namespace v8

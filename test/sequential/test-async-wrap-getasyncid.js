@@ -1,5 +1,5 @@
 'use strict';
-// Flags: --expose-gc --expose-internals --no-warnings --test-udp-no-try-send
+// Flags: --expose-gc --expose-internals --no-warnings
 
 const common = require('../common');
 const { internalBinding } = require('internal/test/binding');
@@ -8,7 +8,7 @@ const fs = require('fs');
 const v8 = require('v8');
 const fsPromises = fs.promises;
 const net = require('net');
-const providers = { ...internalBinding('async_wrap').Providers };
+const providers = Object.assign({}, internalBinding('async_wrap').Providers);
 const fixtures = require('../common/fixtures');
 const tmpdir = require('../common/tmpdir');
 const { getSystemErrorName } = require('util');
@@ -45,30 +45,11 @@ const { getSystemErrorName } = require('util');
     delete providers.STREAMPIPE;
     delete providers.MESSAGEPORT;
     delete providers.WORKER;
-    // TODO(danbev): Test for these
-    delete providers.QUICCLIENTSESSION;
-    delete providers.QUICSERVERSESSION;
-    delete providers.QUICSENDWRAP;
-    delete providers.QUICSOCKET;
-    delete providers.QUICSTREAM;
-    delete providers.QLOGSTREAM;
-    delete providers.JSUDPWRAP;
     if (!common.isMainThread)
       delete providers.INSPECTORJSBINDING;
     delete providers.KEYPAIRGENREQUEST;
-    delete providers.KEYGENREQUEST;
-    delete providers.KEYEXPORTREQUEST;
-    delete providers.CIPHERREQUEST;
-    delete providers.DERIVEBITSREQUEST;
-    delete providers.SCRYPTREQUEST;
-    delete providers.SIGNREQUEST;
-    delete providers.VERIFYREQUEST;
-    delete providers.HASHREQUEST;
     delete providers.HTTPCLIENTREQUEST;
     delete providers.HTTPINCOMINGMESSAGE;
-    delete providers.ELDHISTOGRAM;
-    delete providers.SIGINTWATCHDOG;
-    delete providers.WORKERHEAPSNAPSHOT;
 
     const objKeys = Object.keys(providers);
     if (objKeys.length > 0)
@@ -137,17 +118,17 @@ if (common.hasCrypto) { // eslint-disable-line node-core/crypto-check
   // so need to check it from the callback.
 
   const mc = common.mustCall(function pb() {
-    testInitialized(this, 'PBKDF2Job');
+    testInitialized(this, 'AsyncWrap');
   });
   crypto.pbkdf2('password', 'salt', 1, 20, 'sha256', mc);
 
   crypto.randomBytes(1, common.mustCall(function rb() {
-    testInitialized(this, 'RandomBytesJob');
+    testInitialized(this, 'AsyncWrap');
   }));
 
-  if (typeof internalBinding('crypto').ScryptJob === 'function') {
+  if (typeof internalBinding('crypto').scrypt === 'function') {
     crypto.scrypt('password', 'salt', 8, common.mustCall(function() {
-      testInitialized(this, 'ScryptJob');
+      testInitialized(this, 'AsyncWrap');
     }));
   }
 }
@@ -323,11 +304,4 @@ if (process.features.inspector && common.isMainThread) {
 // PROVIDER_HEAPDUMP
 {
   v8.getHeapSnapshot().destroy();
-}
-
-// DIRHANDLE
-{
-  const dirBinding = internalBinding('fs_dir');
-  const handle = dirBinding.opendir('./', 'utf8', undefined, {});
-  testInitialized(handle, 'DirHandle');
 }

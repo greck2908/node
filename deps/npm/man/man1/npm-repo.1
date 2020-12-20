@@ -1,36 +1,31 @@
-.TH "NPM\-REPO" "1" "December 2020" "" ""
+.TH "NPM\-REPO" "1" "July 2019" "" ""
 .SH "NAME"
 \fBnpm-repo\fR \- Open package repository page in the browser
-.SS Synopsis
+.SH SYNOPSIS
 .P
 .RS 2
 .nf
-npm repo [<pkgname> [<pkgname> \.\.\.]]
+npm repo [<pkg>]
 .fi
 .RE
-.SS Description
+.SH DESCRIPTION
 .P
 This command tries to guess at the likely location of a package's
-repository URL, and then tries to open it using the \fB\-\-browser\fP config
-param\. If no package name is provided, it will search for a \fBpackage\.json\fP
-in the current folder and use the \fBrepository\fP property\.
-.SS Configuration
+repository URL, and then tries to open it using the \fB\-\-browser\fP
+config param\. If no package name is provided, it will search for
+a \fBpackage\.json\fP in the current folder and use the \fBname\fP property\.
+.SH CONFIGURATION
 .SS browser
 .RS 0
 .IP \(bu 2
 Default: OS X: \fB"open"\fP, Windows: \fB"start"\fP, Others: \fB"xdg\-open"\fP
 .IP \(bu 2
-Type: String or Boolean
+Type: String
 
 .RE
 .P
 The browser that is called by the \fBnpm repo\fP command to open websites\.
-.P
-Set to \fBfalse\fP to suppress browser behavior and instead print urls to
-terminal\.
-.P
-Set to \fBtrue\fP to use default system URL opener\.
-.SS See Also
+.SH SEE ALSO
 .RS 0
 .IP \(bu 2
 npm help docs
@@ -38,3 +33,4 @@ npm help docs
 npm help config
 
 .RE
+

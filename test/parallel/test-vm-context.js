@@ -20,9 +20,9 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
-require('../common');
+const common = require('../common');
 const assert = require('assert');
-const { inspect } = require('util');
+
 const vm = require('vm');
 const Script = vm.Script;
 let script = new Script('"passed";');
@@ -44,11 +44,11 @@ assert.strictEqual(context.foo, 3);
 assert.strictEqual(context.thing, 'lala');
 
 // Issue GH-227:
-assert.throws(() => {
+common.expectsError(() => {
   vm.runInNewContext('', null, 'some.js');
 }, {
   code: 'ERR_INVALID_ARG_TYPE',
-  name: 'TypeError'
+  type: TypeError
 });
 
 // Issue GH-1140:
@@ -59,33 +59,30 @@ try {
 } catch (e) {
   gh1140Exception = e;
   assert.ok(/expected-filename/.test(e.stack),
-            `expected appearance of filename in Error stack: ${inspect(e)}`);
+            `expected appearance of filename in Error stack: ${e.stack}`);
 }
 // This is outside of catch block to confirm catch block ran.
 assert.strictEqual(gh1140Exception.toString(), 'Error');
 
-const nonContextualObjectError = {
+const nonContextualSandboxError = {
   code: 'ERR_INVALID_ARG_TYPE',
-  name: 'TypeError',
-  message: /must be of type object/
+  type: TypeError,
+  message: /must be of type Object/
 };
-const contextifiedObjectError = {
+const contextifiedSandboxError = {
   code: 'ERR_INVALID_ARG_TYPE',
-  name: 'TypeError',
-  message: /The "contextifiedObject" argument must be an vm\.Context/
+  type: TypeError,
+  message: /must be of type vm\.Context/
 };
 
 [
-  [undefined, nonContextualObjectError],
-  [null, nonContextualObjectError],
-  [0, nonContextualObjectError],
-  [0.0, nonContextualObjectError],
-  ['', nonContextualObjectError],
-  [{}, contextifiedObjectError],
-  [[], contextifiedObjectError]
+  [undefined, nonContextualSandboxError],
+  [null, nonContextualSandboxError], [0, nonContextualSandboxError],
+  [0.0, nonContextualSandboxError], ['', nonContextualSandboxError],
+  [{}, contextifiedSandboxError], [[], contextifiedSandboxError]
 ].forEach((e) => {
-  assert.throws(() => { script.runInContext(e[0]); }, e[1]);
-  assert.throws(() => { vm.runInContext('', e[0]); }, e[1]);
+  common.expectsError(() => { script.runInContext(e[0]); }, e[1]);
+  common.expectsError(() => { vm.runInContext('', e[0]); }, e[1]);
 });
 
 // Issue GH-693:

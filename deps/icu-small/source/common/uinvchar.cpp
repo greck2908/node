@@ -207,8 +207,7 @@ u_UCharsToChars(const UChar *us, char *cs, int32_t length) {
     while(length>0) {
         u=*us++;
         if(!UCHAR_IS_INVARIANT(u)) {
-            U_ASSERT(FALSE); /* Variant characters were used. These are not portable in ICU. */
-            u=0;
+            UPRV_UNREACHABLE; /* Variant characters were used. These are not portable in ICU. */
         }
         *cs++=(char)UCHAR_TO_CHAR(u);
         --length;
@@ -446,13 +445,6 @@ uprv_copyEbcdic(const UDataSwapper *ds,
     return length;
 }
 
-U_CFUNC UBool
-uprv_isEbcdicAtSign(char c) {
-    static const uint8_t ebcdicAtSigns[] = {
-        0x7C, 0x44, 0x66, 0x80, 0xAC, 0xAE, 0xAF, 0xB5, 0xEC, 0xEF, 0x00 };
-    return c != 0 && uprv_strchr((const char *)ebcdicAtSigns, c) != nullptr;
-}
-
 /* compare invariant strings; variant characters compare less than others and unlike each other */
 U_CFUNC int32_t
 uprv_compareInvAscii(const UDataSwapper *ds,
@@ -570,16 +562,11 @@ uprv_compareInvEbcdicAsAscii(const char *s1, const char *s2) {
 }
 
 U_CAPI char U_EXPORT2
-uprv_ebcdicToAscii(char c) {
-    return (char)asciiFromEbcdic[(uint8_t)c];
-}
-
-U_CAPI char U_EXPORT2
 uprv_ebcdicToLowercaseAscii(char c) {
     return (char)lowercaseAsciiFromEbcdic[(uint8_t)c];
 }
 
-U_CAPI uint8_t* U_EXPORT2
+U_INTERNAL uint8_t* U_EXPORT2
 uprv_aestrncpy(uint8_t *dst, const uint8_t *src, int32_t n)
 {
   uint8_t *orig_dst = dst;
@@ -600,7 +587,7 @@ uprv_aestrncpy(uint8_t *dst, const uint8_t *src, int32_t n)
   return orig_dst;
 }
 
-U_CAPI uint8_t* U_EXPORT2
+U_INTERNAL uint8_t* U_EXPORT2
 uprv_eastrncpy(uint8_t *dst, const uint8_t *src, int32_t n)
 {
   uint8_t *orig_dst = dst;

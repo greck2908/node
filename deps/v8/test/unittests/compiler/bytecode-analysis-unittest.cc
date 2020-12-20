@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "src/init/v8.h"
+#include "src/v8.h"
 
 #include "src/compiler/bytecode-analysis.h"
 #include "src/interpreter/bytecode-array-builder.h"
@@ -10,7 +10,7 @@
 #include "src/interpreter/bytecode-decoder.h"
 #include "src/interpreter/bytecode-label.h"
 #include "src/interpreter/control-flow-builders.h"
-#include "src/objects/objects-inl.h"
+#include "src/objects-inl.h"
 #include "test/unittests/interpreter/bytecode-utils.h"
 #include "test/unittests/test-utils.h"
 
@@ -59,7 +59,8 @@ class BytecodeAnalysisTest : public TestWithIsolateAndZone {
       Handle<BytecodeArray> bytecode,
       const std::vector<std::pair<std::string, std::string>>&
           expected_liveness) {
-    BytecodeAnalysis analysis(bytecode, zone(), BailoutId::None(), true);
+    BytecodeAnalysis analysis(bytecode, zone(), true);
+    analysis.Analyze(BailoutId::None());
 
     interpreter::BytecodeArrayIterator iterator(bytecode);
     for (auto liveness : expected_liveness) {
@@ -256,7 +257,7 @@ TEST_F(BytecodeAnalysisTest, SimpleLoop) {
     expected_liveness.emplace_back("L..L", "L.L.");
 
     loop_builder.BindContinueTarget();
-    loop_builder.JumpToHeader(0, nullptr);
+    loop_builder.JumpToHeader(0);
     expected_liveness.emplace_back("L.L.", "L.L.");
   }
 
@@ -361,7 +362,7 @@ TEST_F(BytecodeAnalysisTest, DiamondInLoop) {
     builder.Bind(&end_label);
 
     loop_builder.BindContinueTarget();
-    loop_builder.JumpToHeader(0, nullptr);
+    loop_builder.JumpToHeader(0);
     expected_liveness.emplace_back("L...", "L...");
   }
 
@@ -433,12 +434,12 @@ TEST_F(BytecodeAnalysisTest, KillingLoopInsideLoop) {
       expected_liveness.emplace_back("LL.L", "LL..");
 
       inner_loop_builder.BindContinueTarget();
-      inner_loop_builder.JumpToHeader(1, &loop_builder);
+      inner_loop_builder.JumpToHeader(1);
       expected_liveness.emplace_back(".L..", ".L..");
     }
 
     loop_builder.BindContinueTarget();
-    loop_builder.JumpToHeader(0, nullptr);
+    loop_builder.JumpToHeader(0);
     expected_liveness.emplace_back("LL..", "LL..");
   }
 

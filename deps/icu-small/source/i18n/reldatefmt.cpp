@@ -43,7 +43,7 @@
 #include "standardplural.h"
 #include "unifiedcache.h"
 #include "util.h"
-#include "formatted_string_builder.h"
+#include "number_stringbuilder.h"
 #include "number_utypes.h"
 #include "number_modifiers.h"
 #include "formattedval_impl.h"
@@ -315,10 +315,6 @@ struct RelDateTimeFmtDataSink : public ResourceSink {
                 return UDAT_ABSOLUTE_FRIDAY;
             case SATURDAY:
                 return UDAT_ABSOLUTE_SATURDAY;
-            case HOUR:
-                return UDAT_ABSOLUTE_HOUR;
-            case MINUTE:
-                return UDAT_ABSOLUTE_MINUTE;
             default:
                 return -1;
         }
@@ -728,15 +724,15 @@ const RelativeDateTimeCacheData *LocaleCacheKey<RelativeDateTimeCacheData>::crea
 
 
 
-static constexpr FormattedStringBuilder::Field kRDTNumericField
-    = {UFIELD_CATEGORY_RELATIVE_DATETIME, UDAT_REL_NUMERIC_FIELD};
+static constexpr number::impl::Field kRDTNumericField
+    = number::impl::NumFieldUtils::compress<UFIELD_CATEGORY_RELATIVE_DATETIME, UDAT_REL_NUMERIC_FIELD>();
 
-static constexpr FormattedStringBuilder::Field kRDTLiteralField
-    = {UFIELD_CATEGORY_RELATIVE_DATETIME, UDAT_REL_LITERAL_FIELD};
+static constexpr number::impl::Field kRDTLiteralField
+    = number::impl::NumFieldUtils::compress<UFIELD_CATEGORY_RELATIVE_DATETIME, UDAT_REL_LITERAL_FIELD>();
 
-class FormattedRelativeDateTimeData : public FormattedValueStringBuilderImpl {
+class FormattedRelativeDateTimeData : public FormattedValueNumberStringBuilderImpl {
 public:
-    FormattedRelativeDateTimeData() : FormattedValueStringBuilderImpl(kRDTNumericField) {}
+    FormattedRelativeDateTimeData() : FormattedValueNumberStringBuilderImpl(kRDTNumericField) {}
     virtual ~FormattedRelativeDateTimeData();
 };
 
@@ -1161,8 +1157,6 @@ void RelativeDateTimeFormatter::formatRelativeImpl(
         case UDAT_REL_UNIT_THURSDAY:  absunit = UDAT_ABSOLUTE_THURSDAY; break;
         case UDAT_REL_UNIT_FRIDAY:  absunit = UDAT_ABSOLUTE_FRIDAY; break;
         case UDAT_REL_UNIT_SATURDAY:  absunit = UDAT_ABSOLUTE_SATURDAY; break;
-        case UDAT_REL_UNIT_HOUR:  absunit = UDAT_ABSOLUTE_HOUR; break;
-        case UDAT_REL_UNIT_MINUTE:  absunit = UDAT_ABSOLUTE_MINUTE; break;
         default: break;
     }
     if (direction != UDAT_DIRECTION_COUNT && absunit != UDAT_ABSOLUTE_UNIT_COUNT) {
@@ -1190,7 +1184,7 @@ UnicodeString& RelativeDateTimeFormatter::adjustForContext(UnicodeString &str) c
 
     // Must guarantee that one thread at a time accesses the shared break
     // iterator.
-    static UMutex gBrkIterMutex;
+    static icu::UMutex gBrkIterMutex = U_MUTEX_INITIALIZER;
     Mutex lock(&gBrkIterMutex);
     str.toTitle(
             fOptBreakIterator->get(),
@@ -1326,7 +1320,7 @@ ureldatefmt_formatNumeric( const URelativeDateTimeFormatter* reldatefmt,
     return res.extract(result, resultCapacity, *status);
 }
 
-U_CAPI void U_EXPORT2
+U_STABLE void U_EXPORT2
 ureldatefmt_formatNumericToResult(
         const URelativeDateTimeFormatter* reldatefmt,
         double                            offset,
@@ -1369,7 +1363,7 @@ ureldatefmt_format( const URelativeDateTimeFormatter* reldatefmt,
     return res.extract(result, resultCapacity, *status);
 }
 
-U_CAPI void U_EXPORT2
+U_DRAFT void U_EXPORT2
 ureldatefmt_formatToResult(
         const URelativeDateTimeFormatter* reldatefmt,
         double                            offset,

@@ -11,8 +11,8 @@ const bench = common.createBenchmark(main, {
   dur: [5],
 });
 
-let chunk;
-let encoding;
+var chunk;
+var encoding;
 
 function main({ dur, len, type }) {
   switch (type) {

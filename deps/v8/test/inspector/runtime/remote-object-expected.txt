@@ -1274,7 +1274,7 @@ Running test: testGenerator
             overflow : false
             properties : [
                 [0] : {
-                    name : [[GeneratorState]]
+                    name : [[GeneratorStatus]]
                     type : string
                     value : suspended
                 }
@@ -1436,18 +1436,6 @@ Running test: testCustomError
     }
 }
 
-Running test: testCustomErrorWithMessage
-'class CustomMsgError extends Error {}; a = new CustomMsgError(); delete a.stack; a.message = 'foobar'; a', returnByValue: false, generatePreview: false
-{
-    result : {
-        className : CustomMsgError
-        description : CustomMsgError: foobar
-        objectId : <objectId>
-        subtype : error
-        type : object
-    }
-}
-
 Running test: testProxy
 'new Proxy({}, {})', returnByValue: false, generatePreview: false
 {
@@ -1565,12 +1553,12 @@ Running test: testPromise
             overflow : false
             properties : [
                 [0] : {
-                    name : [[PromiseState]]
+                    name : [[PromiseStatus]]
                     type : string
-                    value : fulfilled
+                    value : resolved
                 }
                 [1] : {
-                    name : [[PromiseResult]]
+                    name : [[PromiseValue]]
                     type : string
                     value : aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
                 }
@@ -1593,12 +1581,12 @@ Running test: testPromise
             overflow : false
             properties : [
                 [0] : {
-                    name : [[PromiseState]]
+                    name : [[PromiseStatus]]
                     type : string
                     value : rejected
                 }
                 [1] : {
-                    name : [[PromiseResult]]
+                    name : [[PromiseValue]]
                     type : number
                     value : 42
                 }
@@ -1621,12 +1609,12 @@ Running test: testPromise
             overflow : false
             properties : [
                 [0] : {
-                    name : [[PromiseState]]
+                    name : [[PromiseStatus]]
                     type : string
                     value : pending
                 }
                 [1] : {
-                    name : [[PromiseResult]]
+                    name : [[PromiseValue]]
                     type : undefined
                     value : undefined
                 }

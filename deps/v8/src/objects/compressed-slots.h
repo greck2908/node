@@ -34,20 +34,43 @@ class CompressedObjectSlot : public SlotBase<CompressedObjectSlot, Tagged_t> {
   explicit CompressedObjectSlot(SlotBase<T, TData, kSlotDataAlignment> slot)
       : SlotBase(slot.address()) {}
 
-  // Compares memory representation of a value stored in the slot with given
-  // raw value without decompression.
-  inline bool contains_value(Address raw_value) const;
-
-  // TODO(leszeks): Consider deprecating the operator* load, and always pass the
-  // Isolate.
   inline Object operator*() const;
-  inline Object load(const Isolate* isolate) const;
   inline void store(Object value) const;
 
   inline Object Acquire_Load() const;
   inline Object Relaxed_Load() const;
-  inline Object Relaxed_Load(const Isolate* isolate) const;
   inline void Relaxed_Store(Object value) const;
+  inline void Release_Store(Object value) const;
+  inline Object Release_CompareAndSwap(Object old, Object target) const;
+};
+
+// A CompressedMapWordSlot instance describes a kTaggedSize-sized map-word field
+// ("slot") of heap objects holding a compressed tagged pointer or a Smi
+// representing forwaring pointer value.
+// This slot kind is similar to CompressedObjectSlot but decompression of
+// forwarding pointer is different.
+// Its address() is the address of the slot.
+// The slot's contents can be read and written using operator* and store().
+class CompressedMapWordSlot : public SlotBase<CompressedMapWordSlot, Tagged_t> {
+ public:
+  using TObject = Object;
+
+  static constexpr bool kCanBeWeak = false;
+
+  CompressedMapWordSlot() : SlotBase(kNullAddress) {}
+  explicit CompressedMapWordSlot(Address ptr) : SlotBase(ptr) {}
+
+  // Compares memory representation of a value stored in the slot with given
+  // raw value without decompression.
+  inline bool contains_value(Address raw_value) const;
+
+  inline Object operator*() const;
+  inline void store(Object value) const;
+
+  inline Object Relaxed_Load() const;
+  inline void Relaxed_Store(Object value) const;
+
+  inline Object Acquire_Load() const;
   inline void Release_Store(Object value) const;
   inline Object Release_CompareAndSwap(Object old, Object target) const;
 };
@@ -77,11 +100,9 @@ class CompressedMaybeObjectSlot
       : SlotBase(slot.address()) {}
 
   inline MaybeObject operator*() const;
-  inline MaybeObject load(const Isolate* isolate) const;
   inline void store(MaybeObject value) const;
 
   inline MaybeObject Relaxed_Load() const;
-  inline MaybeObject Relaxed_Load(const Isolate* isolate) const;
   inline void Relaxed_Store(MaybeObject value) const;
   inline void Release_CompareAndSwap(MaybeObject old, MaybeObject target) const;
 };
@@ -105,40 +126,11 @@ class CompressedHeapObjectSlot
       : SlotBase(slot.address()) {}
 
   inline HeapObjectReference operator*() const;
-  inline HeapObjectReference load(const Isolate* isolate) const;
   inline void store(HeapObjectReference value) const;
 
   inline HeapObject ToHeapObject() const;
 
   inline void StoreHeapObject(HeapObject value) const;
-};
-
-// An OffHeapCompressedObjectSlot instance describes a kTaggedSize-sized field
-// ("slot") holding a compressed tagged pointer (smi or heap object).
-// Unlike CompressedObjectSlot, it does not assume that the slot is on the heap,
-// and so does not provide an operator* with implicit Isolate* calculation.
-// Its address() is the address of the slot.
-// The slot's contents can be read and written using load() and store().
-class OffHeapCompressedObjectSlot
-    : public SlotBase<OffHeapCompressedObjectSlot, Tagged_t> {
- public:
-  using TObject = Object;
-  using THeapObjectSlot = OffHeapCompressedObjectSlot;
-
-  static constexpr bool kCanBeWeak = false;
-
-  OffHeapCompressedObjectSlot() : SlotBase(kNullAddress) {}
-  explicit OffHeapCompressedObjectSlot(const uint32_t* ptr)
-      : SlotBase(reinterpret_cast<Address>(ptr)) {}
-
-  inline Object load(const Isolate* isolate) const;
-  inline void store(Object value) const;
-
-  inline Object Relaxed_Load(const Isolate* isolate) const;
-  inline Object Acquire_Load(const Isolate* isolate) const;
-  inline void Relaxed_Store(Object value) const;
-  inline void Release_Store(Object value) const;
-  inline void Release_CompareAndSwap(Object old, Object target) const;
 };
 
 }  // namespace internal

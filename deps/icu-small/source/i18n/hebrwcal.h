@@ -192,7 +192,7 @@ public:
      * @return    return a polymorphic copy of this calendar.
      * @internal
      */
-    virtual HebrewCalendar* clone() const;
+    virtual Calendar* clone(void) const;
 
 public:
     /**
@@ -386,7 +386,7 @@ public:
   virtual UBool inDaylightTime(UErrorCode& status) const;
 
     /**
-     * Returns true because the Hebrew Calendar does have a default century
+     * Returns TRUE because the Hebrew Calendar does have a default century
      * @internal
      */
     virtual UBool haveDefaultCentury() const;

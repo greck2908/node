@@ -1,7 +1,7 @@
 'use strict';
 const common = require('../common');
 const assert = require('assert');
-const { inspect } = require('util');
+const domain = require('domain');
 
 common.disableCrashOnUnhandledRejection();
 
@@ -14,8 +14,8 @@ const asyncTest = (function() {
 
   function fail(error) {
     const stack = currentTest ?
-      `${inspect(error)}\nFrom previous event:\n${currentTest.stack}` :
-      inspect(error);
+      `${error.stack}\nFrom previous event:\n${currentTest.stack}` :
+      error.stack;
 
     if (currentTest)
       process.stderr.write(`'${currentTest.description}' failed\n\n`);
@@ -44,11 +44,11 @@ const asyncTest = (function() {
   }
 
   return function asyncTest(description, fn) {
-    const stack = inspect(new Error()).split('\n').slice(1).join('\n');
+    const stack = new Error().stack.split('\n').slice(1).join('\n');
     asyncTestQueue.push({
       action: fn,
-      stack,
-      description
+      stack: stack,
+      description: description
     });
     if (!asyncTestsEnabled) {
       asyncTestsEnabled = true;
@@ -621,6 +621,30 @@ asyncTest('setImmediate + promise microtasks is too late to attach a catch' +
   });
 });
 
+asyncTest(
+  'Promise unhandledRejection handler does not interfere with domain' +
+  ' error handlers being given exceptions thrown from nextTick.',
+  function(done) {
+    const d = domain.create();
+    let domainReceivedError;
+    d.on('error', function(e) {
+      domainReceivedError = e;
+    });
+    d.run(function() {
+      const e = new Error('error');
+      const domainError = new Error('domain error');
+      onUnhandledSucceed(done, function(reason, promise) {
+        assert.strictEqual(reason, e);
+        assert.strictEqual(domainReceivedError, domainError);
+      });
+      Promise.reject(e);
+      process.nextTick(function() {
+        throw domainError;
+      });
+    });
+  }
+);
+
 asyncTest('nextTick is immediately scheduled when called inside an event' +
           ' handler', function(done) {
   clean();
@@ -643,7 +667,6 @@ asyncTest('Throwing an error inside a rejectionHandled handler goes to' +
           ' unhandledException, and does not cause .catch() to throw an ' +
           'exception', function(done) {
   clean();
-  common.disableCrashOnUnhandledRejection();
   const e = new Error();
   const e2 = new Error();
   const tearDownException = setupException(function(err) {
@@ -678,30 +701,20 @@ asyncTest('Rejected promise inside unhandledRejection allows nextTick loop' +
 });
 
 asyncTest(
-  'Promise rejection triggers unhandledRejection immediately',
+  'Unhandled promise rejection emits a warning immediately',
   function(done) {
     clean();
     Promise.reject(0);
-    process.on('unhandledRejection', common.mustCall((err) => {
+    const { emitWarning } = process;
+    process.emitWarning = common.mustCall((...args) => {
       if (timer) {
         clearTimeout(timer);
         timer = null;
         done();
       }
-    }));
+      emitWarning(...args);
+    }, 2);
 
     let timer = setTimeout(common.mustNotCall(), 10000);
   },
-);
-
-// https://github.com/nodejs/node/issues/30953
-asyncTest(
-  'Catching a promise should not take effect on previous promises',
-  function(done) {
-    onUnhandledSucceed(done, function(reason, promise) {
-      assert.strictEqual(reason, '1');
-    });
-    Promise.reject('1');
-    Promise.reject('2').catch(function() {});
-  }
 );

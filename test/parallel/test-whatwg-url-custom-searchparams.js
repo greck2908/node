@@ -2,7 +2,7 @@
 
 // Tests below are not from WPT.
 
-require('../common');
+const common = require('../common');
 const assert = require('assert');
 const { URL, URLSearchParams } = require('url');
 const fixtures = require('../common/fixtures');
@@ -74,10 +74,10 @@ sp.forEach(function() {
 }, m);
 
 {
-  const callbackErr = {
+  const callbackErr = common.expectsError({
     code: 'ERR_INVALID_CALLBACK',
-    name: 'TypeError'
-  };
+    type: TypeError
+  }, 2);
   assert.throws(() => sp.forEach(), callbackErr);
   assert.throws(() => sp.forEach(1), callbackErr);
 }

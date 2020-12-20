@@ -39,11 +39,8 @@ server.listen(0, common.mustCall(() => {
     serverRes.destroy();
 
     res.resume();
-    res.on('end', common.mustNotCall());
+    res.on('end', common.mustCall());
     res.on('aborted', common.mustCall());
-    res.on('error', common.expectsError({
-      code: 'ECONNRESET'
-    }));
     res.on('close', common.mustCall());
     res.socket.on('close', common.mustCall());
   }));

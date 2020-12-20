@@ -220,7 +220,7 @@ RuleBasedCollator::adoptTailoring(CollationTailoring *t, UErrorCode &errorCode) 
     actualLocaleIsSameAsValid = FALSE;
 }
 
-RuleBasedCollator *
+Collator *
 RuleBasedCollator::clone() const {
     return new RuleBasedCollator(*this);
 }
@@ -1600,7 +1600,10 @@ RuleBasedCollator::internalGetShortDefinitionString(const char *locale,
     appendSubtag(result, 'Z', subtag, length, errorCode);
 
     if(U_FAILURE(errorCode)) { return 0; }
-    return result.extract(buffer, capacity, errorCode);
+    if(result.length() <= capacity) {
+        uprv_memcpy(buffer, result.data(), result.length());
+    }
+    return u_terminateChars(buffer, capacity, result.length(), &errorCode);
 }
 
 UBool

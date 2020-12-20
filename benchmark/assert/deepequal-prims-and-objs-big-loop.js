@@ -13,10 +13,12 @@ const bench = common.createBenchmark(main, {
   primitive: Object.keys(primValues),
   n: [2e4],
   strict: [0, 1],
-  method: ['deepEqual', 'notDeepEqual'],
+  method: [ 'deepEqual', 'notDeepEqual' ],
 });
 
 function main({ n, primitive, method, strict }) {
+  if (!method)
+    method = 'deepEqual';
   const prim = primValues[primitive];
   const actual = prim;
   const expected = prim;
@@ -29,7 +31,7 @@ function main({ n, primitive, method, strict }) {
   const value2 = method.includes('not') ? expectedWrong : expected;
 
   bench.start();
-  for (let i = 0; i < n; ++i) {
+  for (var i = 0; i < n; ++i) {
     fn([actual], [value2]);
   }
   bench.end(n);

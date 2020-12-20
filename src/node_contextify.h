@@ -10,37 +10,15 @@
 namespace node {
 namespace contextify {
 
-class MicrotaskQueueWrap : public BaseObject {
- public:
-  MicrotaskQueueWrap(Environment* env, v8::Local<v8::Object> obj);
-
-  const std::shared_ptr<v8::MicrotaskQueue>& microtask_queue() const;
-
-  static void Init(Environment* env, v8::Local<v8::Object> target);
-  static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
-
-  // This could have methods for running the microtask queue, if we ever decide
-  // to make that fully customizable from userland.
-
-  SET_NO_MEMORY_INFO()
-  SET_MEMORY_INFO_NAME(MicrotaskQueueWrap)
-  SET_SELF_SIZE(MicrotaskQueueWrap)
-
- private:
-  std::shared_ptr<v8::MicrotaskQueue> microtask_queue_;
-};
-
 struct ContextOptions {
   v8::Local<v8::String> name;
   v8::Local<v8::String> origin;
   v8::Local<v8::Boolean> allow_code_gen_strings;
   v8::Local<v8::Boolean> allow_code_gen_wasm;
-  BaseObjectPtr<MicrotaskQueueWrap> microtask_queue_wrap;
 };
 
 class ContextifyContext {
  public:
-  enum InternalFields { kSlot, kInternalFieldCount };
   ContextifyContext(Environment* env,
                     v8::Local<v8::Object> sandbox_obj,
                     const ContextOptions& options);
@@ -72,11 +50,6 @@ class ContextifyContext {
   inline v8::Local<v8::Object> sandbox() const {
     return v8::Local<v8::Object>::Cast(
         context()->GetEmbedderData(ContextEmbedderIndex::kSandboxObject));
-  }
-
-  inline std::shared_ptr<v8::MicrotaskQueue> microtask_queue() const {
-    if (!microtask_queue_wrap_) return {};
-    return microtask_queue_wrap_->microtask_queue();
   }
 
 
@@ -128,7 +101,6 @@ class ContextifyContext {
       const v8::PropertyCallbackInfo<v8::Boolean>& args);
   Environment* const env_;
   v8::Global<v8::Context> context_;
-  BaseObjectPtr<MicrotaskQueueWrap> microtask_queue_wrap_;
 };
 
 class ContextifyScript : public BaseObject {
@@ -152,7 +124,6 @@ class ContextifyScript : public BaseObject {
                           const bool display_errors,
                           const bool break_on_sigint,
                           const bool break_on_first_line,
-                          std::shared_ptr<v8::MicrotaskQueue> microtask_queue,
                           const v8::FunctionCallbackInfo<v8::Value>& args);
 
   inline uint32_t id() { return id_; }
@@ -160,27 +131,6 @@ class ContextifyScript : public BaseObject {
  private:
   v8::Global<v8::UnboundScript> script_;
   uint32_t id_;
-};
-
-class CompiledFnEntry final : public BaseObject {
- public:
-  SET_NO_MEMORY_INFO()
-  SET_MEMORY_INFO_NAME(CompiledFnEntry)
-  SET_SELF_SIZE(CompiledFnEntry)
-
-  CompiledFnEntry(Environment* env,
-                  v8::Local<v8::Object> object,
-                  uint32_t id,
-                  v8::Local<v8::ScriptOrModule> script);
-  ~CompiledFnEntry();
-
-  bool IsNotIndicativeOfMemoryLeakAtExit() const override { return true; }
-
- private:
-  uint32_t id_;
-  v8::Global<v8::ScriptOrModule> script_;
-
-  static void WeakCallback(const v8::WeakCallbackInfo<CompiledFnEntry>& data);
 };
 
 }  // namespace contextify

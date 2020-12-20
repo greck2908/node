@@ -4,20 +4,16 @@
 
 #include "src/profiler/tick-sample.h"
 
-#include <cinttypes>
-
 #include "include/v8-profiler.h"
-#include "src/execution/frames-inl.h"
-#include "src/execution/simulator.h"
-#include "src/execution/vm-state-inl.h"
-#include "src/heap/heap-inl.h"  // For Heap::code_range.
-#include "src/logging/counters.h"
-#include "src/profiler/profiler-stats.h"
-#include "src/sanitizer/asan.h"
-#include "src/sanitizer/msan.h"
+#include "src/asan.h"
+#include "src/counters.h"
+#include "src/frames-inl.h"
+#include "src/heap/heap-inl.h"  // For MemoryAllocator::code_range.
+#include "src/msan.h"
+#include "src/simulator.h"
+#include "src/vm-state-inl.h"
 
 namespace v8 {
-namespace internal {
 namespace {
 
 bool IsSamePage(i::Address ptr1, i::Address ptr2) {
@@ -80,6 +76,11 @@ bool IsNoFrameRegion(i::Address address) {
   return false;
 }
 
+}  // namespace
+
+namespace internal {
+namespace {
+
 #if defined(USE_SIMULATOR)
 class SimulatorHelper {
  public:
@@ -99,32 +100,28 @@ bool SimulatorHelper::FillRegisters(Isolate* isolate,
   }
   state->sp = reinterpret_cast<void*>(simulator->get_register(Simulator::sp));
   state->fp = reinterpret_cast<void*>(simulator->get_register(Simulator::r11));
-  state->lr = reinterpret_cast<void*>(simulator->get_register(Simulator::lr));
 #elif V8_TARGET_ARCH_ARM64
   state->pc = reinterpret_cast<void*>(simulator->pc());
   state->sp = reinterpret_cast<void*>(simulator->sp());
   state->fp = reinterpret_cast<void*>(simulator->fp());
-  state->lr = reinterpret_cast<void*>(simulator->lr());
 #elif V8_TARGET_ARCH_MIPS || V8_TARGET_ARCH_MIPS64
   if (!simulator->has_bad_pc()) {
     state->pc = reinterpret_cast<void*>(simulator->get_pc());
   }
   state->sp = reinterpret_cast<void*>(simulator->get_register(Simulator::sp));
   state->fp = reinterpret_cast<void*>(simulator->get_register(Simulator::fp));
-#elif V8_TARGET_ARCH_PPC || V8_TARGET_ARCH_PPC64
+#elif V8_TARGET_ARCH_PPC
   if (!simulator->has_bad_pc()) {
     state->pc = reinterpret_cast<void*>(simulator->get_pc());
   }
   state->sp = reinterpret_cast<void*>(simulator->get_register(Simulator::sp));
   state->fp = reinterpret_cast<void*>(simulator->get_register(Simulator::fp));
-  state->lr = reinterpret_cast<void*>(simulator->get_lr());
 #elif V8_TARGET_ARCH_S390
   if (!simulator->has_bad_pc()) {
     state->pc = reinterpret_cast<void*>(simulator->get_pc());
   }
   state->sp = reinterpret_cast<void*>(simulator->get_register(Simulator::sp));
   state->fp = reinterpret_cast<void*>(simulator->get_register(Simulator::fp));
-  state->lr = reinterpret_cast<void*>(simulator->get_register(Simulator::ra));
 #endif
   if (state->sp == 0 || state->fp == 0) {
     // It possible that the simulator is interrupted while it is updating
@@ -145,13 +142,16 @@ bool SimulatorHelper::FillRegisters(Isolate* isolate,
 #endif  // USE_SIMULATOR
 
 }  // namespace
+}  // namespace internal
 
+//
+// StackTracer implementation
+//
 DISABLE_ASAN void TickSample::Init(Isolate* v8_isolate,
                                    const RegisterState& reg_state,
                                    RecordCEntryFrame record_c_entry_frame,
                                    bool update_stats,
-                                   bool use_simulator_reg_state,
-                                   base::TimeDelta sampling_interval) {
+                                   bool use_simulator_reg_state) {
   this->update_stats = update_stats;
   SampleInfo info;
   RegisterState regs = reg_state;
@@ -185,8 +185,6 @@ DISABLE_ASAN void TickSample::Init(Isolate* v8_isolate,
   } else {
     tos = nullptr;
   }
-  this->sampling_interval = sampling_interval;
-  timestamp = base::TimeTicks::HighResolutionNow();
 }
 
 bool TickSample::GetStackSample(Isolate* v8_isolate, RegisterState* regs,
@@ -205,11 +203,7 @@ bool TickSample::GetStackSample(Isolate* v8_isolate, RegisterState* regs,
 
 #if defined(USE_SIMULATOR)
   if (use_simulator_reg_state) {
-    if (!i::SimulatorHelper::FillRegisters(isolate, regs)) {
-      i::ProfilerStats::Instance()->AddReason(
-          i::ProfilerStats::Reason::kSimulatorFillRegistersFailed);
-      return false;
-    }
+    if (!i::SimulatorHelper::FillRegisters(isolate, regs)) return false;
   }
 #else
   USE(use_simulator_reg_state);
@@ -218,22 +212,18 @@ bool TickSample::GetStackSample(Isolate* v8_isolate, RegisterState* regs,
 
   // Check whether we interrupted setup/teardown of a stack frame in JS code.
   // Avoid this check for C++ code, as that would trigger false positives.
-  // TODO(petermarshall): Code range is always null on ia32 so this check for
-  // IsNoFrameRegion will never actually run there.
   if (regs->pc &&
       isolate->heap()->memory_allocator()->code_range().contains(
           reinterpret_cast<i::Address>(regs->pc)) &&
       IsNoFrameRegion(reinterpret_cast<i::Address>(regs->pc))) {
     // The frame is not setup, so it'd be hard to iterate the stack. Bailout.
-    i::ProfilerStats::Instance()->AddReason(
-        i::ProfilerStats::Reason::kNoFrameRegion);
     return false;
   }
 
   i::ExternalCallbackScope* scope = isolate->external_callback_scope();
   i::Address handler = i::Isolate::handler(isolate->thread_local_top());
   // If there is a handler on top of the external callback scope then
-  // we have already entered JavaScript again and the external callback
+  // we have already entrered JavaScript again and the external callback
   // is not the top function.
   if (scope && scope->scope_address() < handler) {
     i::Address* external_callback_entry_ptr =
@@ -244,22 +234,17 @@ bool TickSample::GetStackSample(Isolate* v8_isolate, RegisterState* regs,
             : reinterpret_cast<void*>(*external_callback_entry_ptr);
   }
 
-  i::SafeStackFrameIterator it(isolate, reinterpret_cast<i::Address>(regs->pc),
-                               reinterpret_cast<i::Address>(regs->fp),
+  i::SafeStackFrameIterator it(isolate, reinterpret_cast<i::Address>(regs->fp),
                                reinterpret_cast<i::Address>(regs->sp),
-                               reinterpret_cast<i::Address>(regs->lr),
                                js_entry_sp);
-
   if (it.done()) return true;
 
   size_t i = 0;
   if (record_c_entry_frame == kIncludeCEntryFrame &&
       (it.top_frame_type() == internal::StackFrame::EXIT ||
        it.top_frame_type() == internal::StackFrame::BUILTIN_EXIT)) {
-    frames[i] = reinterpret_cast<void*>(isolate->c_function());
-    i++;
+    frames[i++] = reinterpret_cast<void*>(isolate->c_function());
   }
-
   i::RuntimeCallTimer* timer =
       isolate->counters()->runtime_call_stats()->current_timer();
   for (; !it.done() && i < frames_limit; it.Advance()) {
@@ -269,7 +254,6 @@ bool TickSample::GetStackSample(Isolate* v8_isolate, RegisterState* regs,
       timer = timer->parent();
     }
     if (i == frames_limit) break;
-
     if (it.frame()->is_interpreted()) {
       // For interpreted frames use the bytecode array pointer as the pc.
       i::InterpretedFrame* frame =
@@ -278,27 +262,35 @@ bool TickSample::GetStackSample(Isolate* v8_isolate, RegisterState* regs,
       // bytecode_array might be garbage, so don't actually dereference it. We
       // avoid the frame->GetXXX functions since they call BytecodeArray::cast,
       // which has a heap access in its DCHECK.
-      i::Address bytecode_array = base::Memory<i::Address>(
+      i::Address bytecode_array = i::Memory<i::Address>(
           frame->fp() + i::InterpreterFrameConstants::kBytecodeArrayFromFp);
-      i::Address bytecode_offset = base::Memory<i::Address>(
+      i::Address bytecode_offset = i::Memory<i::Address>(
           frame->fp() + i::InterpreterFrameConstants::kBytecodeOffsetFromFp);
 
       // If the bytecode array is a heap object and the bytecode offset is a
       // Smi, use those, otherwise fall back to using the frame's pc.
-      if (HAS_STRONG_HEAP_OBJECT_TAG(bytecode_array) &&
-          HAS_SMI_TAG(bytecode_offset)) {
+      if (HAS_HEAP_OBJECT_TAG(bytecode_array) && HAS_SMI_TAG(bytecode_offset)) {
         frames[i++] = reinterpret_cast<void*>(
             bytecode_array + i::Internals::SmiValue(bytecode_offset));
         continue;
       }
     }
-    // For arm64, the PC for the frame sometimes doesn't come from the stack,
-    // but from the link register instead. For this reason, we skip
-    // authenticating it.
-    frames[i++] = reinterpret_cast<void*>(it.frame()->unauthenticated_pc());
+    frames[i++] = reinterpret_cast<void*>(it.frame()->pc());
   }
   sample_info->frames_count = i;
   return true;
+}
+
+namespace internal {
+
+void TickSample::Init(Isolate* isolate, const v8::RegisterState& state,
+                      RecordCEntryFrame record_c_entry_frame, bool update_stats,
+                      bool use_simulator_reg_state) {
+  v8::TickSample::Init(reinterpret_cast<v8::Isolate*>(isolate), state,
+                       record_c_entry_frame, update_stats,
+                       use_simulator_reg_state);
+  if (pc == nullptr) return;
+  timestamp = base::TimeTicks::HighResolutionNow();
 }
 
 void TickSample::print() const {
@@ -313,8 +305,6 @@ void TickSample::print() const {
   PrintF(" - %s: %p\n",
          has_external_callback ? "external_callback_entry" : "tos", tos);
   PrintF(" - update_stats: %d\n", update_stats);
-  PrintF(" - sampling_interval: %" PRId64 "\n",
-         sampling_interval.InMicroseconds());
   PrintF("\n");
 }
 

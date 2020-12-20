@@ -5,9 +5,9 @@
 #ifndef V8_REGEXP_X64_REGEXP_MACRO_ASSEMBLER_X64_H_
 #define V8_REGEXP_X64_REGEXP_MACRO_ASSEMBLER_X64_H_
 
-#include "src/codegen/macro-assembler.h"
-#include "src/codegen/x64/assembler-x64.h"
+#include "src/macro-assembler.h"
 #include "src/regexp/regexp-macro-assembler.h"
+#include "src/x64/assembler-x64.h"
 #include "src/zone/zone-chunk-list.h"
 
 namespace v8 {
@@ -24,7 +24,7 @@ class V8_EXPORT_PRIVATE RegExpMacroAssemblerX64
   void AdvanceRegister(int reg, int by) override;
   void Backtrack() override;
   void Bind(Label* label) override;
-  void CheckAtStart(int cp_offset, Label* on_at_start) override;
+  void CheckAtStart(Label* on_at_start) override;
   void CheckCharacter(uint32_t c, Label* on_equal) override;
   void CheckCharacterAfterAnd(uint32_t c, uint32_t mask,
                               Label* on_equal) override;
@@ -60,8 +60,9 @@ class V8_EXPORT_PRIVATE RegExpMacroAssemblerX64
   void IfRegisterLT(int reg, int comparand, Label* if_lt) override;
   void IfRegisterEqPos(int reg, Label* if_eq) override;
   IrregexpImplementation Implementation() override;
-  void LoadCurrentCharacterUnchecked(int cp_offset,
-                                     int character_count) override;
+  void LoadCurrentCharacter(int cp_offset, Label* on_end_of_input,
+                            bool check_bounds = true,
+                            int characters = 1) override;
   void PopCurrentPosition() override;
   void PopRegister(int register_index) override;
   void PushBacktrack(Label* label) override;
@@ -91,7 +92,7 @@ class V8_EXPORT_PRIVATE RegExpMacroAssemblerX64
   static const int kReturn_eip = kFramePointer + kSystemPointerSize;
   static const int kFrameAlign = kReturn_eip + kSystemPointerSize;
 
-#ifdef V8_TARGET_OS_WIN
+#ifdef _WIN64
   // Parameters (first four passed as registers, but with room on stack).
   // In Microsoft 64-bit Calling Convention, there is room on the callers
   // stack (before the return address) to spill parameter registers. We
@@ -130,7 +131,7 @@ class V8_EXPORT_PRIVATE RegExpMacroAssemblerX64
   static const int kIsolate = kDirectCall + kSystemPointerSize;
 #endif
 
-#ifdef V8_TARGET_OS_WIN
+#ifdef _WIN64
   // Microsoft calling convention has three callee-saved registers
   // (that we are using). We push these after the frame pointer.
   static const int kBackup_rsi = kFramePointer - kSystemPointerSize;
@@ -145,19 +146,22 @@ class V8_EXPORT_PRIVATE RegExpMacroAssemblerX64
   static const int kLastCalleeSaveRegister = kBackup_rbx;
 #endif
 
-  // When adding local variables remember to push space for them in
-  // the frame in GetCode.
   static const int kSuccessfulCaptures =
       kLastCalleeSaveRegister - kSystemPointerSize;
+  // When adding local variables remember to push space for them in
+  // the frame in GetCode.
   static const int kStringStartMinusOne =
       kSuccessfulCaptures - kSystemPointerSize;
-  static const int kBacktrackCount = kStringStartMinusOne - kSystemPointerSize;
 
   // First register address. Following registers are below it on the stack.
-  static const int kRegisterZero = kBacktrackCount - kSystemPointerSize;
+  static const int kRegisterZero = kStringStartMinusOne - kSystemPointerSize;
 
   // Initial size of code buffer.
   static const int kRegExpCodeSize = 1024;
+
+  // Load a number of characters at the given offset from the
+  // current position, into the current-character register.
+  void LoadCurrentCharacterUnchecked(int cp_offset, int character_count);
 
   // Check whether preemption has been requested.
   void CheckPreemption();

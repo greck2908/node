@@ -1,3 +1,4 @@
+// Flags: --experimental-modules
 import '../common/index.mjs';
 import * as fs from 'fs';
 import assert from 'assert';

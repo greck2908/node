@@ -73,11 +73,7 @@ assert.strictEqual(util.isError([]), false);
 assert.strictEqual(util.isError(Object.create(Error.prototype)), true);
 
 // isObject
-assert.strictEqual(util.isObject({}), true);
-assert.strictEqual(util.isObject([]), true);
-assert.strictEqual(util.isObject(new Number(3)), true);
-assert.strictEqual(util.isObject(Number(4)), false);
-assert.strictEqual(util.isObject(1), false);
+assert.ok(util.isObject({}) === true);
 
 // isPrimitive
 assert.strictEqual(util.isPrimitive({}), false);

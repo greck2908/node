@@ -10,20 +10,16 @@ const fork = require('child_process').fork;
 const net = require('net');
 const url = require('url');
 
-const kFirstOpen = 0;
-const kOpenWhileOpen = 1;
-const kReOpen = 2;
-
 if (process.env.BE_CHILD)
   return beChild();
 
 const child = fork(__filename,
-                   { env: { ...process.env, BE_CHILD: 1 } });
+                   { env: Object.assign({}, process.env, { BE_CHILD: 1 }) });
 
 child.once('message', common.mustCall((msg) => {
   assert.strictEqual(msg.cmd, 'started');
 
-  child.send({ cmd: 'open', args: [kFirstOpen] });
+  child.send({ cmd: 'open', args: [0] });
   child.once('message', common.mustCall(firstOpen));
 }));
 
@@ -35,7 +31,7 @@ function firstOpen(msg) {
   ping(port, (err) => {
     assert.ifError(err);
     // Inspector is already open, and won't be reopened, so args don't matter.
-    child.send({ cmd: 'open', args: [kOpenWhileOpen] });
+    child.send({ cmd: 'open', args: [] });
     child.once('message', common.mustCall(tryToOpenWhenOpen));
     firstPort = port;
   });
@@ -66,7 +62,7 @@ function closeWhenOpen(msg) {
 function tryToCloseWhenClosed(msg) {
   assert.strictEqual(msg.cmd, 'url');
   assert.strictEqual(msg.url, undefined);
-  child.send({ cmd: 'open', args: [kReOpen] });
+  child.send({ cmd: 'open', args: [] });
   child.once('message', common.mustCall(reopenAfterClose));
 }
 
@@ -97,17 +93,7 @@ function beChild() {
 
   process.on('message', (msg) => {
     if (msg.cmd === 'open') {
-      if (msg.args[0] === kFirstOpen) {
-        inspector.open(0, false, undefined);
-      } else if (msg.args[0] === kOpenWhileOpen) {
-        assert.throws(() => {
-          inspector.open(0, false, undefined);
-        }, {
-          code: 'ERR_INSPECTOR_ALREADY_ACTIVATED'
-        });
-      } else if (msg.args[0] === kReOpen) {
-        inspector.open(0, false, undefined);
-      }
+      inspector.open(...msg.args);
     }
     if (msg.cmd === 'close') {
       inspector.close();

@@ -16,14 +16,10 @@
  * \brief C++ API: time unit amount object.
  */
 
-#include "unicode/utypes.h"
-
-#if U_SHOW_CPLUSPLUS_API
-
-#if !UCONFIG_NO_FORMATTING
-
 #include "unicode/measure.h"
 #include "unicode/tmunit.h"
+
+#if !UCONFIG_NO_FORMATTING
 
 U_NAMESPACE_BEGIN
 
@@ -39,7 +35,7 @@ public:
     /**
      * Construct TimeUnitAmount object with the given number and the
      * given time unit.
-     * @param number        a numeric object; number.isNumeric() must be true
+     * @param number        a numeric object; number.isNumeric() must be TRUE
      * @param timeUnitField the time unit field of a time unit
      * @param status        the input-output error code.
      *                      If the number is not numeric or the timeUnitField
@@ -87,7 +83,7 @@ public:
      * @return a polymorphic clone of this object. The result will have the same               class as returned by getDynamicClassID().
      * @stable ICU 4.2
      */
-    virtual TimeUnitAmount* clone() const;
+    virtual UObject* clone() const;
 
 
     /**
@@ -168,8 +164,6 @@ TimeUnitAmount::operator!=(const UObject& other) const {
 U_NAMESPACE_END
 
 #endif /* #if !UCONFIG_NO_FORMATTING */
-
-#endif /* U_SHOW_CPLUSPLUS_API */
 
 #endif // __TMUTAMT_H__
 //eof

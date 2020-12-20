@@ -100,7 +100,6 @@
     o.x = 0.1;
   }
 
-  %PrepareFunctionForOptimization(g);
   g(c1);
   g(c2);
   g(c3);

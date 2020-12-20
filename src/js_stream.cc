@@ -2,6 +2,7 @@
 
 #include "async_wrap.h"
 #include "env-inl.h"
+#include "node_buffer.h"
 #include "node_errors.h"
 #include "stream_base-inl.h"
 #include "util-inl.h"
@@ -116,15 +117,16 @@ int JSStream::DoWrite(WriteWrap* w,
   HandleScope scope(env()->isolate());
   Context::Scope context_scope(env()->context());
 
-  MaybeStackBuffer<Local<Value>, 16> bufs_arr(count);
+  Local<Array> bufs_arr = Array::New(env()->isolate(), count);
+  Local<Object> buf;
   for (size_t i = 0; i < count; i++) {
-    bufs_arr[i] =
-        Buffer::Copy(env(), bufs[i].base, bufs[i].len).ToLocalChecked();
+    buf = Buffer::Copy(env(), bufs[i].base, bufs[i].len).ToLocalChecked();
+    bufs_arr->Set(env()->context(), i, buf).Check();
   }
 
   Local<Value> argv[] = {
     w->object(),
-    Array::New(env()->isolate(), bufs_arr.out(), count)
+    bufs_arr
   };
 
   TryCatchScope try_catch(env());
@@ -204,7 +206,7 @@ void JSStream::Initialize(Local<Object> target,
       FIXED_ONE_BYTE_STRING(env->isolate(), "JSStream");
   t->SetClassName(jsStreamString);
   t->InstanceTemplate()
-    ->SetInternalFieldCount(StreamBase::kInternalFieldCount);
+    ->SetInternalFieldCount(StreamBase::kStreamBaseFieldCount);
   t->Inherit(AsyncWrap::GetConstructorTemplate(env));
 
   env->SetProtoMethod(t, "finishWrite", Finish<WriteWrap>);

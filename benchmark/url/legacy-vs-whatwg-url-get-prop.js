@@ -26,7 +26,7 @@ function useLegacy(data) {
   // It's necessary to assign the values to an object
   // to avoid loop invariant code motion.
   bench.start();
-  for (let i = 0; i < len; i++) {
+  for (var i = 0; i < len; i++) {
     const obj = data[i];
     noDead.protocol = obj.protocol;
     noDead.auth = obj.auth;
@@ -55,7 +55,7 @@ function useWHATWG(data) {
   };
   const len = data.length;
   bench.start();
-  for (let i = 0; i < len; i++) {
+  for (var i = 0; i < len; i++) {
     const obj = data[i];
     noDead.protocol = obj.protocol;
     noDead.auth = `${obj.username}:${obj.password}`;
@@ -71,8 +71,9 @@ function useWHATWG(data) {
 }
 
 function main({ type, method, e }) {
-  let data;
-  let noDead;  // Avoid dead code elimination.
+  e = +e;
+  var data;
+  var noDead;  // Avoid dead code elimination.
   switch (method) {
     case 'legacy':
       data = common.bakeUrlData(type, e, false, false);

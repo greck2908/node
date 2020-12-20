@@ -1246,7 +1246,7 @@ const UnicodeString**
 DateFormatSymbols::getZoneStrings(int32_t& rowCount, int32_t& columnCount) const
 {
     const UnicodeString **result = NULL;
-    static UMutex LOCK;
+    static UMutex LOCK = U_MUTEX_INITIALIZER;
 
     umtx_lock(&LOCK);
     if (fZoneStrings == NULL) {
@@ -2177,16 +2177,16 @@ DateFormatSymbols::initializeData(const Locale& locale, const char *type, UError
             // The ordering of the following statements is important.
             if (fLeapMonthPatterns[kLeapMonthPatternFormatAbbrev].isEmpty()) {
                 fLeapMonthPatterns[kLeapMonthPatternFormatAbbrev].setTo(fLeapMonthPatterns[kLeapMonthPatternFormatWide]);
-            }
+            };
             if (fLeapMonthPatterns[kLeapMonthPatternFormatNarrow].isEmpty()) {
                 fLeapMonthPatterns[kLeapMonthPatternFormatNarrow].setTo(fLeapMonthPatterns[kLeapMonthPatternStandaloneNarrow]);
-            }
+            };
             if (fLeapMonthPatterns[kLeapMonthPatternStandaloneWide].isEmpty()) {
                 fLeapMonthPatterns[kLeapMonthPatternStandaloneWide].setTo(fLeapMonthPatterns[kLeapMonthPatternFormatWide]);
-            }
+            };
             if (fLeapMonthPatterns[kLeapMonthPatternStandaloneAbbrev].isEmpty()) {
                 fLeapMonthPatterns[kLeapMonthPatternStandaloneAbbrev].setTo(fLeapMonthPatterns[kLeapMonthPatternFormatAbbrev]);
-            }
+            };
             // end of hack
             fLeapMonthPatternsCount = kMonthPatternsCount;
         } else {
@@ -2338,21 +2338,11 @@ DateFormatSymbols::initializeData(const Locale& locale, const char *type, UError
         assignArray(fStandaloneNarrowMonths, fStandaloneNarrowMonthsCount, fShortMonths, fShortMonthsCount);
     }
 
-    // Load AM/PM markers; if wide or narrow not available, use short
-    UErrorCode ampmStatus = U_ZERO_ERROR;
+    // Load AM/PM markers
     initField(&fAmPms, fAmPmsCount, calendarSink,
-              buildResourcePath(path, gAmPmMarkersTag, ampmStatus), ampmStatus);
-    if (U_FAILURE(ampmStatus)) {
-        initField(&fAmPms, fAmPmsCount, calendarSink,
-                  buildResourcePath(path, gAmPmMarkersAbbrTag, status), status);
-    }
-    ampmStatus = U_ZERO_ERROR;
+              buildResourcePath(path, gAmPmMarkersTag, status), status);
     initField(&fNarrowAmPms, fNarrowAmPmsCount, calendarSink,
-              buildResourcePath(path, gAmPmMarkersNarrowTag, ampmStatus), ampmStatus);
-    if (U_FAILURE(ampmStatus)) {
-        initField(&fNarrowAmPms, fNarrowAmPmsCount, calendarSink,
-                  buildResourcePath(path, gAmPmMarkersAbbrTag, status), status);
-    }
+              buildResourcePath(path, gAmPmMarkersNarrowTag, status), status);
 
     // Load quarters
     initField(&fQuarters, fQuartersCount, calendarSink,

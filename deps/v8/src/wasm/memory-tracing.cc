@@ -4,28 +4,25 @@
 
 #include "src/wasm/memory-tracing.h"
 
-#include <cinttypes>
-
-#include "src/base/memory.h"
-#include "src/utils/utils.h"
-#include "src/utils/vector.h"
+#include "src/utils.h"
+#include "src/v8memory.h"
+#include "src/vector.h"
 
 namespace v8 {
 namespace internal {
 namespace wasm {
 
-void TraceMemoryOperation(base::Optional<ExecutionTier> tier,
-                          const MemoryTracingInfo* info, int func_index,
-                          int position, uint8_t* mem_start) {
-  EmbeddedVector<char, 91> value;
+void TraceMemoryOperation(ExecutionTier tier, const MemoryTracingInfo* info,
+                          int func_index, int position, uint8_t* mem_start) {
+  EmbeddedVector<char, 64> value;
   auto mem_rep = static_cast<MachineRepresentation>(info->mem_rep);
   switch (mem_rep) {
 #define TRACE_TYPE(rep, str, format, ctype1, ctype2)                     \
   case MachineRepresentation::rep:                                       \
     SNPrintF(value, str ":" format,                                      \
-             base::ReadLittleEndianValue<ctype1>(                        \
+             ReadLittleEndianValue<ctype1>(                              \
                  reinterpret_cast<Address>(mem_start) + info->address),  \
-             base::ReadLittleEndianValue<ctype2>(                        \
+             ReadLittleEndianValue<ctype2>(                              \
                  reinterpret_cast<Address>(mem_start) + info->address)); \
     break;
     TRACE_TYPE(kWord8, " i8", "%d / %02x", uint8_t, uint8_t)
@@ -35,33 +32,26 @@ void TraceMemoryOperation(base::Optional<ExecutionTier> tier,
     TRACE_TYPE(kFloat32, "f32", "%f / %08x", float, uint32_t)
     TRACE_TYPE(kFloat64, "f64", "%f / %016" PRIx64, double, uint64_t)
 #undef TRACE_TYPE
-    case MachineRepresentation::kSimd128:
-      SNPrintF(value, "s128:%d %d %d %d / %08x %08x %08x %08x",
-               base::ReadLittleEndianValue<uint32_t>(
-                   reinterpret_cast<Address>(mem_start) + info->address),
-               base::ReadLittleEndianValue<uint32_t>(
-                   reinterpret_cast<Address>(mem_start) + info->address + 4),
-               base::ReadLittleEndianValue<uint32_t>(
-                   reinterpret_cast<Address>(mem_start) + info->address + 8),
-               base::ReadLittleEndianValue<uint32_t>(
-                   reinterpret_cast<Address>(mem_start) + info->address + 12),
-               base::ReadLittleEndianValue<uint32_t>(
-                   reinterpret_cast<Address>(mem_start) + info->address),
-               base::ReadLittleEndianValue<uint32_t>(
-                   reinterpret_cast<Address>(mem_start) + info->address + 4),
-               base::ReadLittleEndianValue<uint32_t>(
-                   reinterpret_cast<Address>(mem_start) + info->address + 8),
-               base::ReadLittleEndianValue<uint32_t>(
-                   reinterpret_cast<Address>(mem_start) + info->address + 12));
-      break;
     default:
       SNPrintF(value, "???");
   }
-  const char* eng =
-      tier.has_value() ? ExecutionTierToString(tier.value()) : "?";
+  const char* eng = "?";
+  switch (tier) {
+    case ExecutionTier::kTurbofan:
+      eng = "turbofan";
+      break;
+    case ExecutionTier::kLiftoff:
+      eng = "liftoff";
+      break;
+    case ExecutionTier::kInterpreter:
+      eng = "interpreter";
+      break;
+    case ExecutionTier::kNone:
+      UNREACHABLE();
+  }
   printf("%-11s func:%6d+0x%-6x%s %08x val: %s\n", eng, func_index, position,
          info->is_store ? " store to" : "load from", info->address,
-         value.begin());
+         value.start());
 }
 
 }  // namespace wasm

@@ -44,7 +44,6 @@ function listener(event, exec_state, event_data, data) {
   }
 }
 
-%PrepareFunctionForOptimization(g);
 f(0);
 f(0);
 %OptimizeFunctionOnNextCall(g);

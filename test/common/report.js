@@ -2,11 +2,9 @@
 'use strict';
 const assert = require('assert');
 const fs = require('fs');
-const net = require('net');
 const os = require('os');
 const path = require('path');
 const util = require('util');
-const cpus = os.cpus();
 
 function findReports(pid, dir) {
   // Default filenames are of the form
@@ -24,16 +22,11 @@ function findReports(pid, dir) {
   return results;
 }
 
-function validate(filepath, fields) {
-  const report = fs.readFileSync(filepath, 'utf8');
-  if (process.report.compact) {
-    const end = report.indexOf('\n');
-    assert.strictEqual(end, report.length - 1);
-  }
-  validateContent(JSON.parse(report), fields);
+function validate(filepath) {
+  validateContent(JSON.parse(fs.readFileSync(filepath, 'utf8')));
 }
 
-function validateContent(report, fields = []) {
+function validateContent(report) {
   if (typeof report === 'string') {
     try {
       report = JSON.parse(report);
@@ -43,7 +36,7 @@ function validateContent(report, fields = []) {
     }
   }
   try {
-    _validateContent(report, fields);
+    _validateContent(report);
   } catch (err) {
     try {
       err.stack += util.format('\n------\nFailing Report:\n%O', report);
@@ -52,13 +45,13 @@ function validateContent(report, fields = []) {
   }
 }
 
-function _validateContent(report, fields = []) {
+function _validateContent(report) {
   const isWindows = process.platform === 'win32';
 
   // Verify that all sections are present as own properties of the report.
   const sections = ['header', 'javascriptStack', 'nativeStack',
                     'javascriptHeap', 'libuv', 'environmentVariables',
-                    'sharedObjects', 'resourceUsage', 'workers'];
+                    'sharedObjects', 'resourceUsage'];
   if (!isWindows)
     sections.push('userLimits');
 
@@ -71,26 +64,6 @@ function _validateContent(report, fields = []) {
     assert(typeof report[section] === 'object' && report[section] !== null);
   });
 
-  fields.forEach((field) => {
-    function checkLoop(actual, rest, expect) {
-      actual = actual[rest.shift()];
-      if (rest.length === 0 && actual !== undefined) {
-        assert.strictEqual(actual, expect);
-      } else {
-        assert(actual);
-        checkLoop(actual, rest, expect);
-      }
-    }
-    let actual, expect;
-    if (Array.isArray(field)) {
-      [actual, expect] = field;
-    } else {
-      actual = field;
-      expect = undefined;
-    }
-    checkLoop(report, actual.split('.'), expect);
-  });
-
   // Verify the format of the header section.
   const header = report.header;
   const headerFields = ['event', 'trigger', 'filename', 'dumpEventTime',
@@ -99,9 +72,9 @@ function _validateContent(report, fields = []) {
                         'componentVersions', 'release', 'osName', 'osRelease',
                         'osVersion', 'osMachine', 'cpus', 'host',
                         'glibcVersionRuntime', 'glibcVersionCompiler', 'cwd',
-                        'reportVersion', 'networkInterfaces', 'threadId'];
+                        'reportVersion'];
   checkForUnknownFields(header, headerFields);
-  assert.strictEqual(header.reportVersion, 2);  // Increment as needed.
+  assert.strictEqual(header.reportVersion, 1);  // Increment as needed.
   assert.strictEqual(typeof header.event, 'string');
   assert.strictEqual(typeof header.trigger, 'string');
   assert(typeof header.filename === 'string' || header.filename === null);
@@ -109,7 +82,6 @@ function _validateContent(report, fields = []) {
                         'Invalid Date');
   assert(String(+header.dumpEventTimeStamp), header.dumpEventTimeStamp);
   assert(Number.isSafeInteger(header.processId));
-  assert(Number.isSafeInteger(header.threadId) || header.threadId === null);
   assert.strictEqual(typeof header.cwd, 'string');
   assert(Array.isArray(header.commandLine));
   header.commandLine.forEach((arg) => {
@@ -126,7 +98,6 @@ function _validateContent(report, fields = []) {
   assert.strictEqual(typeof header.osVersion, 'string');
   assert.strictEqual(typeof header.osMachine, 'string');
   assert(Array.isArray(header.cpus));
-  assert.strictEqual(header.cpus.length, cpus.length);
   header.cpus.forEach((cpu) => {
     assert.strictEqual(typeof cpu.model, 'string');
     assert.strictEqual(typeof cpu.speed, 'number');
@@ -135,39 +106,11 @@ function _validateContent(report, fields = []) {
     assert.strictEqual(typeof cpu.sys, 'number');
     assert.strictEqual(typeof cpu.idle, 'number');
     assert.strictEqual(typeof cpu.irq, 'number');
-    assert(cpus.some((c) => {
-      return c.model === cpu.model;
-    }));
-  });
-
-  assert(Array.isArray(header.networkInterfaces));
-  header.networkInterfaces.forEach((iface) => {
-    assert.strictEqual(typeof iface.name, 'string');
-    assert.strictEqual(typeof iface.internal, 'boolean');
-    assert(/^([0-9A-F][0-9A-F]:){5}[0-9A-F]{2}$/i.test(iface.mac));
-
-    if (iface.family === 'IPv4') {
-      assert.strictEqual(net.isIPv4(iface.address), true);
-      assert.strictEqual(net.isIPv4(iface.netmask), true);
-      assert.strictEqual(iface.scopeid, undefined);
-    } else if (iface.family === 'IPv6') {
-      assert.strictEqual(net.isIPv6(iface.address), true);
-      assert.strictEqual(net.isIPv6(iface.netmask), true);
-      assert(Number.isInteger(iface.scopeid));
-    } else {
-      assert.strictEqual(iface.family, 'unknown');
-      assert.strictEqual(iface.address, undefined);
-      assert.strictEqual(iface.netmask, undefined);
-      assert.strictEqual(iface.scopeid, undefined);
-    }
   });
   assert.strictEqual(header.host, os.hostname());
 
   // Verify the format of the javascriptStack section.
-  checkForUnknownFields(report.javascriptStack,
-                        ['message', 'stack', 'errorProperties']);
-  assert.strictEqual(typeof report.javascriptStack.errorProperties,
-                     'object');
+  checkForUnknownFields(report.javascriptStack, ['message', 'stack']);
   assert.strictEqual(typeof report.javascriptStack.message, 'string');
   if (report.javascriptStack.stack !== undefined) {
     assert(Array.isArray(report.javascriptStack.stack));
@@ -282,10 +225,6 @@ function _validateContent(report, fields = []) {
   report.sharedObjects.forEach((sharedObject) => {
     assert.strictEqual(typeof sharedObject, 'string');
   });
-
-  // Verify the format of the workers section.
-  assert(Array.isArray(report.workers));
-  report.workers.forEach((worker) => _validateContent(worker));
 }
 
 function checkForUnknownFields(actual, expected) {

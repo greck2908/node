@@ -7,8 +7,8 @@
 
 #include <memory>
 
-#include "src/codegen/register-configuration.h"
 #include "src/compiler/backend/instruction.h"
+#include "src/register-configuration.h"
 #include "test/unittests/test-utils.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
@@ -27,7 +27,7 @@ class InstructionSequenceTest : public TestWithIsolateAndZone {
   static constexpr MachineRepresentation kSimd128 =
       MachineRepresentation::kSimd128;
 
-  using Rpo = RpoNumber;
+  typedef RpoNumber Rpo;
 
   struct VReg {
     VReg() : value_(kNoValue) {}
@@ -38,7 +38,7 @@ class InstructionSequenceTest : public TestWithIsolateAndZone {
     MachineRepresentation rep_ = kNoRep;
   };
 
-  using VRegPair = std::pair<VReg, VReg>;
+  typedef std::pair<VReg, VReg> VRegPair;
 
   enum TestOperandType {
     kInvalid,
@@ -47,6 +47,7 @@ class InstructionSequenceTest : public TestWithIsolateAndZone {
     kFixedRegister,
     kSlot,
     kFixedSlot,
+    kExplicit,
     kImmediate,
     kNone,
     kConstant,
@@ -73,6 +74,17 @@ class InstructionSequenceTest : public TestWithIsolateAndZone {
   };
 
   static TestOperand Same() { return TestOperand(kSameAsFirst); }
+
+  static TestOperand ExplicitReg(int index) {
+    TestOperandType type = kExplicit;
+    return TestOperand(type, index);
+  }
+
+  static TestOperand ExplicitFPReg(int index,
+                                   MachineRepresentation rep = kFloat64) {
+    TestOperandType type = kExplicit;
+    return TestOperand(type, index, rep);
+  }
 
   static TestOperand Reg(VReg vreg, int index = kNoValue) {
     TestOperandType type = (index == kNoValue) ? kRegister : kFixedRegister;
@@ -124,15 +136,12 @@ class InstructionSequenceTest : public TestWithIsolateAndZone {
   };
 
   static BlockCompletion FallThrough() {
-    BlockCompletion completion = {kFallThrough, TestOperand(kImmediate, 0), 1,
-                                  kNoValue};
+    BlockCompletion completion = {kFallThrough, TestOperand(), 1, kNoValue};
     return completion;
   }
 
-  static BlockCompletion Jump(int offset,
-                              TestOperand operand = TestOperand(kImmediate,
-                                                                0)) {
-    BlockCompletion completion = {kJump, operand, offset, kNoValue};
+  static BlockCompletion Jump(int offset) {
+    BlockCompletion completion = {kJump, TestOperand(), offset, kNoValue};
     return completion;
   }
 
@@ -226,7 +235,7 @@ class InstructionSequenceTest : public TestWithIsolateAndZone {
 
   Instruction* EmitBranch(TestOperand input_op);
   Instruction* EmitFallThrough();
-  Instruction* EmitJump(TestOperand input_op);
+  Instruction* EmitJump();
   Instruction* NewInstruction(InstructionCode code, size_t outputs_size,
                               InstructionOperand* outputs,
                               size_t inputs_size = 0,
@@ -249,7 +258,6 @@ class InstructionSequenceTest : public TestWithIsolateAndZone {
   InstructionOperand ConvertOutputOp(VReg vreg, TestOperand op);
   InstructionBlock* NewBlock(bool deferred = false);
   void WireBlock(size_t block_offset, int jump_offset);
-  void CalculateDominators();
 
   Instruction* Emit(InstructionCode code, size_t outputs_size = 0,
                     InstructionOperand* outputs = nullptr,
@@ -264,9 +272,9 @@ class InstructionSequenceTest : public TestWithIsolateAndZone {
     int expected_blocks_;
   };
 
-  using LoopBlocks = std::vector<LoopData>;
-  using Instructions = std::map<int, const Instruction*>;
-  using Completions = std::vector<BlockCompletion>;
+  typedef std::vector<LoopData> LoopBlocks;
+  typedef std::map<int, const Instruction*> Instructions;
+  typedef std::vector<BlockCompletion> Completions;
 
   std::unique_ptr<RegisterConfiguration> config_;
   InstructionSequence* sequence_;

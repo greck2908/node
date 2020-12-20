@@ -48,10 +48,10 @@ RemoveTransliterator::RemoveTransliterator() : Transliterator(UnicodeString(TRUE
 
 RemoveTransliterator::~RemoveTransliterator() {}
 
-RemoveTransliterator* RemoveTransliterator::clone() const {
-    RemoveTransliterator* result = new RemoveTransliterator();
+Transliterator* RemoveTransliterator::clone(void) const {
+    Transliterator* result = new RemoveTransliterator();
     if (result != NULL && getFilter() != 0) {
-        result->adoptFilter(getFilter()->clone());
+        result->adoptFilter((UnicodeFilter*)(getFilter()->clone()));
     }
     return result;
 }

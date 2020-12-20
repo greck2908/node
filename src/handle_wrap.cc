@@ -22,8 +22,8 @@
 #include "handle_wrap.h"
 #include "async_wrap-inl.h"
 #include "env-inl.h"
-#include "node_external_reference.h"
 #include "util-inl.h"
+#include "node.h"
 
 namespace node {
 
@@ -72,27 +72,15 @@ void HandleWrap::Close(Local<Value> close_callback) {
   if (state_ != kInitialized)
     return;
 
+  CHECK_EQ(false, persistent().IsEmpty());
   uv_close(handle_, OnClose);
   state_ = kClosing;
 
-  if (!close_callback.IsEmpty() && close_callback->IsFunction() &&
-      !persistent().IsEmpty()) {
+  if (!close_callback.IsEmpty() && close_callback->IsFunction()) {
     object()->Set(env()->context(),
                   env()->handle_onclose_symbol(),
                   close_callback).Check();
   }
-}
-
-
-void HandleWrap::OnGCCollect() {
-  Close();
-}
-
-
-bool HandleWrap::IsNotIndicativeOfMemoryLeakAtExit() const {
-  return IsWeakOrDetached() ||
-         !HandleWrap::HasRef(this) ||
-         !uv_is_active(GetHandle());
 }
 
 
@@ -117,29 +105,25 @@ HandleWrap::HandleWrap(Environment* env,
       handle_(handle) {
   handle_->data = this;
   HandleScope scope(env->isolate());
-  CHECK(env->has_run_bootstrapping_code());
   env->handle_wrap_queue()->PushBack(this);
 }
 
 
 void HandleWrap::OnClose(uv_handle_t* handle) {
-  CHECK_NOT_NULL(handle->data);
-  BaseObjectPtr<HandleWrap> wrap { static_cast<HandleWrap*>(handle->data) };
-  wrap->Detach();
-
+  std::unique_ptr<HandleWrap> wrap { static_cast<HandleWrap*>(handle->data) };
   Environment* env = wrap->env();
   HandleScope scope(env->isolate());
   Context::Scope context_scope(env->context());
 
+  // The wrap object should still be there.
+  CHECK_EQ(wrap->persistent().IsEmpty(), false);
   CHECK_EQ(wrap->state_, kClosing);
 
   wrap->state_ = kClosed;
 
   wrap->OnClose();
-  wrap->handle_wrap_queue_.Remove();
 
-  if (!wrap->persistent().IsEmpty() &&
-      wrap->object()->Has(env->context(), env->handle_onclose_symbol())
+  if (wrap->object()->Has(env->context(), env->handle_onclose_symbol())
       .FromMaybe(false)) {
     wrap->MakeCallback(env->handle_onclose_symbol(), 0, nullptr);
   }
@@ -160,15 +144,5 @@ Local<FunctionTemplate> HandleWrap::GetConstructorTemplate(Environment* env) {
   return tmpl;
 }
 
-void HandleWrap::RegisterExternalReferences(
-    ExternalReferenceRegistry* registry) {
-  registry->Register(HandleWrap::Close);
-  registry->Register(HandleWrap::HasRef);
-  registry->Register(HandleWrap::Ref);
-  registry->Register(HandleWrap::Unref);
-}
 
 }  // namespace node
-
-NODE_MODULE_EXTERNAL_REFERENCE(handle_wrap,
-                               node::HandleWrap::RegisterExternalReferences)

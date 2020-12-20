@@ -36,7 +36,7 @@ function main({ n, to, domain }) {
   const method = to === 'ascii' ? domainToASCII : domainToUnicode;
 
   bench.start();
-  for (let i = 0; i < n; i++) {
+  for (var i = 0; i < n; i++) {
     method(value);
   }
   bench.end(n);

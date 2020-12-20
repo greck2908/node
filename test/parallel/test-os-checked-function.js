@@ -1,9 +1,8 @@
+/* eslint-disable node-core/require-common-first */
 'use strict';
-// Flags: --expose-internals
+// Flags: --expose_internals
 
-require('../common');
 const { internalBinding } = require('internal/test/binding');
-const assert = require('assert');
 
 // Monkey patch the os binding before requiring any other modules, including
 // common, which requires the os module.
@@ -13,8 +12,9 @@ internalBinding('os').getHomeDirectory = function(ctx) {
   ctx.message = 'baz';
 };
 
+const common = require('../common');
 const os = require('os');
 
-assert.throws(os.homedir, {
+common.expectsError(os.homedir, {
   message: /^A system error occurred: foo returned bar \(baz\)$/
 });

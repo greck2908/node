@@ -1,8 +1,6 @@
-// Flags: --expose-internals
 'use strict';
 
 const common = require('../common');
-const { sleep } = require('internal/util');
 
 // This test verifies that the next tick queue runs after each
 // individual Timeout, as well as each individual Immediate.
@@ -18,7 +16,7 @@ const t2 = setTimeout(common.mustNotCall(), 1);
 const t3 = setTimeout(common.mustNotCall(), 1);
 setTimeout(common.mustCall(), 1);
 
-sleep(5);
+common.busyLoop(5);
 
 setImmediate(common.mustCall(() => {
   process.nextTick(() => {

@@ -5,11 +5,10 @@
 #include <map>
 
 #include "src/base/region-allocator.h"
-#include "src/execution/isolate.h"
 #include "src/heap/heap-inl.h"
-#include "src/heap/memory-allocator.h"
 #include "src/heap/spaces-inl.h"
-#include "src/utils/ostreams.h"
+#include "src/isolate.h"
+#include "src/ostreams.h"
 #include "test/unittests/test-utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -170,7 +169,6 @@ class TrackingPageAllocator : public ::v8::PageAllocator {
     os << "  page: [" << start << ", " << end << "), access: ";
     switch (access) {
       case PageAllocator::kNoAccess:
-      case PageAllocator::kNoAccessWillJitLater:
         os << "--";
         break;
       case PageAllocator::kRead:
@@ -244,10 +242,6 @@ class SequentialUnmapperTest : public TestWithIsolate {
     TestWithIsolate::TearDownTestCase();
     i::FLAG_concurrent_sweeping = old_flag_;
     CHECK(tracking_page_allocator_->IsEmpty());
-
-    // Restore the original v8::PageAllocator and delete the tracking one.
-    CHECK_EQ(tracking_page_allocator_,
-             SetPlatformPageAllocatorForTesting(old_page_allocator_));
     delete tracking_page_allocator_;
     tracking_page_allocator_ = nullptr;
   }

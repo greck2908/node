@@ -25,7 +25,6 @@ function TestSetWithCustomIterator(ctor) {
   // code which causes the code to deopt.
   global = entries;
 }
-%PrepareFunctionForOptimization(TestSetWithCustomIterator);
 TestSetWithCustomIterator(Set);
 TestSetWithCustomIterator(Set);
 TestSetWithCustomIterator(Set);
@@ -34,7 +33,6 @@ TestSetWithCustomIterator(Set);
 assertOptimized(TestSetWithCustomIterator);
 
 TestSetWithCustomIterator(WeakSet);
-%PrepareFunctionForOptimization(TestSetWithCustomIterator);
 TestSetWithCustomIterator(WeakSet);
 TestSetWithCustomIterator(WeakSet);
 %OptimizeFunctionOnNextCall(TestSetWithCustomIterator);
@@ -60,7 +58,6 @@ function TestMapWithCustomIterator(ctor) {
   // code which causes the code to deopt.
   global = entries;
 }
-%PrepareFunctionForOptimization(TestMapWithCustomIterator);
 TestMapWithCustomIterator(Map);
 TestMapWithCustomIterator(Map);
 TestMapWithCustomIterator(Map);
@@ -69,7 +66,6 @@ TestMapWithCustomIterator(Map);
 assertOptimized(TestMapWithCustomIterator);
 
 TestMapWithCustomIterator(WeakMap);
-%PrepareFunctionForOptimization(TestMapWithCustomIterator);
 TestMapWithCustomIterator(WeakMap);
 TestMapWithCustomIterator(WeakMap);
 %OptimizeFunctionOnNextCall(TestMapWithCustomIterator);

@@ -38,7 +38,6 @@ function f() {
   arr[500] = 20;
   arr[10] = arr[50];
 }
-%PrepareFunctionForOptimization(f);
 
 function g() {
   f();
@@ -48,4 +47,4 @@ g();
 g();
 %OptimizeFunctionOnNextCall(g);
 g();
-assertUnoptimized(g);
+assertTrue(%GetDeoptCount(g) > 0);

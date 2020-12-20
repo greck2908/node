@@ -37,12 +37,12 @@
 
 #include <utility>
 
-#include "src/init/v8.h"
+#include "src/v8.h"
 
-#include "src/handles/global-handles.h"
+#include "src/global-handles.h"
 #include "src/heap/mark-compact-inl.h"
 #include "src/heap/mark-compact.h"
-#include "src/objects/objects-inl.h"
+#include "src/objects-inl.h"
 #include "test/cctest/cctest.h"
 #include "test/cctest/heap/heap-tester.h"
 #include "test/cctest/heap/heap-utils.h"
@@ -52,8 +52,6 @@ namespace internal {
 namespace heap {
 
 TEST(Promotion) {
-  if (FLAG_single_generation) return;
-  FLAG_stress_concurrent_allocation = false;  // For SealCurrentObjects.
   CcTest::InitializeVM();
   Isolate* isolate = CcTest::i_isolate();
   {
@@ -74,8 +72,6 @@ TEST(Promotion) {
 }
 
 HEAP_TEST(NoPromotion) {
-  if (FLAG_always_promote_young_mc) return;
-  FLAG_stress_concurrent_allocation = false;  // For SealCurrentObjects.
   // Page promotion allows pages to be moved to old space even in the case of
   // OOM scenarios.
   FLAG_page_promotion = false;
@@ -107,8 +103,8 @@ AllocationResult HeapTester::AllocateMapForTest(Isolate* isolate) {
   HeapObject obj;
   AllocationResult alloc = heap->AllocateRaw(Map::kSize, AllocationType::kMap);
   if (!alloc.To(&obj)) return alloc;
-  obj.set_map_after_allocation(ReadOnlyRoots(heap).meta_map(),
-                               SKIP_WRITE_BARRIER);
+  obj->set_map_after_allocation(ReadOnlyRoots(heap).meta_map(),
+                                SKIP_WRITE_BARRIER);
   return isolate->factory()->InitializeMap(Map::cast(obj), JS_OBJECT_TYPE,
                                            JSObject::kHeaderSize,
                                            TERMINAL_FAST_ELEMENTS_KIND, 0);
@@ -125,11 +121,11 @@ AllocationResult HeapTester::AllocateFixedArrayForTest(
     AllocationResult result = heap->AllocateRaw(size, allocation);
     if (!result.To(&obj)) return result;
   }
-  obj.set_map_after_allocation(ReadOnlyRoots(heap).fixed_array_map(),
-                               SKIP_WRITE_BARRIER);
+  obj->set_map_after_allocation(ReadOnlyRoots(heap).fixed_array_map(),
+                                SKIP_WRITE_BARRIER);
   FixedArray array = FixedArray::cast(obj);
-  array.set_length(length);
-  MemsetTagged(array.data_start(), ReadOnlyRoots(heap).undefined_value(),
+  array->set_length(length);
+  MemsetTagged(array->data_start(), ReadOnlyRoots(heap).undefined_value(),
                length);
   return array;
 }
@@ -143,23 +139,21 @@ HEAP_TEST(MarkCompactCollector) {
   Factory* factory = isolate->factory();
 
   v8::HandleScope sc(CcTest::isolate());
-  Handle<JSGlobalObject> global(isolate->context().global_object(), isolate);
+  Handle<JSGlobalObject> global(isolate->context()->global_object(), isolate);
 
   // call mark-compact when heap is empty
   CcTest::CollectGarbage(OLD_SPACE);
 
+  // keep allocating garbage in new space until it fails
+  const int arraysize = 100;
   AllocationResult allocation;
-  if (!FLAG_single_generation) {
-    // keep allocating garbage in new space until it fails
-    const int arraysize = 100;
-    do {
-      allocation =
-          AllocateFixedArrayForTest(heap, arraysize, AllocationType::kYoung);
-    } while (!allocation.IsRetry());
-    CcTest::CollectGarbage(NEW_SPACE);
-    AllocateFixedArrayForTest(heap, arraysize, AllocationType::kYoung)
-        .ToObjectChecked();
-  }
+  do {
+    allocation =
+        AllocateFixedArrayForTest(heap, arraysize, AllocationType::kYoung);
+  } while (!allocation.IsRetry());
+  CcTest::CollectGarbage(NEW_SPACE);
+  AllocateFixedArrayForTest(heap, arraysize, AllocationType::kYoung)
+      .ToObjectChecked();
 
   // keep allocating maps until it fails
   do {
@@ -209,85 +203,6 @@ HEAP_TEST(MarkCompactCollector) {
   }
 }
 
-HEAP_TEST(DoNotEvacuatePinnedPages) {
-  if (FLAG_never_compact || !FLAG_single_generation) return;
-
-  FLAG_always_compact = true;
-
-  CcTest::InitializeVM();
-  Isolate* isolate = CcTest::i_isolate();
-
-  v8::HandleScope sc(CcTest::isolate());
-  Heap* heap = isolate->heap();
-
-  heap::SealCurrentObjects(heap);
-
-  auto handles = heap::CreatePadding(
-      heap, static_cast<int>(MemoryChunkLayout::AllocatableMemoryInDataPage()),
-      AllocationType::kOld);
-
-  Page* page = Page::FromHeapObject(*handles.front());
-
-  CHECK(heap->InSpace(*handles.front(), OLD_SPACE));
-  page->SetFlag(MemoryChunk::PINNED);
-
-  CcTest::CollectAllGarbage();
-  heap->mark_compact_collector()->EnsureSweepingCompleted();
-
-  // The pinned flag should prevent the page from moving.
-  for (Handle<FixedArray> object : handles) {
-    CHECK_EQ(page, Page::FromHeapObject(*object));
-  }
-
-  page->ClearFlag(MemoryChunk::PINNED);
-
-  CcTest::CollectAllGarbage();
-  heap->mark_compact_collector()->EnsureSweepingCompleted();
-
-  // always_compact ensures that this page is an evacuation candidate, so with
-  // the pin flag cleared compaction should now move it.
-  for (Handle<FixedArray> object : handles) {
-    CHECK_NE(page, Page::FromHeapObject(*object));
-  }
-}
-
-HEAP_TEST(ObjectStartBitmap) {
-  if (!FLAG_single_generation || !FLAG_conservative_stack_scanning) return;
-
-#if V8_ENABLE_CONSERVATIVE_STACK_SCANNING
-
-  CcTest::InitializeVM();
-  Isolate* isolate = CcTest::i_isolate();
-  v8::HandleScope sc(CcTest::isolate());
-
-  Heap* heap = isolate->heap();
-  heap::SealCurrentObjects(heap);
-
-  auto* factory = isolate->factory();
-  HeapObject obj = *factory->NewStringFromStaticChars("hello");
-  HeapObject obj2 = *factory->NewStringFromStaticChars("world");
-  Page* page = Page::FromAddress(obj.ptr());
-
-  CHECK(page->object_start_bitmap()->CheckBit(obj.address()));
-  CHECK(page->object_start_bitmap()->CheckBit(obj2.address()));
-
-  Address obj_inner_ptr = obj.ptr() + 2;
-  CHECK(page->object_start_bitmap()->FindBasePtr(obj_inner_ptr) ==
-        obj.address());
-
-  Address obj2_inner_ptr = obj2.ptr() + 2;
-  CHECK(page->object_start_bitmap()->FindBasePtr(obj2_inner_ptr) ==
-        obj2.address());
-
-  CcTest::CollectAllGarbage();
-
-  CHECK((obj).IsString());
-  CHECK((obj2).IsString());
-  CHECK(page->object_start_bitmap()->CheckBit(obj.address()));
-  CHECK(page->object_start_bitmap()->CheckBit(obj2.address()));
-
-#endif
-}
 
 // TODO(1600): compaction of map space is temporary removed from GC.
 #if 0
@@ -417,9 +332,8 @@ intptr_t ShortLivingIsolate() {
   return MemoryInUse();
 }
 
-UNINITIALIZED_TEST(RegressJoinThreadsOnIsolateDeinit) {
-  // Memory is measured, do not allocate in background thread.
-  FLAG_stress_concurrent_allocation = false;
+
+TEST(RegressJoinThreadsOnIsolateDeinit) {
   intptr_t size_limit = ShortLivingIsolate() * 2;
   for (int i = 0; i < 10; i++) {
     CHECK_GT(size_limit, ShortLivingIsolate());
@@ -427,7 +341,6 @@ UNINITIALIZED_TEST(RegressJoinThreadsOnIsolateDeinit) {
 }
 
 TEST(Regress5829) {
-  FLAG_stress_concurrent_allocation = false;  // For SealCurrentObjects.
   CcTest::InitializeVM();
   Isolate* isolate = CcTest::i_isolate();
   v8::HandleScope sc(CcTest::isolate());
@@ -457,7 +370,7 @@ TEST(Regress5829) {
   IncrementalMarking::MarkingState* marking_state = marking->marking_state();
   for (auto object_and_size :
        LiveObjectRange<kGreyObjects>(page, marking_state->bitmap(page))) {
-    CHECK(!object_and_size.first.IsFreeSpaceOrFiller());
+    CHECK(!object_and_size.first->IsFiller());
   }
 }
 

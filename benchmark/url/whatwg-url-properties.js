@@ -12,9 +12,9 @@ const bench = common.createBenchmark(main, {
 
 function setAndGet(data, prop) {
   const len = data.length;
-  let result = data[0][prop];
+  var result = data[0][prop];
   bench.start();
-  for (let i = 0; i < len; ++i) {
+  for (var i = 0; i < len; ++i) {
     result = data[i][prop];
     data[i][prop] = result;
   }
@@ -24,9 +24,9 @@ function setAndGet(data, prop) {
 
 function get(data, prop) {
   const len = data.length;
-  let result = data[0][prop];
+  var result = data[0][prop];
   bench.start();
-  for (let i = 0; i < len; ++i) {
+  for (var i = 0; i < len; ++i) {
     result = data[i][prop]; // get
   }
   bench.end(len);
@@ -34,6 +34,7 @@ function get(data, prop) {
 }
 
 function main({ e, type, prop, withBase }) {
+  e = +e;
   withBase = withBase === 'true';
   const data = common.bakeUrlData(type, e, withBase, true);
   switch (prop) {

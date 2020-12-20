@@ -4,7 +4,7 @@
 const common = require('../common');
 const assert = require('assert');
 const dgram = require('dgram');
-const { inspect } = require('util');
+const { SystemError } = require('internal/errors');
 const { internalBinding } = require('internal/test/binding');
 const {
   UV_EBADF,
@@ -22,7 +22,7 @@ function getExpectedError(type) {
     'ENOTSOCK (socket operation on non-socket)' : 'EBADF (bad file descriptor)';
   const error = {
     code: 'ERR_SOCKET_BUFFER_SIZE',
-    name: 'SystemError',
+    type: SystemError,
     message: `Could not get or set buffer size: ${syscall} returned ${suffix}`,
     info: {
       code,
@@ -40,27 +40,11 @@ function getExpectedError(type) {
 
   const socket = dgram.createSocket('udp4');
 
-  assert.throws(() => {
+  common.expectsError(() => {
     socket.setSendBufferSize(8192);
-  }, (err) => {
-    assert.strictEqual(
-      inspect(err).replace(/^ +at .*\n/gm, ''),
-      `SystemError [ERR_SOCKET_BUFFER_SIZE]: ${errorObj.message}\n` +
-        "  code: 'ERR_SOCKET_BUFFER_SIZE',\n" +
-        '  info: {\n' +
-        `    errno: ${errorObj.info.errno},\n` +
-        `    code: '${errorObj.info.code}',\n` +
-        `    message: '${errorObj.info.message}',\n` +
-        `    syscall: '${errorObj.info.syscall}'\n` +
-        '  },\n' +
-        `  errno: [Getter/Setter: ${errorObj.info.errno}],\n` +
-        `  syscall: [Getter/Setter: '${errorObj.info.syscall}']\n` +
-        '}'
-    );
-    return true;
-  });
+  }, errorObj);
 
-  assert.throws(() => {
+  common.expectsError(() => {
     socket.getSendBufferSize();
   }, errorObj);
 }
@@ -71,11 +55,11 @@ function getExpectedError(type) {
   // Should throw error if the socket is never bound.
   const errorObj = getExpectedError('recv');
 
-  assert.throws(() => {
+  common.expectsError(() => {
     socket.setRecvBufferSize(8192);
   }, errorObj);
 
-  assert.throws(() => {
+  common.expectsError(() => {
     socket.getRecvBufferSize();
   }, errorObj);
 }
@@ -84,7 +68,7 @@ function getExpectedError(type) {
   // Should throw error if invalid buffer size is specified
   const errorObj = {
     code: 'ERR_SOCKET_BAD_BUFFER_SIZE',
-    name: 'TypeError',
+    type: TypeError,
     message: /^Buffer size must be a positive integer$/
   };
 
@@ -94,11 +78,11 @@ function getExpectedError(type) {
 
   socket.bind(common.mustCall(() => {
     badBufferSizes.forEach((badBufferSize) => {
-      assert.throws(() => {
+      common.expectsError(() => {
         socket.setRecvBufferSize(badBufferSize);
       }, errorObj);
 
-      assert.throws(() => {
+      common.expectsError(() => {
         socket.setSendBufferSize(badBufferSize);
       }, errorObj);
     });
@@ -131,14 +115,14 @@ function getExpectedError(type) {
   };
   const errorObj = {
     code: 'ERR_SOCKET_BUFFER_SIZE',
-    name: 'SystemError',
+    type: SystemError,
     message: 'Could not get or set buffer size: uv_recv_buffer_size ' +
              'returned EINVAL (invalid argument)',
     info
   };
   const socket = dgram.createSocket('udp4');
   socket.bind(common.mustCall(() => {
-    assert.throws(() => {
+    common.expectsError(() => {
       socket.setRecvBufferSize(2147483648);
     }, errorObj);
     socket.close();
@@ -154,14 +138,14 @@ function getExpectedError(type) {
   };
   const errorObj = {
     code: 'ERR_SOCKET_BUFFER_SIZE',
-    name: 'SystemError',
+    type: SystemError,
     message: 'Could not get or set buffer size: uv_send_buffer_size ' +
              'returned EINVAL (invalid argument)',
     info
   };
   const socket = dgram.createSocket('udp4');
   socket.bind(common.mustCall(() => {
-    assert.throws(() => {
+    common.expectsError(() => {
       socket.setSendBufferSize(2147483648);
     }, errorObj);
     socket.close();

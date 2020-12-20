@@ -14,11 +14,11 @@ hooks.enable();
 
 const rootAsyncId = async_hooks.executionAsyncId();
 
-process.nextTick(common.mustCall(() => {
+process.nextTick(common.mustCall(function() {
   assert.strictEqual(async_hooks.triggerAsyncId(), rootAsyncId);
 }));
 
-process.on('exit', () => {
+process.on('exit', function() {
   hooks.sanityCheck();
 
   const as = hooks.activitiesOfTypes('TickObject');

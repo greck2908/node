@@ -45,7 +45,7 @@ static void rc4(rc4_key* key, unsigned char *buffer_ptr, int buffer_len)
   unsigned char y;
   unsigned char* state;
   unsigned char xorIndex;
-  int counter;
+  short counter;
 
   x = key->x;
   y = key->y;

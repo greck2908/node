@@ -15,22 +15,22 @@ async function createEmptyLinkedModule() {
 }
 
 async function checkArgType() {
-  assert.throws(() => {
+  common.expectsError(() => {
     new SourceTextModule();
   }, {
     code: 'ERR_INVALID_ARG_TYPE',
-    name: 'TypeError'
+    type: TypeError
   });
 
   for (const invalidOptions of [
-    0, 1, null, true, 'str', () => {}, { identifier: 0 }, Symbol.iterator,
+    0, 1, null, true, 'str', () => {}, { url: 0 }, Symbol.iterator,
     { context: null }, { context: 'hucairz' }, { context: {} }
   ]) {
-    assert.throws(() => {
+    common.expectsError(() => {
       new SourceTextModule('', invalidOptions);
     }, {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError'
+      type: TypeError
     });
   }
 
@@ -52,7 +52,7 @@ async function checkModuleState() {
   await assert.rejects(async () => {
     const m = new SourceTextModule('');
     await m.link(common.mustNotCall());
-    assert.strictEqual(m.status, 'linked');
+    assert.strictEqual(m.linkingStatus, 'linked');
     await m.link(common.mustNotCall());
   }, {
     code: 'ERR_VM_MODULE_ALREADY_LINKED'
@@ -61,18 +61,54 @@ async function checkModuleState() {
   await assert.rejects(async () => {
     const m = new SourceTextModule('');
     m.link(common.mustNotCall());
-    assert.strictEqual(m.status, 'linking');
+    assert.strictEqual(m.linkingStatus, 'linking');
     await m.link(common.mustNotCall());
   }, {
-    code: 'ERR_VM_MODULE_STATUS'
+    code: 'ERR_VM_MODULE_ALREADY_LINKED'
   });
+
+  common.expectsError(() => {
+    const m = new SourceTextModule('');
+    m.instantiate();
+  }, {
+    code: 'ERR_VM_MODULE_NOT_LINKED'
+  });
+
+  await assert.rejects(async () => {
+    const m = new SourceTextModule('import "foo";');
+    try {
+      await m.link(common.mustCall(() => ({})));
+    } catch {
+      assert.strictEqual(m.linkingStatus, 'errored');
+      m.instantiate();
+    }
+  }, {
+    code: 'ERR_VM_MODULE_NOT_LINKED'
+  });
+
+  {
+    const m = new SourceTextModule('import "foo";');
+    await m.link(common.mustCall(async (specifier, module) => {
+      assert.strictEqual(module, m);
+      assert.strictEqual(specifier, 'foo');
+      assert.strictEqual(m.linkingStatus, 'linking');
+      common.expectsError(() => {
+        m.instantiate();
+      }, {
+        code: 'ERR_VM_MODULE_NOT_LINKED'
+      });
+      return new SourceTextModule('');
+    }));
+    m.instantiate();
+    await m.evaluate();
+  }
 
   await assert.rejects(async () => {
     const m = new SourceTextModule('');
     await m.evaluate();
   }, {
     code: 'ERR_VM_MODULE_STATUS',
-    message: 'Module status must be one of linked, evaluated, or errored'
+    message: 'Module status must be one of instantiated, evaluated, and errored'
   });
 
   await assert.rejects(async () => {
@@ -80,13 +116,21 @@ async function checkModuleState() {
     await m.evaluate(false);
   }, {
     code: 'ERR_INVALID_ARG_TYPE',
-    message: 'The "options" argument must be of type object. ' +
-             'Received type boolean (false)'
+    message: 'The "options" argument must be of type Object. ' +
+             'Received type boolean'
   });
 
-  assert.throws(() => {
+  await assert.rejects(async () => {
+    const m = await createEmptyLinkedModule();
+    await m.evaluate();
+  }, {
+    code: 'ERR_VM_MODULE_STATUS',
+    message: 'Module status must be one of instantiated, evaluated, and errored'
+  });
+
+  common.expectsError(() => {
     const m = new SourceTextModule('');
-    m.error; // eslint-disable-line no-unused-expressions
+    m.error;
   }, {
     code: 'ERR_VM_MODULE_STATUS',
     message: 'Module status must be errored'
@@ -94,19 +138,28 @@ async function checkModuleState() {
 
   await assert.rejects(async () => {
     const m = await createEmptyLinkedModule();
+    m.instantiate();
     await m.evaluate();
-    m.error; // eslint-disable-line no-unused-expressions
+    m.error;
   }, {
     code: 'ERR_VM_MODULE_STATUS',
     message: 'Module status must be errored'
   });
 
-  assert.throws(() => {
+  common.expectsError(() => {
     const m = new SourceTextModule('');
-    m.namespace; // eslint-disable-line no-unused-expressions
+    m.namespace;
   }, {
     code: 'ERR_VM_MODULE_STATUS',
-    message: 'Module status must not be unlinked or linking'
+    message: 'Module status must not be uninstantiated or instantiating'
+  });
+
+  await assert.rejects(async () => {
+    const m = await createEmptyLinkedModule();
+    m.namespace;
+  }, {
+    code: 'ERR_VM_MODULE_STATUS',
+    message: 'Module status must not be uninstantiated or instantiating'
   });
 }
 
@@ -117,7 +170,7 @@ async function checkLinking() {
     try {
       await m.link(common.mustCall(() => ({})));
     } catch (err) {
-      assert.strictEqual(m.status, 'errored');
+      assert.strictEqual(m.linkingStatus, 'errored');
       throw err;
     }
   }, {
@@ -132,7 +185,7 @@ async function checkLinking() {
     try {
       await bar.link(common.mustCall(() => foo));
     } catch (err) {
-      assert.strictEqual(bar.status, 'errored');
+      assert.strictEqual(bar.linkingStatus, 'errored');
       throw err;
     }
   }, {
@@ -146,7 +199,7 @@ async function checkLinking() {
     } catch {
       // ignored
     } finally {
-      assert.strictEqual(erroredModule.status, 'errored');
+      assert.strictEqual(erroredModule.linkingStatus, 'errored');
     }
 
     const rootModule = new SourceTextModule('import "errored";');
@@ -156,37 +209,41 @@ async function checkLinking() {
   });
 }
 
-assert.throws(() => {
+common.expectsError(() => {
   new SourceTextModule('', {
     importModuleDynamically: 'hucairz'
   });
 }, {
   code: 'ERR_INVALID_ARG_TYPE',
-  name: 'TypeError',
-  message: 'The "options.importModuleDynamically" property must be of type ' +
-    "function. Received type string ('hucairz')"
+  type: TypeError,
+  message: 'The "options.importModuleDynamically"' +
+    ' property must be of type function. Received type string'
 });
 
 // Check the JavaScript engine deals with exceptions correctly
 async function checkExecution() {
   await (async () => {
     const m = new SourceTextModule('import { nonexistent } from "module";');
+    await m.link(common.mustCall(() => new SourceTextModule('')));
 
     // There is no code for this exception since it is thrown by the JavaScript
     // engine.
-    await assert.rejects(() => {
-      return m.link(common.mustCall(() => new SourceTextModule('')));
+    assert.throws(() => {
+      m.instantiate();
     }, SyntaxError);
   })();
 
   await (async () => {
     const m = new SourceTextModule('throw new Error();');
     await m.link(common.mustNotCall());
+    m.instantiate();
+    const evaluatePromise = m.evaluate();
+    await evaluatePromise.catch(() => {});
+    assert.strictEqual(m.status, 'errored');
     try {
-      await m.evaluate();
+      await evaluatePromise;
     } catch (err) {
       assert.strictEqual(m.error, err);
-      assert.strictEqual(m.status, 'errored');
       return;
     }
     assert.fail('Missing expected exception');
@@ -196,30 +253,14 @@ async function checkExecution() {
 // Check for error thrown when breakOnSigint is not a boolean for evaluate()
 async function checkInvalidOptionForEvaluate() {
   await assert.rejects(async () => {
-    const m = new SourceTextModule('export const a = 1; export let b = 2');
+    const m = new SourceTextModule('export const a = 1; export var b = 2');
     await m.evaluate({ breakOnSigint: 'a-string' });
   }, {
     name: 'TypeError',
     message:
       'The "options.breakOnSigint" property must be of type boolean. ' +
-      "Received type string ('a-string')",
+      'Received type string',
     code: 'ERR_INVALID_ARG_TYPE'
-  });
-}
-
-function checkInvalidCachedData() {
-  [true, false, 'foo', {}, Array, function() {}].forEach((invalidArg) => {
-    const message = 'The "options.cachedData" property must be an ' +
-                    'instance of Buffer, TypedArray, or DataView.' +
-                    common.invalidArgTypeHelper(invalidArg);
-    assert.throws(
-      () => new SourceTextModule('import "foo";', { cachedData: invalidArg }),
-      {
-        code: 'ERR_INVALID_ARG_TYPE',
-        name: 'TypeError',
-        message,
-      }
-    );
   });
 }
 
@@ -231,6 +272,5 @@ const finished = common.mustCall();
   await checkLinking();
   await checkExecution();
   await checkInvalidOptionForEvaluate();
-  checkInvalidCachedData();
   finished();
-})().then(common.mustCall());
+})();

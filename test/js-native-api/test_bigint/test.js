@@ -7,7 +7,6 @@ const {
   TestUint64,
   TestWords,
   CreateTooBigBigInt,
-  MakeBigIntWordsThrow,
 } = require(`./build/${common.buildType}/test_bigint`);
 
 [
@@ -41,12 +40,6 @@ const {
 });
 
 assert.throws(CreateTooBigBigInt, {
-  name: 'Error',
-  message: 'Invalid argument',
-});
-
-// Test that we correctly forward exceptions from the engine.
-assert.throws(MakeBigIntWordsThrow, {
   name: 'RangeError',
-  message: 'Maximum BigInt size exceeded'
+  message: 'Maximum BigInt size exceeded',
 });

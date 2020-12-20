@@ -15,8 +15,8 @@ assert.throws(
   {
     code: 'ERR_INVALID_ARG_TYPE',
     name: 'TypeError',
-    message: 'The "buffer" argument must be an instance of Buffer, ' +
-             'TypedArray, or DataView. Received type number (4)'
+    message: 'The "buffer" argument must be one of type Buffer, TypedArray, ' +
+             'or DataView. Received type number'
   }
 );
 
@@ -30,7 +30,9 @@ assert.throws(
             common.mustNotCall());
   }, {
     code: 'ERR_INVALID_ARG_TYPE',
-    name: 'TypeError'
+    name: 'TypeError',
+    message: 'The "fd" argument must be of type number. ' +
+             `Received type ${typeof value}`
   });
 });
 
@@ -44,22 +46,8 @@ assert.throws(() => {
 }, {
   code: 'ERR_OUT_OF_RANGE',
   name: 'RangeError',
-  message: 'The value of "offset" is out of range. It must be >= 0. ' +
+  message: 'The value of "offset" is out of range. It must be >= 0 && <= 4. ' +
            'Received -1'
-});
-
-assert.throws(() => {
-  fs.read(fd,
-          Buffer.allocUnsafe(expected.length),
-          NaN,
-          expected.length,
-          0,
-          common.mustNotCall());
-}, {
-  code: 'ERR_OUT_OF_RANGE',
-  name: 'RangeError',
-  message: 'The value of "offset" is out of range. It must be an integer. ' +
-           'Received NaN'
 });
 
 assert.throws(() => {
@@ -73,7 +61,7 @@ assert.throws(() => {
   code: 'ERR_OUT_OF_RANGE',
   name: 'RangeError',
   message: 'The value of "length" is out of range. ' +
-           'It must be >= 0. Received -1'
+           'It must be >= 0 && <= 4. Received -1'
 });
 
 
@@ -82,8 +70,8 @@ assert.throws(
   {
     code: 'ERR_INVALID_ARG_TYPE',
     name: 'TypeError',
-    message: 'The "buffer" argument must be an instance of Buffer, ' +
-             'TypedArray, or DataView. Received type number (4)'
+    message: 'The "buffer" argument must be one of type Buffer, TypedArray, ' +
+             'or DataView. Received type number'
   }
 );
 
@@ -96,7 +84,9 @@ assert.throws(
                 0);
   }, {
     code: 'ERR_INVALID_ARG_TYPE',
-    name: 'TypeError'
+    name: 'TypeError',
+    message: 'The "fd" argument must be of type number. ' +
+             `Received type ${typeof value}`
   });
 });
 
@@ -110,20 +100,7 @@ assert.throws(() => {
   code: 'ERR_OUT_OF_RANGE',
   name: 'RangeError',
   message: 'The value of "offset" is out of range. ' +
-           'It must be >= 0. Received -1'
-});
-
-assert.throws(() => {
-  fs.readSync(fd,
-              Buffer.allocUnsafe(expected.length),
-              NaN,
-              expected.length,
-              0);
-}, {
-  code: 'ERR_OUT_OF_RANGE',
-  name: 'RangeError',
-  message: 'The value of "offset" is out of range. It must be an integer. ' +
-           'Received NaN'
+           'It must be >= 0 && <= 4. Received -1'
 });
 
 assert.throws(() => {
@@ -136,18 +113,5 @@ assert.throws(() => {
   code: 'ERR_OUT_OF_RANGE',
   name: 'RangeError',
   message: 'The value of "length" is out of range. ' +
-           'It must be >= 0. Received -1'
-});
-
-assert.throws(() => {
-  fs.readSync(fd,
-              Buffer.allocUnsafe(expected.length),
-              0,
-              expected.length + 1,
-              0);
-}, {
-  code: 'ERR_OUT_OF_RANGE',
-  name: 'RangeError',
-  message: 'The value of "length" is out of range. ' +
-           'It must be <= 4. Received 5'
+           'It must be >= 0 && <= 4. Received -1'
 });

@@ -85,34 +85,40 @@ testCipher2(Buffer.from('0123456789abcdef'));
   assert(instance instanceof Cipher, 'Cipher is expected to return a new ' +
                                      'instance when called without `new`');
 
-  assert.throws(
+  common.expectsError(
     () => crypto.createCipher(null),
     {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError',
+      type: TypeError,
       message: 'The "cipher" argument must be of type string. ' +
-               'Received null'
+               'Received type object'
     });
 
-  assert.throws(
+  common.expectsError(
     () => crypto.createCipher('aes-256-cbc', null),
     {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError'
+      type: TypeError,
+      message: 'The "password" argument must be one of type string, Buffer, ' +
+               'TypedArray, or DataView. Received type object'
     });
 
-  assert.throws(
+  common.expectsError(
     () => crypto.createCipher('aes-256-cbc', 'secret').update(null),
     {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError',
+      type: TypeError,
+      message: 'The "data" argument must be one of type string, Buffer, ' +
+               'TypedArray, or DataView. Received type object'
     });
 
-  assert.throws(
+  common.expectsError(
     () => crypto.createCipher('aes-256-cbc', 'secret').setAAD(null),
     {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError',
+      type: TypeError,
+      message: 'The "buffer" argument must be one of type Buffer, ' +
+               'TypedArray, or DataView. Received type object'
     });
 }
 
@@ -122,27 +128,31 @@ testCipher2(Buffer.from('0123456789abcdef'));
   assert(instance instanceof Decipher, 'Decipher is expected to return a new ' +
                                        'instance when called without `new`');
 
-  assert.throws(
+  common.expectsError(
     () => crypto.createDecipher(null),
     {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError',
+      type: TypeError,
       message: 'The "cipher" argument must be of type string. ' +
-               'Received null'
+               'Received type object'
     });
 
-  assert.throws(
+  common.expectsError(
     () => crypto.createDecipher('aes-256-cbc', 'secret').setAuthTag(null),
     {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError',
+      type: TypeError,
+      message: 'The "buffer" argument must be one of type Buffer, ' +
+               'TypedArray, or DataView. Received type object'
     });
 
-  assert.throws(
+  common.expectsError(
     () => crypto.createDecipher('aes-256-cbc', null),
     {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError',
+      type: TypeError,
+      message: 'The "password" argument must be one of type string, Buffer, ' +
+               'TypedArray, or DataView. Received type object'
     });
 }
 
@@ -238,11 +248,11 @@ testCipher2(Buffer.from('0123456789abcdef'));
   cipher.setAAD(aadbuf);
   cipher.setAutoPadding();
 
-  assert.throws(
+  common.expectsError(
     () => cipher.getAuthTag(),
     {
       code: 'ERR_CRYPTO_INVALID_STATE',
-      name: 'Error',
+      type: Error,
       message: 'Invalid state for operation getAuthTag'
     }
   );
@@ -256,27 +266,27 @@ testCipher2(Buffer.from('0123456789abcdef'));
   decipher.update(encrypted);
   decipher.final();
 
-  assert.throws(
+  common.expectsError(
     () => decipher.setAAD(aadbuf),
     {
       code: 'ERR_CRYPTO_INVALID_STATE',
-      name: 'Error',
+      type: Error,
       message: 'Invalid state for operation setAAD'
     });
 
-  assert.throws(
+  common.expectsError(
     () => decipher.setAuthTag(cipher.getAuthTag()),
     {
       code: 'ERR_CRYPTO_INVALID_STATE',
-      name: 'Error',
+      type: Error,
       message: 'Invalid state for operation setAuthTag'
     });
 
-  assert.throws(
+  common.expectsError(
     () => decipher.setAutoPadding(),
     {
       code: 'ERR_CRYPTO_INVALID_STATE',
-      name: 'Error',
+      type: Error,
       message: 'Invalid state for operation setAutoPadding'
     }
   );

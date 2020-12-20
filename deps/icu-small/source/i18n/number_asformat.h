@@ -25,6 +25,7 @@ namespace impl {
  * A wrapper around LocalizedNumberFormatter implementing the Format interface, enabling improved
  * compatibility with other APIs.
  *
+ * @draft ICU 62
  * @see NumberFormatter
  */
 class U_I18N_API LocalizedNumberFormatterAsFormat : public Format {
@@ -44,7 +45,7 @@ class U_I18N_API LocalizedNumberFormatterAsFormat : public Format {
     /**
      * Creates a copy of this object.
      */
-    LocalizedNumberFormatterAsFormat* clone() const U_OVERRIDE;
+    Format* clone() const U_OVERRIDE;
 
     /**
      * Formats a Number using the wrapped LocalizedNumberFormatter. The provided formattable must be a

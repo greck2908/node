@@ -4,11 +4,8 @@
 
 > Stability: 2 - Stable
 
-<!-- source_link=lib/readline.js -->
-
 The `readline` module provides an interface for reading data from a [Readable][]
-stream (such as [`process.stdin`][]) one line at a time. It can be accessed
-using:
+stream (such as [`process.stdin`]) one line at a time. It can be accessed using:
 
 ```js
 const readline = require('readline');
@@ -36,12 +33,10 @@ Once this code is invoked, the Node.js application will not terminate until the
 `readline.Interface` is closed because the interface waits for data to be
 received on the `input` stream.
 
-## Class: `Interface`
+## Class: Interface
 <!-- YAML
 added: v0.1.104
 -->
-
-* Extends: {EventEmitter}
 
 Instances of the `readline.Interface` class are constructed using the
 `readline.createInterface()` method. Every instance is associated with a
@@ -49,7 +44,7 @@ single `input` [Readable][] stream and a single `output` [Writable][] stream.
 The `output` stream is used to print prompts for user input that arrives on,
 and is read from, the `input` stream.
 
-### Event: `'close'`
+### Event: 'close'
 <!-- YAML
 added: v0.1.98
 -->
@@ -59,25 +54,23 @@ The `'close'` event is emitted when one of the following occur:
 * The `rl.close()` method is called and the `readline.Interface` instance has
   relinquished control over the `input` and `output` streams;
 * The `input` stream receives its `'end'` event;
-* The `input` stream receives <kbd>Ctrl</kbd>+<kbd>D</kbd> to signal
-  end-of-transmission (EOT);
-* The `input` stream receives <kbd>Ctrl</kbd>+<kbd>C</kbd> to signal `SIGINT`
-  and there is no `'SIGINT'` event listener registered on the
-  `readline.Interface` instance.
+* The `input` stream receives `<ctrl>-D` to signal end-of-transmission (EOT);
+* The `input` stream receives `<ctrl>-C` to signal `SIGINT` and there is no
+  `'SIGINT'` event listener registered on the `readline.Interface` instance.
 
 The listener function is called without passing any arguments.
 
 The `readline.Interface` instance is finished once the `'close'` event is
 emitted.
 
-### Event: `'line'`
+### Event: 'line'
 <!-- YAML
 added: v0.1.98
 -->
 
 The `'line'` event is emitted whenever the `input` stream receives an
 end-of-line input (`\n`, `\r`, or `\r\n`). This usually occurs when the user
-presses <kbd>Enter</kbd> or <kbd>Return</kbd>.
+presses the `<Enter>`, or `<Return>` keys.
 
 The listener function is called with a string containing the single line of
 received input.
@@ -88,7 +81,7 @@ rl.on('line', (input) => {
 });
 ```
 
-### Event: `'pause'`
+### Event: 'pause'
 <!-- YAML
 added: v0.7.5
 -->
@@ -107,7 +100,7 @@ rl.on('pause', () => {
 });
 ```
 
-### Event: `'resume'`
+### Event: 'resume'
 <!-- YAML
 added: v0.7.5
 -->
@@ -122,14 +115,14 @@ rl.on('resume', () => {
 });
 ```
 
-### Event: `'SIGCONT'`
+### Event: 'SIGCONT'
 <!-- YAML
 added: v0.7.5
 -->
 
 The `'SIGCONT'` event is emitted when a Node.js process previously moved into
-the background using <kbd>Ctrl</kbd>+<kbd>Z</kbd> (i.e. `SIGTSTP`) is then
-brought back to the foreground using fg(1p).
+the background using `<ctrl>-Z` (i.e. `SIGTSTP`) is then brought back to the
+foreground using fg(1p).
 
 If the `input` stream was paused *before* the `SIGTSTP` request, this event will
 not be emitted.
@@ -145,15 +138,15 @@ rl.on('SIGCONT', () => {
 
 The `'SIGCONT'` event is _not_ supported on Windows.
 
-### Event: `'SIGINT'`
+### Event: 'SIGINT'
 <!-- YAML
 added: v0.3.0
 -->
 
 The `'SIGINT'` event is emitted whenever the `input` stream receives a
-<kbd>Ctrl+C</kbd> input, known typically as `SIGINT`. If there are no `'SIGINT'`
-event listeners registered when the `input` stream receives a `SIGINT`, the
-`'pause'` event will be emitted.
+`<ctrl>-C` input, known typically as `SIGINT`. If there are no `'SIGINT'` event
+listeners registered when the `input` stream receives a `SIGINT`, the `'pause'`
+event will be emitted.
 
 The listener function is invoked without passing any arguments.
 
@@ -165,15 +158,15 @@ rl.on('SIGINT', () => {
 });
 ```
 
-### Event: `'SIGTSTP'`
+### Event: 'SIGTSTP'
 <!-- YAML
 added: v0.7.5
 -->
 
-The `'SIGTSTP'` event is emitted when the `input` stream receives a
-<kbd>Ctrl</kbd>+<kbd>Z</kbd> input, typically known as `SIGTSTP`. If there are
-no `'SIGTSTP'` event listeners registered when the `input` stream receives a
-`SIGTSTP`, the Node.js process will be sent to the background.
+The `'SIGTSTP'` event is emitted when the `input` stream receives a `<ctrl>-Z`
+input, typically known as `SIGTSTP`. If there are no `'SIGTSTP'` event listeners
+registered when the `input` stream receives a `SIGTSTP`, the Node.js process
+will be sent to the background.
 
 When the program is resumed using fg(1p), the `'pause'` and `'SIGCONT'` events
 will be emitted. These can be used to resume the `input` stream.
@@ -193,7 +186,7 @@ rl.on('SIGTSTP', () => {
 
 The `'SIGTSTP'` event is _not_ supported on Windows.
 
-### `rl.close()`
+### rl.close()
 <!-- YAML
 added: v0.1.98
 -->
@@ -205,7 +198,7 @@ the `'close'` event will be emitted.
 Calling `rl.close()` does not immediately stop other events (including `'line'`)
 from being emitted by the `readline.Interface` instance.
 
-### `rl.pause()`
+### rl.pause()
 <!-- YAML
 added: v0.3.4
 -->
@@ -216,7 +209,7 @@ later if necessary.
 Calling `rl.pause()` does not immediately pause other events (including
 `'line'`) from being emitted by the `readline.Interface` instance.
 
-### `rl.prompt([preserveCursor])`
+### rl.prompt([preserveCursor])
 <!-- YAML
 added: v0.1.98
 -->
@@ -234,7 +227,7 @@ paused.
 If the `readline.Interface` was created with `output` set to `null` or
 `undefined` the prompt is not written.
 
-### `rl.question(query, callback)`
+### rl.question(query, callback)
 <!-- YAML
 added: v0.3.3
 -->
@@ -266,14 +259,14 @@ The `callback` function passed to `rl.question()` does not follow the typical
 pattern of accepting an `Error` object or `null` as the first argument.
 The `callback` is called with the provided answer as the only argument.
 
-### `rl.resume()`
+### rl.resume()
 <!-- YAML
 added: v0.3.4
 -->
 
 The `rl.resume()` method resumes the `input` stream if it has been paused.
 
-### `rl.setPrompt(prompt)`
+### rl.setPrompt(prompt)
 <!-- YAML
 added: v0.1.98
 -->
@@ -283,31 +276,21 @@ added: v0.1.98
 The `rl.setPrompt()` method sets the prompt that will be written to `output`
 whenever `rl.prompt()` is called.
 
-### `rl.getPrompt()`
-<!-- YAML
-added: v15.3.0
--->
-
-* Returns: {string} the current prompt string
-
-The `rl.getPrompt()` method returns the current prompt used by `rl.prompt()`.
-
-### `rl.write(data[, key])`
+### rl.write(data[, key])
 <!-- YAML
 added: v0.1.98
 -->
 
 * `data` {string}
 * `key` {Object}
-  * `ctrl` {boolean} `true` to indicate the <kbd>Ctrl</kbd> key.
-  * `meta` {boolean} `true` to indicate the <kbd>Meta</kbd> key.
-  * `shift` {boolean} `true` to indicate the <kbd>Shift</kbd> key.
+  * `ctrl` {boolean} `true` to indicate the `<ctrl>` key.
+  * `meta` {boolean} `true` to indicate the `<Meta>` key.
+  * `shift` {boolean} `true` to indicate the `<Shift>` key.
   * `name` {string} The name of the a key.
 
 The `rl.write()` method will write either `data` or a key sequence identified
 by `key` to the `output`. The `key` argument is supported only if `output` is
-a [TTY][] text terminal. See [TTY keybindings][] for a list of key
-combinations.
+a [TTY][] text terminal.
 
 If `key` is specified, `data` is ignored.
 
@@ -319,22 +302,18 @@ If the `readline.Interface` was created with `output` set to `null` or
 
 ```js
 rl.write('Delete this!');
-// Simulate Ctrl+U to delete the line written previously
+// Simulate Ctrl+u to delete the line written previously
 rl.write(null, { ctrl: true, name: 'u' });
 ```
 
 The `rl.write()` method will write the data to the `readline` `Interface`'s
 `input` *as if it were provided by the user*.
 
-### `rl[Symbol.asyncIterator]()`
+### rl\[Symbol.asyncIterator\]()
 <!-- YAML
-added:
- - v11.4.0
- - v10.16.0
+added: v11.4.0
 changes:
-  - version:
-     - v11.14.0
-     - v10.17.0
+  - version: v11.14.0
     pr-url: https://github.com/nodejs/node/pull/26989
     description: Symbol.asyncIterator support is no longer experimental.
 -->
@@ -367,88 +346,20 @@ async function processLineByLine() {
 }
 ```
 
-`readline.createInterface()` will start to consume the input stream once
-invoked. Having asynchronous operations between interface creation and
-asynchronous iteration may result in missed lines.
-
-### `rl.line`
-<!-- YAML
-added: v0.1.98
--->
-
-* {string|undefined}
-
-The current input data being processed by node.
-
-This can be used when collecting input from a TTY stream to retrieve the
-current value that has been processed thus far, prior to the `line` event
-being emitted. Once the `line` event has been emitted, this property will
-be an empty string.
-
-Be aware that modifying the value during the instance runtime may have
-unintended consequences if `rl.cursor` is not also controlled.
-
-**If not using a TTY stream for input, use the [`'line'`][] event.**
-
-One possible use case would be as follows:
-
-```js
-const values = ['lorem ipsum', 'dolor sit amet'];
-const rl = readline.createInterface(process.stdin);
-const showResults = debounce(() => {
-  console.log(
-    '\n',
-    values.filter((val) => val.startsWith(rl.line)).join(' ')
-  );
-}, 300);
-process.stdin.on('keypress', (c, k) => {
-  showResults();
-});
-```
-
-### `rl.cursor`
-<!-- YAML
-added: v0.1.98
--->
-
-* {number|undefined}
-
-The cursor position relative to `rl.line`.
-
-This will track where the current cursor lands in the input string, when
-reading input from a TTY stream. The position of cursor determines the
-portion of the input string that will be modified as input is processed,
-as well as the column where the terminal caret will be rendered.
-
-### `rl.getCursorPos()`
-<!-- YAML
-added:
- - v13.5.0
- - v12.16.0
--->
-
-* Returns: {Object}
-  * `rows` {number} the row of the prompt the cursor currently lands on
-  * `cols` {number} the screen column the cursor currently lands on
-
-Returns the real position of the cursor in relation to the input
-prompt + string. Long input (wrapping) strings, as well as multiple
-line prompts are included in the calculations.
-
-## `readline.clearLine(stream, dir[, callback])`
+## readline.clearLine(stream, dir[, callback])
 <!-- YAML
 added: v0.7.7
 changes:
-  - version: v12.7.0
+  - version: REPLACEME
     pr-url: https://github.com/nodejs/node/pull/28674
     description: The stream's write() callback and return value are exposed.
 -->
 
 * `stream` {stream.Writable}
 * `dir` {number}
-  * `-1`: to the left from cursor
-  * `1`: to the right from cursor
-  * `0`: the entire line
+  * `-1` - to the left from cursor
+  * `1` - to the right from cursor
+  * `0` - the entire line
 * `callback` {Function} Invoked once the operation completes.
 * Returns: {boolean} `false` if `stream` wishes for the calling code to wait for
   the `'drain'` event to be emitted before continuing to write additional data;
@@ -457,11 +368,11 @@ changes:
 The `readline.clearLine()` method clears current line of given [TTY][] stream
 in a specified direction identified by `dir`.
 
-## `readline.clearScreenDown(stream[, callback])`
+## readline.clearScreenDown(stream[, callback])
 <!-- YAML
 added: v0.7.7
 changes:
-  - version: v12.7.0
+  - version: REPLACEME
     pr-url: https://github.com/nodejs/node/pull/28641
     description: The stream's write() callback and return value are exposed.
 -->
@@ -475,16 +386,11 @@ changes:
 The `readline.clearScreenDown()` method clears the given [TTY][] stream from
 the current position of the cursor down.
 
-## `readline.createInterface(options)`
+## readline.createInterface(options)
 <!-- YAML
 added: v0.1.98
 changes:
-  - version: v13.9.0
-    pr-url: https://github.com/nodejs/node/pull/31318
-    description: The `tabSize` option is supported now.
-  - version:
-    - v8.3.0
-    - v6.11.4
+  - version: v8.3.0, 6.11.4
     pr-url: https://github.com/nodejs/node/pull/13497
     description: Remove max limit of `crlfDelay` option.
   - version: v6.6.0
@@ -527,8 +433,6 @@ changes:
     can both form a complete key sequence using the input read so far and can
     take additional input to complete a longer key sequence).
     **Default:** `500`.
-  * `tabSize` {integer} The number of spaces a tab is equal to (minimum 1).
-    **Default:** `8`.
 
 The `readline.createInterface()` method creates a new `readline.Interface`
 instance.
@@ -555,7 +459,7 @@ the best compatibility if it defines an `output.columns` property and emits
 a `'resize'` event on the `output` if or when the columns ever change
 ([`process.stdout`][] does this automatically when it is a TTY).
 
-### Use of the `completer` function
+### Use of the `completer` Function
 
 The `completer` function takes the current line entered by the user
 as an argument, and returns an `Array` with 2 entries:
@@ -583,11 +487,11 @@ function completer(linePartial, callback) {
 }
 ```
 
-## `readline.cursorTo(stream, x[, y][, callback])`
+## readline.cursorTo(stream, x, y[, callback])
 <!-- YAML
 added: v0.7.7
 changes:
-  - version: v12.7.0
+  - version: REPLACEME
     pr-url: https://github.com/nodejs/node/pull/28674
     description: The stream's write() callback and return value are exposed.
 -->
@@ -603,7 +507,7 @@ changes:
 The `readline.cursorTo()` method moves cursor to the specified position in a
 given [TTY][] `stream`.
 
-## `readline.emitKeypressEvents(stream[, interface])`
+## readline.emitKeypressEvents(stream[, interface])
 <!-- YAML
 added: v0.7.7
 -->
@@ -629,11 +533,11 @@ if (process.stdin.isTTY)
   process.stdin.setRawMode(true);
 ```
 
-## `readline.moveCursor(stream, dx, dy[, callback])`
+## readline.moveCursor(stream, dx, dy[, callback])
 <!-- YAML
 added: v0.7.7
 changes:
-  - version: v12.7.0
+  - version: REPLACEME
     pr-url: https://github.com/nodejs/node/pull/28674
     description: The stream's write() callback and return value are exposed.
 -->
@@ -680,7 +584,7 @@ rl.on('line', (line) => {
 });
 ```
 
-## Example: Read file stream line-by-Line
+## Example: Read File Stream Line-by-Line
 
 A common use case for `readline` is to consume an input file one line at a
 time. The easiest way to do so is leveraging the [`fs.ReadStream`][] API as
@@ -753,140 +657,14 @@ const { createInterface } = require('readline');
 })();
 ```
 
-## TTY keybindings
-
-<table>
-  <tr>
-    <th>Keybindings</th>
-    <th>Description</th>
-    <th>Notes</th>
-  </tr>
-  <tr>
-    <td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Backspace</kbd></td>
-    <td>Delete line left</td>
-    <td>Doesn't work on Linux, Mac and Windows</td>
-  </tr>
-  <tr>
-    <td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Delete</kbd></td>
-    <td>Delete line right</td>
-    <td>Doesn't work on Mac</td>
-  </tr>
-  <tr>
-    <td><kbd>Ctrl</kbd>+<kbd>C</kbd></td>
-    <td>Emit <code>SIGINT</code> or close the readline instance</td>
-    <td></td>
-  </tr>
-  <tr>
-    <td><kbd>Ctrl</kbd>+<kbd>H</kbd></td>
-    <td>Delete left</td>
-    <td></td>
-  </tr>
-  <tr>
-    <td><kbd>Ctrl</kbd>+<kbd>D</kbd></td>
-    <td>Delete right or close the readline instance in case the current line is empty / EOF</td>
-    <td>Doesn't work on Windows</td>
-  </tr>
-  <tr>
-    <td><kbd>Ctrl</kbd>+<kbd>U</kbd></td>
-    <td>Delete from the current position to the line start</td>
-    <td></td>
-  </tr>
-  <tr>
-    <td><kbd>Ctrl</kbd>+<kbd>K</kbd></td>
-    <td>Delete from the current position to the end of line</td>
-    <td></td>
-  </tr>
-  <tr>
-    <td><kbd>Ctrl</kbd>+<kbd>A</kbd></td>
-    <td>Go to start of line</td>
-    <td></td>
-  </tr>
-  <tr>
-    <td><kbd>Ctrl</kbd>+<kbd>E</kbd></td>
-    <td>Go to to end of line</td>
-    <td></td>
-  </tr>
-  <tr>
-    <td><kbd>Ctrl</kbd>+<kbd>B</kbd></td>
-    <td>Back one character</td>
-    <td></td>
-  </tr>
-  <tr>
-    <td><kbd>Ctrl</kbd>+<kbd>F</kbd></td>
-    <td>Forward one character</td>
-    <td></td>
-  </tr>
-  <tr>
-    <td><kbd>Ctrl</kbd>+<kbd>L</kbd></td>
-    <td>Clear screen</td>
-    <td></td>
-  </tr>
-  <tr>
-    <td><kbd>Ctrl</kbd>+<kbd>N</kbd></td>
-    <td>Next history item</td>
-    <td></td>
-  </tr>
-  <tr>
-    <td><kbd>Ctrl</kbd>+<kbd>P</kbd></td>
-    <td>Previous history item</td>
-    <td></td>
-  </tr>
-  <tr>
-    <td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td>
-    <td>Moves running process into background. Type
-    <code>fg</code> and press <kbd>Enter</kbd>
-    to return.</td>
-    <td>Doesn't work on Windows</td>
-  </tr>
-  <tr>
-    <td><kbd>Ctrl</kbd>+<kbd>W</kbd> or <kbd>Ctrl</kbd>
-   +<kbd>Backspace</kbd></td>
-    <td>Delete backward to a word boundary</td>
-    <td><kbd>Ctrl</kbd>+<kbd>Backspace</kbd> Doesn't
-    work on Linux, Mac and Windows</td>
-  </tr>
-  <tr>
-    <td><kbd>Ctrl</kbd>+<kbd>Delete</kbd></td>
-    <td>Delete forward to a word boundary</td>
-    <td>Doesn't work on Mac</td>
-  </tr>
-  <tr>
-    <td><kbd>Ctrl</kbd>+<kbd>Left arrow</kbd> or
-    <kbd>Meta</kbd>+<kbd>B</kbd></td>
-    <td>Word left</td>
-    <td><kbd>Ctrl</kbd>+<kbd>Left arrow</kbd> Doesn't work
-    on Mac</td>
-  </tr>
-  <tr>
-    <td><kbd>Ctrl</kbd>+<kbd>Right arrow</kbd> or
-    <kbd>Meta</kbd>+<kbd>F</kbd></td>
-    <td>Word right</td>
-    <td><kbd>Ctrl</kbd>+<kbd>Right arrow</kbd> Doesn't work
-    on Mac</td>
-  </tr>
-  <tr>
-    <td><kbd>Meta</kbd>+<kbd>D</kbd> or <kbd>Meta</kbd>
-   +<kbd>Delete</kbd></td>
-    <td>Delete word right</td>
-    <td><kbd>Meta</kbd>+<kbd>Delete</kbd> Doesn't work
-    on windows</td>
-  </tr>
-  <tr>
-    <td><kbd>Meta</kbd>+<kbd>Backspace</kbd></td>
-    <td>Delete word left</td>
-    <td>Doesn't work on Mac</td>
-  </tr>
-</table>
-
-[Readable]: stream.md#stream_readable_streams
-[TTY]: tty.md
-[TTY keybindings]: #readline_tty_keybindings
-[Writable]: stream.md#stream_writable_streams
-[`'SIGCONT'`]: readline.md#readline_event_sigcont
-[`'SIGTSTP'`]: readline.md#readline_event_sigtstp
+[`'SIGCONT'`]: readline.html#readline_event_sigcont
+[`'SIGTSTP'`]: readline.html#readline_event_sigtstp
 [`'line'`]: #readline_event_line
-[`fs.ReadStream`]: fs.md#fs_class_fs_readstream
-[`process.stdin`]: process.md#process_process_stdin
-[`process.stdout`]: process.md#process_process_stdout
+[`fs.ReadStream`]: fs.html#fs_class_fs_readstream
+[`process.stdin`]: process.html#process_process_stdin
+[`process.stdout`]: process.html#process_process_stdout
 [`rl.close()`]: #readline_rl_close
+[Readable]: stream.html#stream_readable_streams
+[TTY]: tty.html
+[Writable]: stream.html#stream_writable_streams
 [reading files]: #readline_example_read_file_stream_line_by_line

@@ -19,13 +19,13 @@ const TYPE = 'udp4';
     const anotherSocket = dgram.createSocket(TYPE);
     const { handle } = socket[kStateSymbol];
 
-    assert.throws(() => {
+    common.expectsError(() => {
       anotherSocket.bind({
         fd: handle.fd,
       });
     }, {
       code: 'EEXIST',
-      name: 'Error',
+      type: Error,
       message: /^open EEXIST$/
     });
 
@@ -42,13 +42,13 @@ const TYPE = 'udp4';
   assert.notStrictEqual(fd, -1);
 
   const socket = new dgram.createSocket(TYPE);
-  assert.throws(() => {
+  common.expectsError(() => {
     socket.bind({
       fd,
     });
   }, {
     code: 'ERR_INVALID_FD_TYPE',
-    name: 'TypeError',
+    type: TypeError,
     message: /^Unsupported fd type: TCP$/
   });
 

@@ -59,9 +59,9 @@ const server = tls.Server(options, common.mustCall(function(socket) {
   socket.pipe(mediator);
 }));
 
-server.listen(0, common.mustCall(() => {
+server.listen(common.PORT, common.mustCall(function() {
   const client1 = tls.connect({
-    port: server.address().port,
+    port: common.PORT,
     rejectUnauthorized: false
   }, common.mustCall(function() {
     client1.end(request);

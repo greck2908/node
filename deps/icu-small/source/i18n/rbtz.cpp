@@ -149,7 +149,7 @@ RuleBasedTimeZone::addTransitionRule(TimeZoneRule* rule, UErrorCode& status) {
 
 void
 RuleBasedTimeZone::completeConst(UErrorCode& status) const {
-    static UMutex gLock;
+    static UMutex gLock = U_MUTEX_INITIALIZER;
     if (U_FAILURE(status)) {
         return;
     }
@@ -356,8 +356,8 @@ cleanup:
     fUpToDate = FALSE;
 }
 
-RuleBasedTimeZone*
-RuleBasedTimeZone::clone() const {
+TimeZone*
+RuleBasedTimeZone::clone(void) const {
     return new RuleBasedTimeZone(*this);
 }
 

@@ -8,7 +8,6 @@ class C {}
 class D extends C { constructor() { super(...unresolved, 75) } }
 D.__proto__ = null;
 
-%PrepareFunctionForOptimization(D);
 assertThrows(() => new D(), TypeError);
 assertThrows(() => new D(), TypeError);
 %OptimizeFunctionOnNextCall(D);

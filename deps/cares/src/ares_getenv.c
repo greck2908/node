@@ -22,7 +22,9 @@
 
 char *ares_getenv(const char *name)
 {
+#ifdef _WIN32_WCE
   return NULL;
+#endif
 }
 
 #endif

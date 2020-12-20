@@ -17,7 +17,7 @@ const bench = common.createBenchmark(main, {
 function main({ n, pathType }) {
   const path = pathType === 'relative' ? relative_path : resolved_path;
   bench.start();
-  for (let i = 0; i < n; i++) {
+  for (var i = 0; i < n; i++) {
     fs.realpathSync(path);
   }
   bench.end(n);

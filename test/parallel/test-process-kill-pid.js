@@ -42,22 +42,22 @@ const assert = require('assert');
   assert.throws(() => process.kill(val), {
     code: 'ERR_INVALID_ARG_TYPE',
     name: 'TypeError',
-    message: 'The "pid" argument must be of type number.' +
-             common.invalidArgTypeHelper(val)
+    message: 'The "pid" argument must be of type number. ' +
+             `Received type ${typeof val}`
   });
 });
 
 // Test that kill throws an error for unknown signal names
-assert.throws(() => process.kill(0, 'test'), {
+common.expectsError(() => process.kill(0, 'test'), {
   code: 'ERR_UNKNOWN_SIGNAL',
-  name: 'TypeError',
+  type: TypeError,
   message: 'Unknown signal: test'
 });
 
 // Test that kill throws an error for invalid signal numbers
-assert.throws(() => process.kill(0, 987), {
+common.expectsError(() => process.kill(0, 987), {
   code: 'EINVAL',
-  name: 'Error',
+  type: Error,
   message: 'kill EINVAL'
 });
 

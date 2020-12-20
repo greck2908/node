@@ -81,4 +81,4 @@ async function runTests() {
   instance.kill();
 }
 
-runTests().then(common.mustCall());
+runTests();

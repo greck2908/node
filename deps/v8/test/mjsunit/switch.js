@@ -350,7 +350,6 @@ function switch_gen(clause_type, feedback, optimize) {
   var values = clause_values[clause_type];
 
   function opt(fn) {
-    if (optimize) %PrepareFunctionForOptimization(fn);
     if (feedback === 'all') {
       values.forEach(fn);
     } else if (Array.isArray(feedback)) {

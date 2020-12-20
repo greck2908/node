@@ -19,7 +19,7 @@ let stage = -1;
 const QUEUE = 10;
 
 const errObj = {
-  name: 'Error',
+  type: Error,
   message: 'setImmediate Err'
 };
 

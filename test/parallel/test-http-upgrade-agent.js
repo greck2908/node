@@ -31,7 +31,7 @@ const http = require('http');
 const net = require('net');
 
 // Create a TCP server
-const server = net.createServer(function(c) {
+const srv = net.createServer(function(c) {
   c.on('data', function(d) {
     c.write('HTTP/1.1 101\r\n');
     c.write('hello: world\r\n');
@@ -46,7 +46,7 @@ const server = net.createServer(function(c) {
   });
 });
 
-server.listen(0, '127.0.0.1', common.mustCall(function() {
+srv.listen(0, '127.0.0.1', common.mustCall(function() {
 
   const options = {
     port: this.address().port,
@@ -78,11 +78,11 @@ server.listen(0, '127.0.0.1', common.mustCall(function() {
     assert.deepStrictEqual(expectedHeaders, res.headers);
 
     // Make sure this request got removed from the pool.
-    assert(!(name in http.globalAgent.sockets));
+    assert(!http.globalAgent.sockets.hasOwnProperty(name));
 
     req.on('close', common.mustCall(function() {
       socket.end();
-      server.close();
+      srv.close();
     }));
   }));
 }));

@@ -26,13 +26,10 @@ const assert = require('assert');
 const events = require('events');
 
 function listener() {}
-
 function listener2() {}
-
 function listener3() {
   return 0;
 }
-
 function listener4() {
   return 1;
 }

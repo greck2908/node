@@ -4,10 +4,10 @@
 
 #include "src/interpreter/handler-table-builder.h"
 
-#include "src/execution/isolate.h"
 #include "src/heap/factory.h"
 #include "src/interpreter/bytecode-register.h"
-#include "src/objects/objects-inl.h"
+#include "src/isolate.h"
+#include "src/objects-inl.h"
 
 namespace v8 {
 namespace internal {
@@ -15,8 +15,7 @@ namespace interpreter {
 
 HandlerTableBuilder::HandlerTableBuilder(Zone* zone) : entries_(zone) {}
 
-template <typename LocalIsolate>
-Handle<ByteArray> HandlerTableBuilder::ToHandlerTable(LocalIsolate* isolate) {
+Handle<ByteArray> HandlerTableBuilder::ToHandlerTable(Isolate* isolate) {
   int handler_table_size = static_cast<int>(entries_.size());
   Handle<ByteArray> table_byte_array = isolate->factory()->NewByteArray(
       HandlerTable::LengthForRange(handler_table_size), AllocationType::kOld);
@@ -32,10 +31,6 @@ Handle<ByteArray> HandlerTableBuilder::ToHandlerTable(LocalIsolate* isolate) {
   return table_byte_array;
 }
 
-template Handle<ByteArray> HandlerTableBuilder::ToHandlerTable(
-    Isolate* isolate);
-template Handle<ByteArray> HandlerTableBuilder::ToHandlerTable(
-    LocalIsolate* isolate);
 
 int HandlerTableBuilder::NewHandlerEntry() {
   int handler_id = static_cast<int>(entries_.size());

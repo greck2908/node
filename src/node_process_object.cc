@@ -1,8 +1,7 @@
 #include "env-inl.h"
-#include "node_external_reference.h"
 #include "node_internals.h"
-#include "node_metadata.h"
 #include "node_options-inl.h"
+#include "node_metadata.h"
 #include "node_process.h"
 #include "node_revert.h"
 #include "util-inl.h"
@@ -16,8 +15,10 @@ using v8::EscapableHandleScope;
 using v8::Function;
 using v8::FunctionCallbackInfo;
 using v8::FunctionTemplate;
+using v8::HandleScope;
 using v8::Integer;
 using v8::Isolate;
+using v8::Just;
 using v8::Local;
 using v8::MaybeLocal;
 using v8::Name;
@@ -31,11 +32,11 @@ using v8::Value;
 
 static void ProcessTitleGetter(Local<Name> property,
                                const PropertyCallbackInfo<Value>& info) {
-  std::string title = GetProcessTitle("node");
+  char buffer[512];
+  uv_get_process_title(buffer, sizeof(buffer));
   info.GetReturnValue().Set(
-      String::NewFromUtf8(info.GetIsolate(), title.data(),
-                          NewStringType::kNormal, title.size())
-      .ToLocalChecked());
+      String::NewFromUtf8(info.GetIsolate(), buffer, NewStringType::kNormal)
+          .ToLocalChecked());
 }
 
 static void ProcessTitleSetter(Local<Name> property,
@@ -50,8 +51,7 @@ static void ProcessTitleSetter(Local<Name> property,
 static void DebugPortGetter(Local<Name> property,
                             const PropertyCallbackInfo<Value>& info) {
   Environment* env = Environment::GetCurrent(info);
-  ExclusiveAccess<HostPort>::Scoped host_port(env->inspector_host_port());
-  int port = host_port->port();
+  int port = env->inspector_host_port()->port();
   info.GetReturnValue().Set(port);
 }
 
@@ -60,8 +60,7 @@ static void DebugPortSetter(Local<Name> property,
                             const PropertyCallbackInfo<void>& info) {
   Environment* env = Environment::GetCurrent(info);
   int32_t port = value->Int32Value(env->context()).FromMaybe(0);
-  ExclusiveAccess<HostPort>::Scoped host_port(env->inspector_host_port());
-  host_port->set_port(static_cast<int>(port));
+  env->inspector_host_port()->set_port(static_cast<int>(port));
 }
 
 static void GetParentProcessId(Local<Name> property,
@@ -75,7 +74,7 @@ MaybeLocal<Object> CreateProcessObject(Environment* env) {
   Local<Context> context = env->context();
 
   Local<FunctionTemplate> process_template = FunctionTemplate::New(isolate);
-  process_template->SetClassName(env->process_string());
+  process_template->SetClassName(FIXED_ONE_BYTE_STRING(isolate, "process"));
   Local<Function> process_ctor;
   Local<Object> process;
   if (!process_template->GetFunction(context).ToLocal(&process_ctor) ||
@@ -126,7 +125,7 @@ MaybeLocal<Object> CreateProcessObject(Environment* env) {
 #endif  // NODE_HAS_RELEASE_URLS
 
   // process._rawDebug: may be overwritten later in JS land, but should be
-  // available from the beginning for debugging purposes
+  // availbale from the begining for debugging purposes
   env->SetMethod(process, "_rawDebug", RawDebug);
 
   return scope.Escape(process);
@@ -146,7 +145,7 @@ void PatchProcessObject(const FunctionCallbackInfo<Value>& args) {
                 FIXED_ONE_BYTE_STRING(isolate, "title"),
                 ProcessTitleGetter,
                 env->owns_process_state() ? ProcessTitleSetter : nullptr,
-                Local<Value>(),
+                env->as_callback_data(),
                 DEFAULT,
                 None,
                 SideEffectType::kHasNoSideEffect)
@@ -197,15 +196,8 @@ void PatchProcessObject(const FunctionCallbackInfo<Value>& args) {
                           FIXED_ONE_BYTE_STRING(isolate, "debugPort"),
                           DebugPortGetter,
                           env->owns_process_state() ? DebugPortSetter : nullptr,
-                          Local<Value>())
+                          env->as_callback_data())
             .FromJust());
 }
 
-void RegisterProcessExternalReferences(ExternalReferenceRegistry* registry) {
-  registry->Register(RawDebug);
-}
-
 }  // namespace node
-
-NODE_MODULE_EXTERNAL_REFERENCE(process_object,
-                               node::RegisterProcessExternalReferences)

@@ -52,8 +52,7 @@ class ProcessWrap : public HandleWrap {
                          void* priv) {
     Environment* env = Environment::GetCurrent(context);
     Local<FunctionTemplate> constructor = env->NewFunctionTemplate(New);
-    constructor->InstanceTemplate()->SetInternalFieldCount(
-        ProcessWrap::kInternalFieldCount);
+    constructor->InstanceTemplate()->SetInternalFieldCount(1);
     Local<String> processString =
         FIXED_ONE_BYTE_STRING(env->isolate(), "Process");
     constructor->SetClassName(processString);
@@ -292,7 +291,8 @@ class ProcessWrap : public HandleWrap {
   static void OnExit(uv_process_t* handle,
                      int64_t exit_status,
                      int term_signal) {
-    ProcessWrap* wrap = ContainerOf(&ProcessWrap::process_, handle);
+    ProcessWrap* wrap = static_cast<ProcessWrap*>(handle->data);
+    CHECK_NOT_NULL(wrap);
     CHECK_EQ(&wrap->process_, handle);
 
     Environment* env = wrap->env();

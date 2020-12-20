@@ -16,14 +16,14 @@ const server = h2.createServer((request, response) => {
   response.write(servExpect);
 
   // Callback must be specified (and be a function)
-  assert.throws(
+  common.expectsError(
     () => response.createPushResponse({
       ':path': '/pushed',
       ':method': 'GET'
     }, undefined),
     {
       code: 'ERR_INVALID_CALLBACK',
-      name: 'TypeError',
+      type: TypeError,
       message: 'Callback must be a function. Received undefined'
     }
   );
@@ -40,7 +40,8 @@ const server = h2.createServer((request, response) => {
   response.createPushResponse({
     ':path': '/pushed',
     ':method': 'GET'
-  }, common.mustSucceed((push) => {
+  }, common.mustCall((error, push) => {
+    assert.ifError(error);
     assert.strictEqual(push.stream.id % 2, 0);
     push.end(pushExpect);
     response.end();

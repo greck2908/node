@@ -160,24 +160,6 @@ assert.strictEqual(newObject.test_string, 'test string');
 }
 
 {
-  // Verify that objects can be type-tagged and type-tag-checked.
-  const obj1 = test_object.TypeTaggedInstance(0);
-  const obj2 = test_object.TypeTaggedInstance(1);
-
-  // Verify that type tags are correctly accepted.
-  assert.strictEqual(test_object.CheckTypeTag(0, obj1), true);
-  assert.strictEqual(test_object.CheckTypeTag(1, obj2), true);
-
-  // Verify that wrongly tagged objects are rejected.
-  assert.strictEqual(test_object.CheckTypeTag(0, obj2), false);
-  assert.strictEqual(test_object.CheckTypeTag(1, obj1), false);
-
-  // Verify that untagged objects are rejected.
-  assert.strictEqual(test_object.CheckTypeTag(0, {}), false);
-  assert.strictEqual(test_object.CheckTypeTag(1, {}), false);
-}
-
-{
   // Verify that normal and nonexistent properties can be deleted.
   const sym = Symbol();
   const obj = { foo: 'bar', [sym]: 'baz' };
@@ -230,10 +212,8 @@ assert.strictEqual(newObject.test_string, 'test string');
     inherited: 1
   });
 
-  const fooSymbol = Symbol('foo');
-
   object.normal = 2;
-  object[fooSymbol] = 3;
+  object[Symbol('foo')] = 3;
   Object.defineProperty(object, 'unenumerable', {
     value: 4,
     enumerable: false,
@@ -244,74 +224,31 @@ assert.strictEqual(newObject.test_string, 'test string');
 
   assert.deepStrictEqual(test_object.GetPropertyNames(object),
                          ['5', 'normal', 'inherited']);
-
-  assert.deepStrictEqual(test_object.GetSymbolNames(object),
-                         [fooSymbol]);
 }
 
 // Verify that passing NULL to napi_set_property() results in the correct
 // error.
 assert.deepStrictEqual(test_object.TestSetProperty(), {
-  envIsNull: 'Invalid argument',
-  objectIsNull: 'Invalid argument',
-  keyIsNull: 'Invalid argument',
-  valueIsNull: 'Invalid argument'
+  envIsNull: 'pass',
+  objectIsNull: 'pass',
+  keyIsNull: 'pass',
+  valueIsNull: 'pass'
 });
 
 // Verify that passing NULL to napi_has_property() results in the correct
 // error.
 assert.deepStrictEqual(test_object.TestHasProperty(), {
-  envIsNull: 'Invalid argument',
-  objectIsNull: 'Invalid argument',
-  keyIsNull: 'Invalid argument',
-  resultIsNull: 'Invalid argument'
+  envIsNull: 'pass',
+  objectIsNull: 'pass',
+  keyIsNull: 'pass',
+  resultIsNull: 'pass'
 });
 
 // Verify that passing NULL to napi_get_property() results in the correct
 // error.
 assert.deepStrictEqual(test_object.TestGetProperty(), {
-  envIsNull: 'Invalid argument',
-  objectIsNull: 'Invalid argument',
-  keyIsNull: 'Invalid argument',
-  resultIsNull: 'Invalid argument'
+  envIsNull: 'pass',
+  objectIsNull: 'pass',
+  keyIsNull: 'pass',
+  resultIsNull: 'pass'
 });
-
-{
-  const obj = { x: 'a', y: 'b', z: 'c' };
-
-  test_object.TestSeal(obj);
-
-  assert.strictEqual(Object.isSealed(obj), true);
-
-  assert.throws(() => {
-    obj.w = 'd';
-  }, /Cannot add property w, object is not extensible/);
-
-  assert.throws(() => {
-    delete obj.x;
-  }, /Cannot delete property 'x' of #<Object>/);
-
-  // Sealed objects allow updating existing properties,
-  // so this should not throw.
-  obj.x = 'd';
-}
-
-{
-  const obj = { x: 10, y: 10, z: 10 };
-
-  test_object.TestFreeze(obj);
-
-  assert.strictEqual(Object.isFrozen(obj), true);
-
-  assert.throws(() => {
-    obj.x = 10;
-  }, /Cannot assign to read only property 'x' of object '#<Object>/);
-
-  assert.throws(() => {
-    obj.w = 15;
-  }, /Cannot add property w, object is not extensible/);
-
-  assert.throws(() => {
-    delete obj.x;
-  }, /Cannot delete property 'x' of #<Object>/);
-}

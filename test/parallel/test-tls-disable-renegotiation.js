@@ -21,7 +21,7 @@ const options = {
 const server = tls.Server(options, common.mustCall((socket) => {
   socket.on('error', common.mustCall((err) => {
     common.expectsError({
-      name: 'Error',
+      type: Error,
       code: 'ERR_TLS_RENEGOTIATION_DISABLED',
       message: 'TLS session renegotiation disabled for this socket'
     })(err);
@@ -50,30 +50,31 @@ server.listen(0, common.mustCall(() => {
   };
   const client = tls.connect(options, common.mustCall(() => {
 
-    assert.throws(() => client.renegotiate(), {
+    common.expectsError(() => client.renegotiate(), {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError',
+      type: TypeError,
     });
 
-    assert.throws(() => client.renegotiate(common.mustNotCall()), {
+    common.expectsError(() => client.renegotiate(common.mustNotCall()), {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError',
+      type: TypeError,
     });
 
-    assert.throws(() => client.renegotiate({}, false), {
+    common.expectsError(() => client.renegotiate({}, false), {
       code: 'ERR_INVALID_CALLBACK',
-      name: 'TypeError',
+      type: TypeError,
     });
 
-    assert.throws(() => client.renegotiate({}, null), {
+    common.expectsError(() => client.renegotiate({}, null), {
       code: 'ERR_INVALID_CALLBACK',
-      name: 'TypeError',
+      type: TypeError,
     });
 
 
     // Negotiation is still permitted for this first
     // attempt. This should succeed.
-    let ok = client.renegotiate(options, common.mustSucceed(() => {
+    let ok = client.renegotiate(options, common.mustCall((err) => {
+      assert.ifError(err);
       // Once renegotiation completes, we write some
       // data to the socket, which triggers the on
       // data event on the server. After that data

@@ -12,6 +12,7 @@ function main({ n, size, args }) {
   const b1 = Buffer.alloc(size, 'a');
   const b0Len = b0.length;
   const b1Len = b1.length;
+  var i;
 
   b1[size - 1] = 'b'.charCodeAt(0);
 
@@ -19,7 +20,7 @@ function main({ n, size, args }) {
     case 2:
       b0.compare(b1, 0);
       bench.start();
-      for (let i = 0; i < n; i++) {
+      for (i = 0; i < n; i++) {
         b0.compare(b1, 0);
       }
       bench.end(n);
@@ -27,7 +28,7 @@ function main({ n, size, args }) {
     case 3:
       b0.compare(b1, 0, b1Len);
       bench.start();
-      for (let i = 0; i < n; i++) {
+      for (i = 0; i < n; i++) {
         b0.compare(b1, 0, b1Len);
       }
       bench.end(n);
@@ -35,7 +36,7 @@ function main({ n, size, args }) {
     case 4:
       b0.compare(b1, 0, b1Len, 0);
       bench.start();
-      for (let i = 0; i < n; i++) {
+      for (i = 0; i < n; i++) {
         b0.compare(b1, 0, b1Len, 0);
       }
       bench.end(n);
@@ -43,7 +44,7 @@ function main({ n, size, args }) {
     case 5:
       b0.compare(b1, 0, b1Len, 0, b0Len);
       bench.start();
-      for (let i = 0; i < n; i++) {
+      for (i = 0; i < n; i++) {
         b0.compare(b1, 0, b1Len, 0, b0Len);
       }
       bench.end(n);
@@ -51,7 +52,7 @@ function main({ n, size, args }) {
     default:
       b0.compare(b1);
       bench.start();
-      for (let i = 0; i < n; i++) {
+      for (i = 0; i < n; i++) {
         b0.compare(b1);
       }
       bench.end(n);

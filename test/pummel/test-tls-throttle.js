@@ -46,9 +46,9 @@ const server = tls.Server(options, common.mustCall(function(socket) {
 
 let recvCount = 0;
 
-server.listen(0, function() {
+server.listen(common.PORT, function() {
   const client = tls.connect({
-    port: server.address().port,
+    port: common.PORT,
     rejectUnauthorized: false
   });
 

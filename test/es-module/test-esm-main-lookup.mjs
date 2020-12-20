@@ -1,3 +1,4 @@
+// Flags: --experimental-modules
 import '../common/index.mjs';
 import assert from 'assert';
 
@@ -6,7 +7,7 @@ async function main() {
   try {
     mod = await import('../fixtures/es-modules/pjson-main');
   } catch (e) {
-    assert.strictEqual(e.code, 'ERR_UNSUPPORTED_DIR_IMPORT');
+    assert.strictEqual(e.code, 'ERR_MODULE_NOT_FOUND');
   }
 
   assert.strictEqual(mod, undefined);

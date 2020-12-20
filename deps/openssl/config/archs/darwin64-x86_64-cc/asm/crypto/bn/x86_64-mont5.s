@@ -550,7 +550,6 @@ L$mul4x_epilogue:
 
 .p2align	5
 mul4x_internal:
-
 	shlq	$5,%r9
 	movd	8(%rax),%xmm5
 	leaq	L$inc(%rip),%rax
@@ -1073,7 +1072,6 @@ L$inner4x:
 	movq	24(%rbp),%r15
 	jmp	L$sqr4x_sub_entry
 
-
 .globl	_bn_power5
 
 .p2align	5
@@ -1215,7 +1213,6 @@ L$power5_epilogue:
 .p2align	5
 _bn_sqr8x_internal:
 __bn_sqr8x_internal:
-
 
 
 
@@ -1992,10 +1989,8 @@ L$8x_no_tail:
 	.byte	0xf3,0xc3
 
 
-
 .p2align	5
 __bn_post4x_internal:
-
 	movq	0(%rbp),%r12
 	leaq	(%rdi,%r9,1),%rbx
 	movq	%r9,%rcx
@@ -2047,17 +2042,14 @@ L$sqr4x_sub_entry:
 	negq	%r9
 	.byte	0xf3,0xc3
 
-
 .globl	_bn_from_montgomery
 
 .p2align	5
 _bn_from_montgomery:
-
 	testl	$7,%r9d
 	jz	bn_from_mont8x
 	xorl	%eax,%eax
 	.byte	0xf3,0xc3
-
 
 
 
@@ -2341,7 +2333,6 @@ L$mulx4x_epilogue:
 
 .p2align	5
 mulx4x_internal:
-
 	movq	%r9,8(%rsp)
 	movq	%r9,%r10
 	negq	%r9
@@ -2760,7 +2751,6 @@ L$mulx4x_inner:
 	movq	16(%rbp),%r14
 	movq	24(%rbp),%r15
 	jmp	L$sqrx4x_sub_entry
-
 
 
 .p2align	5
@@ -3519,7 +3509,6 @@ L$sqrx8x_no_tail:
 
 .p2align	5
 __bn_postx4x_internal:
-
 	movq	0(%rbp),%r12
 	movq	%rcx,%r10
 	movq	%rcx,%r9
@@ -3568,12 +3557,10 @@ L$sqrx4x_sub_entry:
 
 	.byte	0xf3,0xc3
 
-
 .globl	_bn_get_bits5
 
 .p2align	4
 _bn_get_bits5:
-
 	leaq	0(%rdi),%r10
 	leaq	1(%rdi),%r11
 	movl	%esi,%ecx
@@ -3589,12 +3576,10 @@ _bn_get_bits5:
 	.byte	0xf3,0xc3
 
 
-
 .globl	_bn_scatter5
 
 .p2align	4
 _bn_scatter5:
-
 	cmpl	$0,%esi
 	jz	L$scatter_epilogue
 	leaq	(%rdx,%rcx,8),%rdx
@@ -3609,13 +3594,11 @@ L$scatter_epilogue:
 	.byte	0xf3,0xc3
 
 
-
 .globl	_bn_gather5
 
 .p2align	5
 _bn_gather5:
 L$SEH_begin_bn_gather5:
-
 
 .byte	0x4c,0x8d,0x14,0x24
 .byte	0x48,0x81,0xec,0x08,0x01,0x00,0x00
@@ -3773,7 +3756,6 @@ L$gather:
 	leaq	(%r10),%rsp
 	.byte	0xf3,0xc3
 L$SEH_end_bn_gather5:
-
 
 .p2align	6
 L$inc:

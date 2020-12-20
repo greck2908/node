@@ -122,7 +122,7 @@ EscapeTransliterator::~EscapeTransliterator() {
 /**
  * Transliterator API.
  */
-EscapeTransliterator* EscapeTransliterator::clone() const {
+Transliterator* EscapeTransliterator::clone() const {
     return new EscapeTransliterator(*this);
 }
 

@@ -7,5 +7,5 @@ const w = new Worker('abc)', { eval: true });
 w.on('message', common.mustNotCall());
 w.on('error', common.mustCall((err) => {
   assert.strictEqual(err.constructor, SyntaxError);
-  assert.strictEqual(err.name, 'SyntaxError');
+  assert(/SyntaxError/.test(err));
 }));

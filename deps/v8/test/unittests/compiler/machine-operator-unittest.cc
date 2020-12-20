@@ -25,8 +25,8 @@ class MachineOperatorTestWithParam
   const T& GetParam() const { return ::testing::get<1>(B::GetParam()); }
 
  private:
-  using B = ::testing::WithParamInterface<
-      ::testing::tuple<MachineRepresentation, T> >;
+  typedef ::testing::WithParamInterface<
+      ::testing::tuple<MachineRepresentation, T> > B;
 };
 
 
@@ -51,8 +51,10 @@ const MachineRepresentation kRepresentationsForStore[] = {
 // -----------------------------------------------------------------------------
 // Load operator.
 
-using MachineLoadOperatorTest =
-    MachineOperatorTestWithParam<LoadRepresentation>;
+
+typedef MachineOperatorTestWithParam<LoadRepresentation>
+    MachineLoadOperatorTest;
+
 
 TEST_P(MachineLoadOperatorTest, InstancesAreGloballyShared) {
   MachineOperatorBuilder machine1(zone(), representation());
@@ -245,6 +247,7 @@ const PureOperator kPureOperators[] = {
     PURE(Float64Equal, 2, 0, 1),              // --
     PURE(Float64LessThan, 2, 0, 1),           // --
     PURE(Float64LessThanOrEqual, 2, 0, 1),    // --
+    PURE(LoadStackPointer, 0, 0, 1),          // --
     PURE(Float64ExtractLowWord32, 1, 0, 1),   // --
     PURE(Float64ExtractHighWord32, 1, 0, 1),  // --
     PURE(Float64InsertLowWord32, 2, 0, 1),    // --
@@ -344,7 +347,9 @@ TEST_F(MachineOptionalOperatorTest, OptionalOperators) {
 // -----------------------------------------------------------------------------
 // Pseudo operators.
 
-using MachineOperatorTest = TestWithZone;
+
+typedef TestWithZone MachineOperatorTest;
+
 
 TEST_F(MachineOperatorTest, PseudoOperatorsWhenWordSizeIs32Bit) {
   MachineOperatorBuilder machine(zone(), MachineRepresentation::kWord32);

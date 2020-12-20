@@ -191,8 +191,8 @@ RuleBasedTransliterator::~RuleBasedTransliterator() {
     }
 }
 
-RuleBasedTransliterator*
-RuleBasedTransliterator::clone() const {
+Transliterator* // Covariant return NOT ALLOWED (for portability)
+RuleBasedTransliterator::clone(void) const {
     return new RuleBasedTransliterator(*this);
 }
 
@@ -253,7 +253,7 @@ RuleBasedTransliterator::handleTransliterate(Replaceable& text, UTransPosition& 
     //
     // TODO(andy): Need a better scheme for handling this.
 
-    static UMutex transliteratorDataMutex;
+    static UMutex transliteratorDataMutex = U_MUTEX_INITIALIZER;
     UBool needToLock;
     {
         Mutex m;

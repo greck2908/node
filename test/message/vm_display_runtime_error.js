@@ -28,7 +28,7 @@ console.error('beginning');
 try {
   vm.runInThisContext('throw new Error("boo!")', { filename: 'test.vm' });
 } catch (err) {
-  console.error(err);
+  console.error(err.stack);
 }
 
 vm.runInThisContext('throw new Error("spooky!")', { filename: 'test.vm' });

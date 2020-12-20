@@ -5,10 +5,9 @@
 #ifndef V8_PARSING_PREPARSE_DATA_IMPL_H_
 #define V8_PARSING_PREPARSE_DATA_IMPL_H_
 
-#include <memory>
-
-#include "src/common/assert-scope.h"
 #include "src/parsing/preparse-data.h"
+
+#include "src/assert-scope.h"
 
 namespace v8 {
 namespace internal {
@@ -36,6 +35,8 @@ class BaseConsumedPreparseData : public ConsumedPreparseData {
  public:
   class ByteData : public PreparseByteDataConstants {
    public:
+    ByteData() {}
+
     // Reading from the ByteData is only allowed when a ReadingScope is on the
     // stack. This ensures that we have a DisallowHeapAllocation in place
     // whenever ByteData holds a raw pointer into the heap.
@@ -154,21 +155,16 @@ class BaseConsumedPreparseData : public ConsumedPreparseData {
       int* function_length, int* num_inner_functions, bool* uses_super_property,
       LanguageMode* language_mode) final;
 
-  void RestoreScopeAllocationData(DeclarationScope* scope,
-                                  AstValueFactory* ast_value_factory,
-                                  Zone* zone) final;
+  void RestoreScopeAllocationData(DeclarationScope* scope) final;
 
 #ifdef DEBUG
   bool VerifyDataStart();
 #endif
 
  private:
-  void RestoreDataForScope(Scope* scope, AstValueFactory* ast_value_factory,
-                           Zone* zone);
+  void RestoreDataForScope(Scope* scope);
   void RestoreDataForVariable(Variable* var);
-  void RestoreDataForInnerScopes(Scope* scope,
-                                 AstValueFactory* ast_value_factory,
-                                 Zone* zone);
+  void RestoreDataForInnerScopes(Scope* scope);
 
   std::unique_ptr<ByteData> scope_data_;
   // When consuming the data, these indexes point to the data we're going to
@@ -199,7 +195,6 @@ class ZonePreparseData : public ZoneObject {
                                      int child_length);
 
   Handle<PreparseData> Serialize(Isolate* isolate);
-  Handle<PreparseData> Serialize(LocalIsolate* isolate);
 
   int children_length() const { return static_cast<int>(children_.size()); }
 
@@ -222,7 +217,7 @@ class ZonePreparseData : public ZoneObject {
 ZonePreparseData* PreparseDataBuilder::ByteData::CopyToZone(
     Zone* zone, int children_length) {
   DCHECK(is_finalized_);
-  return zone->New<ZonePreparseData>(zone, &zone_byte_data_, children_length);
+  return new (zone) ZonePreparseData(zone, &zone_byte_data_, children_length);
 }
 
 // Implementation of ConsumedPreparseData for PreparseData

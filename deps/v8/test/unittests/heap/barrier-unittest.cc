@@ -57,7 +57,7 @@ TEST(OneshotBarrier, DoneAfterWait_Concurrent) {
     barrier.Start();
   }
   for (int i = 0; i < kThreadCount; i++) {
-    CHECK(threads[i].Start());
+    threads[i].Start();
   }
   for (int i = 0; i < kThreadCount; i++) {
     threads[i].Join();
@@ -80,7 +80,7 @@ TEST(OneshotBarrier, EarlyFinish_Concurrent) {
     barrier.Start();
   }
   for (int i = 0; i < kThreadCount; i++) {
-    CHECK(threads[i].Start());
+    threads[i].Start();
   }
   for (int i = 0; i < kThreadCount; i++) {
     threads[i].Join();
@@ -133,7 +133,7 @@ TEST(OneshotBarrier, Processing_Concurrent) {
   barrier.Start();
   barrier.Start();
   EXPECT_FALSE(barrier.DoneForTesting());
-  CHECK(counting_thread.Start());
+  counting_thread.Start();
 
   for (size_t i = 0; i < kWorkCounter; i++) {
     {

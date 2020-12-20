@@ -6,10 +6,10 @@
 #define V8_OBJECTS_MANAGED_H_
 
 #include <memory>
-#include "src/execution/isolate.h"
-#include "src/handles/global-handles.h"
-#include "src/handles/handles.h"
+#include "src/global-handles.h"
+#include "src/handles.h"
 #include "src/heap/factory.h"
+#include "src/isolate.h"
 #include "src/objects/foreign.h"
 
 namespace v8 {
@@ -51,6 +51,7 @@ class Managed : public Foreign {
  public:
   Managed() : Foreign() {}
   explicit Managed(Address ptr) : Foreign(ptr) {}
+  Managed* operator->() { return this; }
 
   // Get a raw pointer to the C++ object.
   V8_INLINE CppType* raw() { return GetSharedPtrPtr()->get(); }
@@ -58,7 +59,7 @@ class Managed : public Foreign {
   // Get a reference to the shared pointer to the C++ object.
   V8_INLINE const std::shared_ptr<CppType>& get() { return *GetSharedPtrPtr(); }
 
-  static Managed cast(Object obj) { return Managed(obj.ptr()); }
+  static Managed cast(Object obj) { return Managed(obj->ptr()); }
   static Managed unchecked_cast(Object obj) { return bit_cast<Managed>(obj); }
 
   // Allocate a new {CppType} and wrap it in a {Managed<CppType>}.
@@ -92,12 +93,11 @@ class Managed : public Foreign {
   // Create a {Managed<CppType>} from an existing {std::shared_ptr<CppType>}.
   static Handle<Managed<CppType>> FromSharedPtr(
       Isolate* isolate, size_t estimated_size,
-      std::shared_ptr<CppType> shared_ptr) {
+      const std::shared_ptr<CppType>& shared_ptr) {
     reinterpret_cast<v8::Isolate*>(isolate)
         ->AdjustAmountOfExternalAllocatedMemory(estimated_size);
     auto destructor = new ManagedPtrDestructor(
-        estimated_size, new std::shared_ptr<CppType>{std::move(shared_ptr)},
-        Destructor);
+        estimated_size, new std::shared_ptr<CppType>{shared_ptr}, Destructor);
     Handle<Managed<CppType>> handle = Handle<Managed<CppType>>::cast(
         isolate->factory()->NewForeign(reinterpret_cast<Address>(destructor)));
     Handle<Object> global_handle = isolate->global_handles()->Create(*handle);

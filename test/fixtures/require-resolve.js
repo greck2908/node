@@ -86,11 +86,11 @@ assert.throws(() => {
 }
 
 // Test paths option validation
-assert.throws(() => {
+common.expectsError(() => {
   require.resolve('.\\three.js', { paths: 'foo' })
 }, {
-  code: 'ERR_INVALID_ARG_VALUE',
-  name: 'TypeError',
+  code: 'ERR_INVALID_OPT_VALUE',
+  type: TypeError,
 });
 
 // Verify that the default require.resolve() is used for empty options.

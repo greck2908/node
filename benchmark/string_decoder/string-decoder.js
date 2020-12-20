@@ -14,11 +14,12 @@ const ASC_ALPHA = 'Blueberry jam';
 const UTF16_BUF = Buffer.from('Blåbærsyltetøy', 'utf16le');
 
 function main({ encoding, inLen, chunkLen, n }) {
-  let alpha;
-  let buf;
+  var alpha;
+  var buf;
   const chunks = [];
-  let str = '';
+  var str = '';
   const isBase64 = (encoding === 'base64-ascii' || encoding === 'base64-utf8');
+  var i;
 
   if (encoding === 'ascii' || encoding === 'base64-ascii')
     alpha = ASC_ALPHA;
@@ -32,7 +33,7 @@ function main({ encoding, inLen, chunkLen, n }) {
 
   const sd = new StringDecoder(isBase64 ? 'base64' : encoding);
 
-  for (let i = 0; i < inLen; ++i) {
+  for (i = 0; i < inLen; ++i) {
     if (i > 0 && (i % chunkLen) === 0 && !isBase64) {
       if (alpha) {
         chunks.push(Buffer.from(str, encoding));
@@ -45,8 +46,8 @@ function main({ encoding, inLen, chunkLen, n }) {
     if (alpha)
       str += alpha[i % alpha.length];
     else {
-      let start = i;
-      let end = i + 2;
+      var start = i;
+      var end = i + 2;
       if (i % 2 !== 0) {
         ++start;
         ++end;
@@ -76,8 +77,8 @@ function main({ encoding, inLen, chunkLen, n }) {
   const nChunks = chunks.length;
 
   bench.start();
-  for (let i = 0; i < n; ++i) {
-    for (let j = 0; j < nChunks; ++j)
+  for (i = 0; i < n; ++i) {
+    for (var j = 0; j < nChunks; ++j)
       sd.write(chunks[j]);
   }
   bench.end(n);

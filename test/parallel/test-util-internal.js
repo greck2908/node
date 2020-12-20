@@ -1,5 +1,5 @@
 'use strict';
-// Flags: --expose-internals
+// Flags: --expose_internals
 
 require('../common');
 const assert = require('assert');

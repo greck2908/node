@@ -5,7 +5,6 @@
 #ifndef V8_OBJECTS_LITERAL_OBJECTS_H_
 #define V8_OBJECTS_LITERAL_OBJECTS_H_
 
-#include "src/base/bit-field.h"
 #include "src/objects/fixed-array.h"
 #include "src/objects/struct.h"
 
@@ -22,23 +21,20 @@ class ClassLiteral;
 // of properties in the backing store. This number includes properties with
 // computed names that are not
 // in the list.
-// TODO(ishell): Don't derive from FixedArray as it already has its own map.
 class ObjectBoilerplateDescription : public FixedArray {
  public:
-  inline Object name(int index) const;
-  inline Object name(const Isolate* isolate, int index) const;
+  Object name(int index) const;
+  Object value(int index) const;
 
-  inline Object value(int index) const;
-  inline Object value(const Isolate* isolate, int index) const;
-
-  inline void set_key_value(int index, Object key, Object value);
+  void set_key_value(int index, Object key, Object value);
 
   // The number of boilerplate properties.
-  inline int size() const;
+  int size() const;
 
   // Number of boilerplate properties and properties with computed names.
-  inline int backing_store_size() const;
-  inline void set_backing_store_size(int backing_store_size);
+  int backing_store_size() const;
+
+  void set_backing_store_size(Isolate* isolate, int backing_store_size);
 
   // Used to encode ObjectLiteral::Flags for nested object literals
   // Stored as the first element of the fixed array
@@ -51,31 +47,47 @@ class ObjectBoilerplateDescription : public FixedArray {
   DECL_PRINTER(ObjectBoilerplateDescription)
 
  private:
-  inline bool has_number_of_properties() const;
+  bool has_number_of_properties() const;
 
   OBJECT_CONSTRUCTORS(ObjectBoilerplateDescription, FixedArray);
 };
 
-class ArrayBoilerplateDescription
-    : public TorqueGeneratedArrayBoilerplateDescription<
-          ArrayBoilerplateDescription, Struct> {
+class ArrayBoilerplateDescription : public Struct {
  public:
+  // store constant_elements of a fixed array
+  DECL_ACCESSORS(constant_elements, FixedArrayBase)
+
   inline ElementsKind elements_kind() const;
   inline void set_elements_kind(ElementsKind kind);
 
   inline bool is_empty() const;
 
+  DECL_CAST(ArrayBoilerplateDescription)
   // Dispatched behavior.
   DECL_PRINTER(ArrayBoilerplateDescription)
+  DECL_VERIFIER(ArrayBoilerplateDescription)
   void BriefPrintDetails(std::ostream& os);
 
+  DEFINE_FIELD_OFFSET_CONSTANTS(
+      HeapObject::kHeaderSize,
+      TORQUE_GENERATED_ARRAY_BOILERPLATE_DESCRIPTION_FIELDS)
+
  private:
-  TQ_OBJECT_CONSTRUCTORS(ArrayBoilerplateDescription)
+  DECL_INT_ACCESSORS(flags)
+  OBJECT_CONSTRUCTORS(ArrayBoilerplateDescription, Struct);
 };
 
 class ClassBoilerplate : public FixedArray {
  public:
   enum ValueKind { kData, kGetter, kSetter };
+
+  struct Flags {
+#define FLAGS_BIT_FIELDS(V, _)               \
+  V(InstallClassNameAccessorBit, bool, 1, _) \
+  V(ArgumentsCountBits, int, 30, _)
+    DEFINE_BIT_FIELDS(FLAGS_BIT_FIELDS)
+#undef FLAGS_BIT_FIELDS
+  };
 
   struct ComputedEntryFlags {
 #define COMPUTED_ENTRY_BIT_FIELDS(V, _) \
@@ -108,32 +120,31 @@ class ClassBoilerplate : public FixedArray {
   DECL_ACCESSORS(instance_elements_template, Object)
   DECL_ACCESSORS(instance_computed_properties, FixedArray)
 
-  template <typename LocalIsolate>
-  static void AddToPropertiesTemplate(LocalIsolate* isolate,
+  static void AddToPropertiesTemplate(Isolate* isolate,
                                       Handle<NameDictionary> dictionary,
                                       Handle<Name> name, int key_index,
-                                      ValueKind value_kind, Smi value);
+                                      ValueKind value_kind, Object value);
 
-  template <typename LocalIsolate>
-  static void AddToElementsTemplate(LocalIsolate* isolate,
+  static void AddToElementsTemplate(Isolate* isolate,
                                     Handle<NumberDictionary> dictionary,
                                     uint32_t key, int key_index,
-                                    ValueKind value_kind, Smi value);
+                                    ValueKind value_kind, Object value);
 
-  template <typename LocalIsolate>
-  static Handle<ClassBoilerplate> BuildClassBoilerplate(LocalIsolate* isolate,
+  static Handle<ClassBoilerplate> BuildClassBoilerplate(Isolate* isolate,
                                                         ClassLiteral* expr);
 
   enum {
-    kArgumentsCountIndex,
+    kFlagsIndex,
     kClassPropertiesTemplateIndex,
     kClassElementsTemplateIndex,
     kClassComputedPropertiesIndex,
     kPrototypePropertiesTemplateIndex,
     kPrototypeElementsTemplateIndex,
     kPrototypeComputedPropertiesIndex,
-    kBoilerplateLength  // last element
+    kBoileplateLength  // last element
   };
+
+  static const int kFullComputedEntrySize = 2;
 
  private:
   DECL_INT_ACCESSORS(flags)

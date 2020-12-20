@@ -4,14 +4,13 @@
 
 #include <stdlib.h>
 
+#include "src/v8.h"
+
 #include "src/heap/concurrent-marking.h"
 #include "src/heap/heap-inl.h"
 #include "src/heap/heap.h"
 #include "src/heap/mark-compact.h"
-#include "src/heap/marking-worklist-inl.h"
-#include "src/heap/marking-worklist.h"
 #include "src/heap/worklist.h"
-#include "src/init/v8.h"
 #include "test/cctest/cctest.h"
 #include "test/cctest/heap/heap-utils.h"
 
@@ -19,12 +18,13 @@ namespace v8 {
 namespace internal {
 namespace heap {
 
-void PublishSegment(MarkingWorklist* worklist, HeapObject object) {
-  MarkingWorklist::Local local(worklist);
-  for (size_t i = 0; i <= MarkingWorklist::kSegmentSize; i++) {
-    local.Push(object);
+void PublishSegment(ConcurrentMarking::MarkingWorklist* worklist,
+                    HeapObject object) {
+  for (size_t i = 0; i <= ConcurrentMarking::MarkingWorklist::kSegmentCapacity;
+       i++) {
+    worklist->Push(0, object);
   }
-  CHECK(local.Pop(&object));
+  CHECK(worklist->Pop(0, &object));
 }
 
 TEST(ConcurrentMarking) {
@@ -38,12 +38,12 @@ TEST(ConcurrentMarking) {
     collector->EnsureSweepingCompleted();
   }
 
-  MarkingWorklists marking_worklists;
+  ConcurrentMarking::MarkingWorklist shared, on_hold;
+  ConcurrentMarking::EmbedderTracingWorklist embedder_objects;
   WeakObjects weak_objects;
-  ConcurrentMarking* concurrent_marking =
-      new ConcurrentMarking(heap, &marking_worklists, &weak_objects);
-  PublishSegment(marking_worklists.shared(),
-                 ReadOnlyRoots(heap).undefined_value());
+  ConcurrentMarking* concurrent_marking = new ConcurrentMarking(
+      heap, &shared, &on_hold, &weak_objects, &embedder_objects);
+  PublishSegment(&shared, ReadOnlyRoots(heap).undefined_value());
   concurrent_marking->ScheduleTasks();
   concurrent_marking->Stop(
       ConcurrentMarking::StopRequest::COMPLETE_TASKS_FOR_TESTING);
@@ -61,17 +61,16 @@ TEST(ConcurrentMarkingReschedule) {
     collector->EnsureSweepingCompleted();
   }
 
-  MarkingWorklists marking_worklists;
+  ConcurrentMarking::MarkingWorklist shared, on_hold;
+  ConcurrentMarking::EmbedderTracingWorklist embedder_objects;
   WeakObjects weak_objects;
-  ConcurrentMarking* concurrent_marking =
-      new ConcurrentMarking(heap, &marking_worklists, &weak_objects);
-  PublishSegment(marking_worklists.shared(),
-                 ReadOnlyRoots(heap).undefined_value());
+  ConcurrentMarking* concurrent_marking = new ConcurrentMarking(
+      heap, &shared, &on_hold, &weak_objects, &embedder_objects);
+  PublishSegment(&shared, ReadOnlyRoots(heap).undefined_value());
   concurrent_marking->ScheduleTasks();
   concurrent_marking->Stop(
       ConcurrentMarking::StopRequest::COMPLETE_ONGOING_TASKS);
-  PublishSegment(marking_worklists.shared(),
-                 ReadOnlyRoots(heap).undefined_value());
+  PublishSegment(&shared, ReadOnlyRoots(heap).undefined_value());
   concurrent_marking->RescheduleTasksIfNeeded();
   concurrent_marking->Stop(
       ConcurrentMarking::StopRequest::COMPLETE_TASKS_FOR_TESTING);
@@ -89,18 +88,17 @@ TEST(ConcurrentMarkingPreemptAndReschedule) {
     collector->EnsureSweepingCompleted();
   }
 
-  MarkingWorklists marking_worklists;
+  ConcurrentMarking::MarkingWorklist shared, on_hold;
+  ConcurrentMarking::EmbedderTracingWorklist embedder_objects;
   WeakObjects weak_objects;
-  ConcurrentMarking* concurrent_marking =
-      new ConcurrentMarking(heap, &marking_worklists, &weak_objects);
+  ConcurrentMarking* concurrent_marking = new ConcurrentMarking(
+      heap, &shared, &on_hold, &weak_objects, &embedder_objects);
   for (int i = 0; i < 5000; i++)
-    PublishSegment(marking_worklists.shared(),
-                   ReadOnlyRoots(heap).undefined_value());
+    PublishSegment(&shared, ReadOnlyRoots(heap).undefined_value());
   concurrent_marking->ScheduleTasks();
   concurrent_marking->Stop(ConcurrentMarking::StopRequest::PREEMPT_TASKS);
   for (int i = 0; i < 5000; i++)
-    PublishSegment(marking_worklists.shared(),
-                   ReadOnlyRoots(heap).undefined_value());
+    PublishSegment(&shared, ReadOnlyRoots(heap).undefined_value());
   concurrent_marking->RescheduleTasksIfNeeded();
   concurrent_marking->Stop(
       ConcurrentMarking::StopRequest::COMPLETE_TASKS_FOR_TESTING);

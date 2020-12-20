@@ -35,7 +35,7 @@ const options = {
 };
 
 
-const server = https.Server(options, (req, res) => {
+const server = https.Server(options, function(req, res) {
   res.writeHead(200);
   res.end('hello world\n');
 });
@@ -46,9 +46,9 @@ const N = 4;
 const M = 4;
 
 
-server.listen(0, () => {
+server.listen(0, function() {
   for (let i = 0; i < N; i++) {
-    setTimeout(() => {
+    setTimeout(function() {
       for (let j = 0; j < M; j++) {
         https.get({
           path: '/',
@@ -58,7 +58,7 @@ server.listen(0, () => {
           res.resume();
           assert.strictEqual(res.statusCode, 200);
           if (++responses === N * M) server.close();
-        }).on('error', (e) => {
+        }).on('error', function(e) {
           throw e;
         });
       }
@@ -67,6 +67,6 @@ server.listen(0, () => {
 });
 
 
-process.on('exit', () => {
+process.on('exit', function() {
   assert.strictEqual(responses, N * M);
 });

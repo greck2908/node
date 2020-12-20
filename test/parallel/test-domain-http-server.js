@@ -20,13 +20,10 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
-const common = require('../common');
+require('../common');
 const domain = require('domain');
 const http = require('http');
 const assert = require('assert');
-const debug = require('util').debuglog('test');
-
-process.on('warning', common.mustNotCall());
 
 const objects = { foo: 'bar', baz: {}, num: 42, arr: [1, 2, 3] };
 objects.baz.asdf = objects;
@@ -42,7 +39,7 @@ const server = http.createServer(function(req, res) {
 
   dom.on('error', function(er) {
     serverCaught++;
-    debug('horray! got a server error', er);
+    console.log('horray! got a server error', er);
     // Try to send a 500.  If that fails, oh well.
     res.writeHead(500, { 'content-type': 'text/plain' });
     res.end(er.stack || er.message || 'Unknown error');
@@ -65,7 +62,7 @@ server.listen(0, next);
 
 function next() {
   const port = this.address().port;
-  debug(`listening on localhost:${port}`);
+  console.log(`listening on localhost:${port}`);
 
   let requests = 0;
   let responses = 0;
@@ -82,7 +79,7 @@ function next() {
     const dom = domain.create();
     dom.on('error', function(er) {
       clientCaught++;
-      debug('client error', er);
+      console.log('client error', er);
       req.socket.destroy();
     });
 
@@ -90,9 +87,9 @@ function next() {
     dom.add(req);
     req.on('response', function(res) {
       responses++;
-      debug(`requests=${requests} responses=${responses}`);
+      console.error(`requests=${requests} responses=${responses}`);
       if (responses === requests) {
-        debug('done, closing server');
+        console.error('done, closing server');
         // no more coming.
         server.close();
       }
@@ -103,9 +100,9 @@ function next() {
         d += c;
       });
       res.on('end', function() {
-        debug('trying to parse json', d);
+        console.error('trying to parse json', d);
         d = JSON.parse(d);
-        debug('json!', d);
+        console.log('json!', d);
       });
     });
   }
@@ -114,5 +111,5 @@ function next() {
 process.on('exit', function() {
   assert.strictEqual(serverCaught, 2);
   assert.strictEqual(clientCaught, 2);
-  debug('ok');
+  console.log('ok');
 });

@@ -5,8 +5,8 @@
 #include <algorithm>
 
 #include "src/base/iterator.h"
-#include "src/common/globals.h"
-#include "src/utils/memcopy.h"
+#include "src/globals.h"
+#include "src/memcopy.h"
 #include "src/zone/zone.h"
 
 #ifndef V8_ZONE_ZONE_CHUNK_LIST_H_
@@ -119,8 +119,8 @@ class ZoneChunkList : public ZoneObject {
   };
 
   Chunk* NewChunk(const uint32_t capacity) {
-    void* memory = zone_->Allocate<Chunk>(sizeof(Chunk) + capacity * sizeof(T));
-    Chunk* chunk = new (memory) Chunk();
+    Chunk* chunk =
+        new (zone_->New(sizeof(Chunk) + capacity * sizeof(T))) Chunk();
     chunk->capacity_ = capacity;
     return chunk;
   }

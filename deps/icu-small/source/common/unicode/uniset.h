@@ -13,10 +13,6 @@
 #ifndef UNICODESET_H
 #define UNICODESET_H
 
-#include "unicode/utypes.h"
-
-#if U_SHOW_CPLUSPLUS_API
-
 #include "unicode/ucpmap.h"
 #include "unicode/unifilt.h"
 #include "unicode/unistr.h"
@@ -325,7 +321,7 @@ public:
      * A bogus set has no value. It is different from an empty set.
      * It can be used to indicate that no set value is available.
      *
-     * @return true if the set is bogus/invalid, false otherwise
+     * @return TRUE if the set is bogus/invalid, FALSE otherwise
      * @see setToBogus()
      * @stable ICU 4.0
      */
@@ -333,7 +329,7 @@ public:
 
     /**
      * Make this UnicodeSet object invalid.
-     * The string will test true with isBogus().
+     * The string will test TRUE with isBogus().
      *
      * A bogus set has no value. It is different from an empty set.
      * It can be used to indicate that no set value is available.
@@ -505,7 +501,7 @@ public:
      * @see cloneAsThawed
      * @stable ICU 2.0
      */
-    virtual UnicodeSet* clone() const;
+    virtual UnicodeFunctor* clone() const;
 
     /**
      * Returns the hash code value for this set.
@@ -563,7 +559,7 @@ public:
     /**
      * Determines whether the set has been frozen (made immutable) or not.
      * See the ICU4J Freezable interface for details.
-     * @return true/false for whether the set has been frozen
+     * @return TRUE/FALSE for whether the set has been frozen
      * @see freeze
      * @see cloneAsThawed
      * @stable ICU 3.8
@@ -583,7 +579,7 @@ public:
      * @see cloneAsThawed
      * @stable ICU 3.8
      */
-    UnicodeSet *freeze();
+    UnicodeFunctor *freeze();
 
     /**
      * Clone the set and make the clone mutable.
@@ -593,7 +589,7 @@ public:
      * @see isFrozen
      * @stable ICU 3.8
      */
-    UnicodeSet *cloneAsThawed() const;
+    UnicodeFunctor *cloneAsThawed() const;
 
     //----------------------------------------------------------------
     // Public API
@@ -700,14 +696,14 @@ public:
      * A frozen set will not be modified.
      * @param result the string to receive the rules.  Previous
      * contents will be deleted.
-     * @param escapeUnprintable if true then convert unprintable
+     * @param escapeUnprintable if TRUE then convert unprintable
      * character to their hex escape representations, \\uxxxx or
      * \\Uxxxxxxxx.  Unprintable characters are those other than
      * U+000A, U+0020..U+007E.
      * @stable ICU 2.0
      */
     virtual UnicodeString& toPattern(UnicodeString& result,
-                                     UBool escapeUnprintable = false) const;
+                             UBool escapeUnprintable = FALSE) const;
 
     /**
      * Modifies this set to contain those code points which have the given value
@@ -1636,7 +1632,7 @@ private:
     static const UnicodeSet* getInclusions(int32_t src, UErrorCode &status);
 
     /**
-     * A filter that returns true if the given code point should be
+     * A filter that returns TRUE if the given code point should be
      * included in the UnicodeSet being constructed.
      */
     typedef UBool (*Filter)(UChar32 codePoint, void* context);
@@ -1655,10 +1651,11 @@ private:
                      const UnicodeSet* inclusions,
                      UErrorCode &status);
 
-    // UCPMap is now stable ICU 63
+#ifndef U_HIDE_DRAFT_API   // Skipped: ucpmap.h is draft only.
     void applyIntPropertyValue(const UCPMap *map,
                                UCPMapValueFilter *filter, const void *context,
                                UErrorCode &errorCode);
+#endif  /* U_HIDE_DRAFT_API */
 
     /**
      * Set the new pattern to cache.
@@ -1738,7 +1735,5 @@ inline int32_t UnicodeSet::spanBack(const UnicodeString &s, int32_t limit, USetS
 }
 
 U_NAMESPACE_END
-
-#endif /* U_SHOW_CPLUSPLUS_API */
 
 #endif

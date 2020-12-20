@@ -55,13 +55,13 @@ assert(TextDecoder);
 if (common.hasIntl) {
   ['unicode-1-1-utf-8', 'utf8', 'utf-8'].forEach((i) => {
     const dec = new TextDecoder(i, { fatal: true });
-    assert.throws(() => dec.decode(buf.slice(0, 8)),
-                  {
-                    code: 'ERR_ENCODING_INVALID_ENCODED_DATA',
-                    name: 'TypeError',
-                    message: 'The encoded data was not valid ' +
+    common.expectsError(() => dec.decode(buf.slice(0, 8)),
+                        {
+                          code: 'ERR_ENCODING_INVALID_ENCODED_DATA',
+                          type: TypeError,
+                          message: 'The encoded data was not valid ' +
                           'for encoding utf-8'
-                  });
+                        });
   });
 
   ['unicode-1-1-utf-8', 'utf8', 'utf-8'].forEach((i) => {
@@ -70,11 +70,11 @@ if (common.hasIntl) {
     dec.decode(buf.slice(8));
   });
 } else {
-  assert.throws(
+  common.expectsError(
     () => new TextDecoder('utf-8', { fatal: true }),
     {
       code: 'ERR_NO_ICU',
-      name: 'TypeError',
+      type: TypeError,
       message: '"fatal" option is not supported on Node.js compiled without ICU'
     });
 }
@@ -85,7 +85,6 @@ if (common.hasIntl) {
   assert.strictEqual(dec.encoding, 'utf-8');
   assert.strictEqual(dec.fatal, false);
   assert.strictEqual(dec.ignoreBOM, false);
-  assert.strictEqual(dec[Symbol.toStringTag], 'TextDecoder');
 }
 
 // Test TextDecoder, UTF-16le
@@ -108,27 +107,16 @@ if (common.hasIntl) {
   if (common.hasIntl) {
     assert.strictEqual(
       util.inspect(dec, { showHidden: true }),
-      'TextDecoder {\n' +
-      '  encoding: \'utf-8\',\n' +
-      '  fatal: false,\n' +
-      '  ignoreBOM: true,\n' +
-      '  [Symbol(flags)]: 4,\n' +
-      '  [Symbol(handle)]: Converter {}\n' +
-      '}'
+      'TextDecoder {\n  encoding: \'utf-8\',\n  fatal: false,\n  ' +
+      'ignoreBOM: true,\n  [Symbol(flags)]: 4,\n  [Symbol(handle)]: {}\n}'
     );
   } else {
     assert.strictEqual(
       util.inspect(dec, { showHidden: true }),
-      'TextDecoder {\n' +
-      "  encoding: 'utf-8',\n" +
-      '  fatal: false,\n' +
-      '  ignoreBOM: true,\n' +
-      '  [Symbol(flags)]: 4,\n' +
-      '  [Symbol(handle)]: StringDecoder {\n' +
-      "    encoding: 'utf8',\n" +
-      '    [Symbol(kNativeDecoder)]: <Buffer 00 00 00 00 00 00 01>\n' +
-      '  }\n' +
-      '}'
+      "TextDecoder {\n  encoding: 'utf-8',\n  fatal: false,\n  " +
+      'ignoreBOM: true,\n  [Symbol(flags)]: 4,\n  [Symbol(handle)]: ' +
+      "StringDecoder {\n    encoding: 'utf8',\n    " +
+      '[Symbol(kNativeDecoder)]: <Buffer 00 00 00 00 00 00 01>\n  }\n}'
     );
   }
 }
@@ -162,7 +150,7 @@ if (common.hasIntl) {
 
   const expectedError = {
     code: 'ERR_INVALID_THIS',
-    name: 'TypeError',
+    type: TypeError,
     message: 'Value of "this" must be of type TextDecoder'
   };
 
@@ -174,20 +162,20 @@ if (common.hasIntl) {
 
   const invalidThisArgs = [{}, [], true, 1, '', new TextEncoder()];
   invalidThisArgs.forEach((i) => {
-    assert.throws(() => inspectFn.call(i, Infinity, {}), expectedError);
-    assert.throws(() => decodeFn.call(i), expectedError);
-    assert.throws(() => encodingGetter.call(i), expectedError);
-    assert.throws(() => fatalGetter.call(i), expectedError);
-    assert.throws(() => ignoreBOMGetter.call(i), expectedError);
+    common.expectsError(() => inspectFn.call(i, Infinity, {}), expectedError);
+    common.expectsError(() => decodeFn.call(i), expectedError);
+    common.expectsError(() => encodingGetter.call(i), expectedError);
+    common.expectsError(() => fatalGetter.call(i), expectedError);
+    common.expectsError(() => ignoreBOMGetter.call(i), expectedError);
   });
 }
 
 {
-  assert.throws(
+  common.expectsError(
     () => new TextDecoder('utf-8', 1),
     {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError'
+      type: TypeError
     }
   );
 }

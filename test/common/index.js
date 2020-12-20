@@ -23,20 +23,17 @@
 /* eslint-disable node-core/crypto-check */
 'use strict';
 const process = global.process;  // Some tests tamper with the process global.
-
-const assert = require('assert');
-const { exec, execSync, spawnSync } = require('child_process');
-const fs = require('fs');
-// Do not require 'os' until needed so that test-os-checked-function can
-// monkey patch it. If 'os' is required here, that test will fail.
 const path = require('path');
+const fs = require('fs');
+const assert = require('assert');
+const os = require('os');
+const { exec, execSync, spawnSync } = require('child_process');
 const util = require('util');
-const { isMainThread } = require('worker_threads');
-
 const tmpdir = require('./tmpdir');
 const bits = ['arm64', 'mips', 'mipsel', 'ppc64', 's390x', 'x64']
   .includes(process.arch) ? 64 : 32;
 const hasIntl = !!process.config.variables.v8_enable_i18n_support;
+const { isMainThread } = require('worker_threads');
 
 // Some tests assume a umask of 0o022 so set that up front. Tests that need a
 // different umask will set it themselves.
@@ -48,9 +45,7 @@ if (isMainThread)
 
 const noop = () => {};
 
-const hasCrypto = Boolean(process.versions.openssl) &&
-                  !process.env.NODE_SKIP_CRYPTO;
-const hasQuic = hasCrypto && Boolean(process.versions.ngtcp2);
+const hasCrypto = Boolean(process.versions.openssl);
 
 // Check for flags. Skip this for workers (both, the `cluster` module and
 // `worker_threads`) and child processes.
@@ -60,12 +55,12 @@ if (process.argv.length === 2 &&
     !process.env.NODE_SKIP_FLAG_CHECK &&
     isMainThread &&
     hasCrypto &&
-    require.main &&
+    module.parent &&
     require('cluster').isMaster) {
   // The copyright notice is relatively big and the flags could come afterwards.
   const bytesToRead = 1500;
   const buffer = Buffer.allocUnsafe(bytesToRead);
-  const fd = fs.openSync(require.main.filename, 'r');
+  const fd = fs.openSync(module.parent.filename, 'r');
   const bytesRead = fs.readSync(fd, buffer, 0, bytesToRead);
   fs.closeSync(fd);
   const source = buffer.toString('utf8', 0, bytesRead);
@@ -107,17 +102,24 @@ if (process.argv.length === 2 &&
 
 const isWindows = process.platform === 'win32';
 const isAIX = process.platform === 'aix';
+const isLinuxPPCBE = (process.platform === 'linux') &&
+                     (process.arch === 'ppc64') &&
+                     (os.endianness() === 'BE');
 const isSunOS = process.platform === 'sunos';
 const isFreeBSD = process.platform === 'freebsd';
 const isOpenBSD = process.platform === 'openbsd';
 const isLinux = process.platform === 'linux';
 const isOSX = process.platform === 'darwin';
 
-const isDumbTerminal = process.env.TERM === 'dumb';
+const enoughTestMem = os.totalmem() > 0x70000000; /* 1.75 Gb */
+const cpus = os.cpus();
+const enoughTestCpu = Array.isArray(cpus) &&
+                      (cpus.length > 1 || cpus[0].speed > 999);
 
-const buildType = process.config.target_defaults ?
-  process.config.target_defaults.default_configuration :
-  'Release';
+const rootDir = isWindows ? 'c:\\' : '/';
+
+const buildType = process.config.target_defaults.default_configuration;
+
 
 // If env var is set then enable async_hook hooks for all tests.
 if (process.env.NODE_TEST_WITH_ASYNC_HOOKS) {
@@ -140,22 +142,19 @@ if (process.env.NODE_TEST_WITH_ASYNC_HOOKS) {
       process._rawDebug();
       throw new Error(`same id added to destroy list twice (${id})`);
     }
-    destroyListList[id] = util.inspect(new Error());
+    destroyListList[id] = new Error().stack;
     _queueDestroyAsyncId(id);
   };
 
   require('async_hooks').createHook({
-    init(id, ty, tr, resource) {
+    init(id, ty, tr, r) {
       if (initHandles[id]) {
         process._rawDebug(
-          `Is same resource: ${resource === initHandles[id].resource}`);
+          `Is same resource: ${r === initHandles[id].resource}`);
         process._rawDebug(`Previous stack:\n${initHandles[id].stack}\n`);
         throw new Error(`init called twice for same id (${id})`);
       }
-      initHandles[id] = {
-        resource,
-        stack: util.inspect(new Error()).substr(6)
-      };
+      initHandles[id] = { resource: r, stack: new Error().stack.substr(6) };
     },
     before() { },
     after() { },
@@ -165,7 +164,7 @@ if (process.env.NODE_TEST_WITH_ASYNC_HOOKS) {
         process._rawDebug();
         throw new Error(`destroy called for same id (${id})`);
       }
-      destroydIdsList[id] = util.inspect(new Error());
+      destroydIdsList[id] = new Error().stack;
     },
   }).enable();
 }
@@ -195,9 +194,20 @@ const PIPE = (() => {
   return path.join(pipePrefix, pipeName);
 })();
 
-// Check that when running a test with
-// `$node --abort-on-uncaught-exception $file child`
-// the process aborts.
+const hasIPv6 = (() => {
+  const iFaces = os.networkInterfaces();
+  const re = isWindows ? /Loopback Pseudo-Interface/ : /lo/;
+  return Object.keys(iFaces).some((name) => {
+    return re.test(name) &&
+           iFaces[name].some(({ family }) => family === 'IPv6');
+  });
+})();
+
+/*
+ * Check that when running a test with
+ * `$node --abort-on-uncaught-exception $file child`
+ * the process aborts.
+ */
 function childShouldThrowAndAbort() {
   let testCmd = '';
   if (!isWindows) {
@@ -263,21 +273,12 @@ let knownGlobals = [
   queueMicrotask,
 ];
 
-// TODO(@jasnell): This check can be temporary. AbortController is
-// not currently supported in either Node.js 12 or 10, making it
-// difficult to run tests comparitively on those versions. Once
-// all supported versions have AbortController as a global, this
-// check can be removed and AbortController can be added to the
-// knownGlobals list above.
-if (global.AbortController)
-  knownGlobals.push(global.AbortController);
-
 if (global.gc) {
   knownGlobals.push(global.gc);
 }
 
-function allowGlobals(...allowlist) {
-  knownGlobals = knownGlobals.concat(allowlist);
+function allowGlobals(...whitelist) {
+  knownGlobals = knownGlobals.concat(whitelist);
 }
 
 if (process.env.NODE_TEST_KNOWN_GLOBALS !== '0') {
@@ -315,9 +316,10 @@ function runCallChecks(exitCode) {
     if ('minimum' in context) {
       context.messageSegment = `at least ${context.minimum}`;
       return context.actual < context.minimum;
+    } else {
+      context.messageSegment = `exactly ${context.exact}`;
+      return context.actual !== context.exact;
     }
-    context.messageSegment = `exactly ${context.exact}`;
-    return context.actual !== context.exact;
   });
 
   failed.forEach(function(context) {
@@ -333,14 +335,6 @@ function runCallChecks(exitCode) {
 
 function mustCall(fn, exact) {
   return _mustCallInner(fn, exact, 'exact');
-}
-
-function mustSucceed(fn, exact) {
-  return mustCall(function(err, ...args) {
-    assert.ifError(err);
-    if (typeof fn === 'function')
-      return fn.apply(this, args);
-  }, exact);
 }
 
 function mustCallAtLeast(fn, minimum) {
@@ -363,7 +357,7 @@ function _mustCallInner(fn, criteria = 1, field) {
   const context = {
     [field]: criteria,
     actual: 0,
-    stack: util.inspect(new Error()),
+    stack: (new Error()).stack,
     name: fn.name || '<anonymous>'
   };
 
@@ -407,7 +401,7 @@ function canCreateSymLink() {
                                  'System32', 'whoami.exe');
 
     try {
-      const output = execSync(`${whoamiPath} /priv`, { timeout: 1000 });
+      const output = execSync(`${whoamiPath} /priv`, { timout: 1000 });
       return output.includes('SeCreateSymbolicLinkPrivilege');
     } catch {
       return false;
@@ -424,19 +418,16 @@ function getCallSite(top) {
   const err = new Error();
   Error.captureStackTrace(err, top);
   // With the V8 Error API, the stack is not formatted until it is accessed
-  err.stack; // eslint-disable-line no-unused-expressions
+  err.stack;
   Error.prepareStackTrace = originalStackFormatter;
   return err.stack;
 }
 
 function mustNotCall(msg) {
   const callSite = getCallSite(mustNotCall);
-  return function mustNotCall(...args) {
-    const argsInfo = args.length > 0 ?
-      `\ncalled with arguments: ${args.map(util.inspect).join(', ')}` : '';
+  return function mustNotCall() {
     assert.fail(
-      `${msg || 'function should not have been called'} at ${callSite}` +
-      argsInfo);
+      `${msg || 'function should not have been called'} at ${callSite}`);
   };
 }
 
@@ -481,8 +472,15 @@ function nodeProcessAborted(exitCode, signal) {
   // the expected exit codes or signals.
   if (signal !== null) {
     return expectedSignals.includes(signal);
+  } else {
+    return expectedExitCodes.includes(exitCode);
   }
-  return expectedExitCodes.includes(exitCode);
+}
+
+function busyLoop(time) {
+  const startTime = Date.now();
+  const stopTime = startTime + time;
+  while (Date.now() < stopTime) {}
 }
 
 function isAlive(pid) {
@@ -546,27 +544,116 @@ function expectWarning(nameOrMap, expected, code) {
   }
 }
 
-// Useful for testing expected internal/error objects
-function expectsError(validator, exact) {
-  return mustCall((...args) => {
-    if (args.length !== 1) {
-      // Do not use `assert.strictEqual()` to prevent `inspect` from
-      // always being called.
-      assert.fail(`Expected one argument, got ${util.inspect(args)}`);
+class Comparison {
+  constructor(obj, keys) {
+    for (const key of keys) {
+      if (key in obj)
+        this[key] = obj[key];
     }
-    const error = args.pop();
+  }
+}
+
+// Useful for testing expected internal/error objects
+function expectsError(fn, settings, exact) {
+  if (typeof fn !== 'function') {
+    exact = settings;
+    settings = fn;
+    fn = undefined;
+  }
+
+  function innerFn(error) {
+    if (arguments.length !== 1) {
+      // Do not use `assert.strictEqual()` to prevent `util.inspect` from
+      // always being called.
+      assert.fail(`Expected one argument, got ${util.inspect(arguments)}`);
+    }
     const descriptor = Object.getOwnPropertyDescriptor(error, 'message');
     // The error message should be non-enumerable
     assert.strictEqual(descriptor.enumerable, false);
 
-    assert.throws(() => { throw error; }, validator);
+    let innerSettings = settings;
+    if ('type' in settings) {
+      const type = settings.type;
+      if (type !== Error && !Error.isPrototypeOf(type)) {
+        throw new TypeError('`settings.type` must inherit from `Error`');
+      }
+      let constructor = error.constructor;
+      if (constructor.name === 'NodeError' && type.name !== 'NodeError') {
+        constructor = Object.getPrototypeOf(error.constructor);
+      }
+      // Add the `type` to the error to properly compare and visualize it.
+      if (!('type' in error))
+        error.type = constructor;
+    }
+
+    if ('message' in settings &&
+        typeof settings.message === 'object' &&
+        settings.message.test(error.message)) {
+      // Make a copy so we are able to modify the settings.
+      innerSettings = Object.create(
+        settings, Object.getOwnPropertyDescriptors(settings));
+      // Visualize the message as identical in case of other errors.
+      innerSettings.message = error.message;
+    }
+
+    // Check all error properties.
+    const keys = Object.keys(settings);
+    for (const key of keys) {
+      if (!util.isDeepStrictEqual(error[key], innerSettings[key])) {
+        // Create placeholder objects to create a nice output.
+        const a = new Comparison(error, keys);
+        const b = new Comparison(innerSettings, keys);
+
+        const tmpLimit = Error.stackTraceLimit;
+        Error.stackTraceLimit = 0;
+        const err = new assert.AssertionError({
+          actual: a,
+          expected: b,
+          operator: 'strictEqual',
+          stackStartFn: assert.throws
+        });
+        Error.stackTraceLimit = tmpLimit;
+
+        throw new assert.AssertionError({
+          actual: error,
+          expected: settings,
+          operator: 'common.expectsError',
+          message: err.message
+        });
+      }
+
+    }
     return true;
-  }, exact);
+  }
+  if (fn) {
+    assert.throws(fn, innerFn);
+    return;
+  }
+  return mustCall(innerFn, exact);
+}
+
+const suffix = 'This is caused by either a bug in Node.js ' +
+  'or incorrect usage of Node.js internals.\n' +
+  'Please open an issue with this stack trace at ' +
+  'https://github.com/nodejs/node/issues\n';
+
+function expectsInternalAssertion(fn, message) {
+  assert.throws(fn, {
+    message: `${message}\n${suffix}`,
+    name: 'Error',
+    code: 'ERR_INTERNAL_ASSERTION'
+  });
 }
 
 function skipIfInspectorDisabled() {
   if (!process.features.inspector) {
     skip('V8 inspector is disabled');
+  }
+}
+
+function skipIfReportDisabled() {
+  if (!process.config.variables.node_report) {
+    skip('Diagnostic reporting is disabled');
   }
 }
 
@@ -613,8 +700,11 @@ function getBufferSources(buf) {
   return [...getArrayBufferViews(buf), new Uint8Array(buf).buffer];
 }
 
+// Crash the process on unhandled rejections.
+const crashOnUnhandledRejection = (err) => { throw err; };
+process.on('unhandledRejection', crashOnUnhandledRejection);
 function disableCrashOnUnhandledRejection() {
-  process.on('unhandledRejection', () => {});
+  process.removeListener('unhandledRejection', crashOnUnhandledRejection);
 }
 
 function getTTYfd() {
@@ -647,94 +737,32 @@ function runWithInvalidFD(func) {
   printSkipMessage('Could not generate an invalid fd');
 }
 
-// A helper function to simplify checking for ERR_INVALID_ARG_TYPE output.
-function invalidArgTypeHelper(input) {
-  if (input == null) {
-    return ` Received ${input}`;
-  }
-  if (typeof input === 'function' && input.name) {
-    return ` Received function ${input.name}`;
-  }
-  if (typeof input === 'object') {
-    if (input.constructor && input.constructor.name) {
-      return ` Received an instance of ${input.constructor.name}`;
-    }
-    return ` Received ${util.inspect(input, { depth: -1 })}`;
-  }
-  let inspected = util.inspect(input, { colors: false });
-  if (inspected.length > 25)
-    inspected = `${inspected.slice(0, 25)}...`;
-  return ` Received type ${typeof input} (${inspected})`;
-}
-
-function skipIfDumbTerminal() {
-  if (isDumbTerminal) {
-    skip('skipping - dumb terminal');
-  }
-}
-
-function gcUntil(name, condition) {
-  if (typeof name === 'function') {
-    condition = name;
-    name = undefined;
-  }
-  return new Promise((resolve, reject) => {
-    let count = 0;
-    function gcAndCheck() {
-      setImmediate(() => {
-        count++;
-        global.gc();
-        if (condition()) {
-          resolve();
-        } else if (count < 10) {
-          gcAndCheck();
-        } else {
-          reject(name === undefined ? undefined : 'Test ' + name + ' failed');
-        }
-      });
-    }
-    gcAndCheck();
-  });
-}
-
-function requireNoPackageJSONAbove() {
-  let possiblePackage = path.join(__dirname, '..', 'package.json');
-  let lastPackage = null;
-  while (possiblePackage !== lastPackage) {
-    if (fs.existsSync(possiblePackage)) {
-      assert.fail(
-        'This test shouldn\'t load properties from a package.json above ' +
-        `its file location. Found package.json at ${possiblePackage}.`);
-    }
-    lastPackage = possiblePackage;
-    possiblePackage = path.join(possiblePackage, '..', '..', 'package.json');
-  }
-}
-
-const common = {
+module.exports = {
   allowGlobals,
   buildType,
+  busyLoop,
   canCreateSymLink,
   childShouldThrowAndAbort,
   createZeroFilledFile,
   disableCrashOnUnhandledRejection,
+  enoughTestCpu,
+  enoughTestMem,
   expectsError,
+  expectsInternalAssertion,
   expectWarning,
-  gcUntil,
   getArrayBufferViews,
   getBufferSources,
   getCallSite,
   getTTYfd,
   hasIntl,
   hasCrypto,
-  hasQuic,
+  hasIPv6,
   hasMultiLocalhost,
-  invalidArgTypeHelper,
   isAIX,
   isAlive,
-  isDumbTerminal,
   isFreeBSD,
   isLinux,
+  isLinuxPPCBE,
   isMainThread,
   isOpenBSD,
   isOSX,
@@ -744,41 +772,24 @@ const common = {
   mustCall,
   mustCallAtLeast,
   mustNotCall,
-  mustSucceed,
   nodeProcessAborted,
   PIPE,
   platformTimeout,
   printSkipMessage,
   pwdCommand,
-  requireNoPackageJSONAbove,
+  rootDir,
   runWithInvalidFD,
   skip,
   skipIf32Bits,
-  skipIfDumbTerminal,
   skipIfEslintMissing,
   skipIfInspectorDisabled,
+  skipIfReportDisabled,
   skipIfWorker,
 
-  get enoughTestCpu() {
-    const cpus = require('os').cpus();
-    return Array.isArray(cpus) && (cpus.length > 1 || cpus[0].speed > 999);
-  },
-
-  get enoughTestMem() {
-    return require('os').totalmem() > 0x70000000; /* 1.75 Gb */
-  },
+  get localhostIPv6() { return '::1'; },
 
   get hasFipsCrypto() {
     return hasCrypto && require('crypto').getFips();
-  },
-
-  get hasIPv6() {
-    const iFaces = require('os').networkInterfaces();
-    const re = isWindows ? /Loopback Pseudo-Interface/ : /lo/;
-    return Object.keys(iFaces).some((name) => {
-      return re.test(name) &&
-             iFaces[name].some(({ family }) => family === 'IPv6');
-    });
   },
 
   get inFreeBSDJail() {
@@ -791,17 +802,6 @@ const common = {
       inFreeBSDJail = false;
     }
     return inFreeBSDJail;
-  },
-
-  // On IBMi, process.platform and os.platform() both return 'aix',
-  // It is not enough to differentiate between IBMi and real AIX system.
-  get isIBMi() {
-    return require('os').type() === 'OS400';
-  },
-
-  get isLinuxPPCBE() {
-    return (process.platform === 'linux') && (process.arch === 'ppc64') &&
-           (require('os').endianness() === 'BE');
   },
 
   get localhostIPv4() {
@@ -855,12 +855,3 @@ const common = {
   }
 
 };
-
-const validProperties = new Set(Object.keys(common));
-module.exports = new Proxy(common, {
-  get(obj, prop) {
-    if (!validProperties.has(prop))
-      throw new Error(`Using invalid common property: '${prop}'`);
-    return obj[prop];
-  }
-});

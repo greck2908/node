@@ -226,7 +226,7 @@ AnyTransliterator::AnyTransliterator(const AnyTransliterator& o) :
 /**
  * Transliterator API.
  */
-AnyTransliterator* AnyTransliterator::clone() const {
+Transliterator* AnyTransliterator::clone() const {
     return new AnyTransliterator(*this);
 }
 

@@ -21,11 +21,9 @@ namespace v8 {
 namespace internal {
 namespace compiler {
 
-Int64Lowering::Int64Lowering(
-    Graph* graph, MachineOperatorBuilder* machine,
-    CommonOperatorBuilder* common, Zone* zone,
-    Signature<MachineRepresentation>* signature,
-    std::unique_ptr<Int64LoweringSpecialCase> special_case)
+Int64Lowering::Int64Lowering(Graph* graph, MachineOperatorBuilder* machine,
+                             CommonOperatorBuilder* common, Zone* zone,
+                             Signature<MachineRepresentation>* signature)
     : zone_(zone),
       graph_(graph),
       machine_(machine),
@@ -34,9 +32,8 @@ Int64Lowering::Int64Lowering(
       stack_(zone),
       replacements_(nullptr),
       signature_(signature),
-      placeholder_(
-          graph->NewNode(common->Parameter(-2, "placeholder"), graph->start())),
-      special_case_(std::move(special_case)) {
+      placeholder_(graph->NewNode(common->Parameter(-2, "placeholder"),
+                                  graph->start())) {
   DCHECK_NOT_NULL(graph);
   DCHECK_NOT_NULL(graph->end());
   replacements_ = zone->NewArray<Replacement>(graph->NodeCount());
@@ -80,7 +77,7 @@ void Int64Lowering::LowerGraph() {
 
 namespace {
 
-int GetReturnIndexAfterLowering(const CallDescriptor* call_descriptor,
+int GetReturnIndexAfterLowering(CallDescriptor* call_descriptor,
                                 int old_index) {
   int result = old_index;
   for (int i = 0; i < old_index; i++) {
@@ -92,7 +89,7 @@ int GetReturnIndexAfterLowering(const CallDescriptor* call_descriptor,
   return result;
 }
 
-int GetReturnCountAfterLowering(const CallDescriptor* call_descriptor) {
+int GetReturnCountAfterLowering(CallDescriptor* call_descriptor) {
   return GetReturnIndexAfterLowering(
       call_descriptor, static_cast<int>(call_descriptor->ReturnCount()));
 }
@@ -100,10 +97,7 @@ int GetReturnCountAfterLowering(const CallDescriptor* call_descriptor) {
 int GetParameterIndexAfterLowering(
     Signature<MachineRepresentation>* signature, int old_index) {
   int result = old_index;
-  // Be robust towards special indexes (>= param count).
-  int max_to_check =
-      std::min(old_index, static_cast<int>(signature->parameter_count()));
-  for (int i = 0; i < max_to_check; i++) {
+  for (int i = 0; i < old_index; i++) {
     if (signature->GetParam(i) == MachineRepresentation::kWord64) {
       result++;
     }
@@ -148,16 +142,16 @@ int Int64Lowering::GetParameterCountAfterLowering(
       signature, static_cast<int>(signature->parameter_count()));
 }
 
-void Int64Lowering::GetIndexNodes(Node* index, Node** index_low,
-                                  Node** index_high) {
+void Int64Lowering::GetIndexNodes(Node* index, Node*& index_low,
+                                  Node*& index_high) {
 #if defined(V8_TARGET_LITTLE_ENDIAN)
-  *index_low = index;
-  *index_high = graph()->NewNode(machine()->Int32Add(), index,
-                                 graph()->NewNode(common()->Int32Constant(4)));
-#elif defined(V8_TARGET_BIG_ENDIAN)
-  *index_low = graph()->NewNode(machine()->Int32Add(), index,
+  index_low = index;
+  index_high = graph()->NewNode(machine()->Int32Add(), index,
                                 graph()->NewNode(common()->Int32Constant(4)));
-  *index_high = index;
+#elif defined(V8_TARGET_BIG_ENDIAN)
+  index_low = graph()->NewNode(machine()->Int32Add(), index,
+                               graph()->NewNode(common()->Int32Constant(4)));
+  index_high = index;
 #endif
 }
 
@@ -188,7 +182,7 @@ void Int64Lowering::LowerNode(Node* node) {
         Node* index = node->InputAt(1);
         Node* index_low;
         Node* index_high;
-        GetIndexNodes(index, &index_low, &index_high);
+        GetIndexNodes(index, index_low, index_high);
         const Operator* load_op;
 
         if (node->opcode() == IrOpcode::kLoad) {
@@ -238,7 +232,7 @@ void Int64Lowering::LowerNode(Node* node) {
         Node* index = node->InputAt(1);
         Node* index_low;
         Node* index_high;
-        GetIndexNodes(index, &index_low, &index_high);
+        GetIndexNodes(index, index_low, index_high);
         Node* value = node->InputAt(2);
         DCHECK(HasReplacementLow(value));
         DCHECK(HasReplacementHigh(value));
@@ -297,18 +291,18 @@ void Int64Lowering::LowerNode(Node* node) {
       // changes.
       if (GetParameterCountAfterLowering(signature()) != param_count) {
         int old_index = ParameterIndexOf(node->op());
+        // Prevent special lowering of wasm's instance or JS
+        // context/closure parameters.
+        if (old_index <= 0 || old_index > param_count) {
+          DefaultLowering(node);
+          break;
+        }
         // Adjust old_index to be compliant with the signature.
         --old_index;
         int new_index = GetParameterIndexAfterLowering(signature(), old_index);
         // Adjust new_index to consider the instance parameter.
         ++new_index;
         NodeProperties::ChangeOp(node, common()->Parameter(new_index));
-
-        if (old_index < 0 || old_index >= param_count) {
-          // Special parameters (JS closure/context) don't have kWord64
-          // representation anyway.
-          break;
-        }
 
         if (signature()->GetParam(old_index) ==
             MachineRepresentation::kWord64) {
@@ -339,21 +333,21 @@ void Int64Lowering::LowerNode(Node* node) {
       if (DefaultLowering(node) || returns_require_lowering) {
         // Tail calls do not have return values, so adjusting the call
         // descriptor is enough.
-        NodeProperties::ChangeOp(
-            node, common()->TailCall(LowerCallDescriptor(call_descriptor)));
+        auto new_descriptor = GetI32WasmCallDescriptor(zone(), call_descriptor);
+        NodeProperties::ChangeOp(node, common()->TailCall(new_descriptor));
       }
       break;
     }
     case IrOpcode::kCall: {
-      auto call_descriptor = CallDescriptorOf(node->op());
-
+      auto call_descriptor =
+          const_cast<CallDescriptor*>(CallDescriptorOf(node->op()));
       bool returns_require_lowering =
           GetReturnCountAfterLowering(call_descriptor) !=
           static_cast<int>(call_descriptor->ReturnCount());
       if (DefaultLowering(node) || returns_require_lowering) {
         // We have to adjust the call descriptor.
-        NodeProperties::ChangeOp(
-            node, common()->Call(LowerCallDescriptor(call_descriptor)));
+        NodeProperties::ChangeOp(node, common()->Call(GetI32WasmCallDescriptor(
+                                           zone(), call_descriptor)));
       }
       if (returns_require_lowering) {
         size_t return_arity = call_descriptor->ReturnCount();
@@ -670,9 +664,6 @@ void Int64Lowering::LowerNode(Node* node) {
       ReplaceNode(node, low_node, high_node);
       break;
     }
-    case IrOpcode::kWord64Rol:
-      DCHECK(machine()->Word32Rol().IsSupported());
-      V8_FALLTHROUGH;
     case IrOpcode::kWord64Ror: {
       DCHECK_EQ(2, node->InputCount());
       Node* input = node->InputAt(0);
@@ -705,19 +696,14 @@ void Int64Lowering::LowerNode(Node* node) {
           Node* inv_shift = graph()->NewNode(
               common()->Int32Constant(32 - masked_shift_value));
 
-          auto* op1 = machine()->Word32Shr();
-          auto* op2 = machine()->Word32Shl();
-          bool is_ror = node->opcode() == IrOpcode::kWord64Ror;
-          if (!is_ror) std::swap(op1, op2);
-
-          Node* low_node =
-              graph()->NewNode(machine()->Word32Or(),
-                               graph()->NewNode(op1, low_input, masked_shift),
-                               graph()->NewNode(op2, high_input, inv_shift));
-          Node* high_node =
-              graph()->NewNode(machine()->Word32Or(),
-                               graph()->NewNode(op1, high_input, masked_shift),
-                               graph()->NewNode(op2, low_input, inv_shift));
+          Node* low_node = graph()->NewNode(
+              machine()->Word32Or(),
+              graph()->NewNode(machine()->Word32Shr(), low_input, masked_shift),
+              graph()->NewNode(machine()->Word32Shl(), high_input, inv_shift));
+          Node* high_node = graph()->NewNode(
+              machine()->Word32Or(), graph()->NewNode(machine()->Word32Shr(),
+                                                      high_input, masked_shift),
+              graph()->NewNode(machine()->Word32Shl(), low_input, inv_shift));
           ReplaceNode(node, low_node, high_node);
         }
       } else {
@@ -728,19 +714,15 @@ void Int64Lowering::LowerNode(Node* node) {
                                graph()->NewNode(common()->Int32Constant(0x1F)));
         }
 
-        bool is_ror = node->opcode() == IrOpcode::kWord64Ror;
-        Node* inv_mask =
-            is_ror ? graph()->NewNode(
-                         machine()->Word32Xor(),
-                         graph()->NewNode(
-                             machine()->Word32Shr(),
-                             graph()->NewNode(common()->Int32Constant(-1)),
+        // By creating this bit-mask with SAR and SHL we do not have to deal
+        // with shift == 0 as a special case.
+        Node* inv_mask = graph()->NewNode(
+            machine()->Word32Shl(),
+            graph()->NewNode(machine()->Word32Sar(),
+                             graph()->NewNode(common()->Int32Constant(
+                                 std::numeric_limits<int32_t>::min())),
                              safe_shift),
-                         graph()->NewNode(common()->Int32Constant(-1)))
-                   : graph()->NewNode(
-                         machine()->Word32Shl(),
-                         graph()->NewNode(common()->Int32Constant(-1)),
-                         safe_shift);
+            graph()->NewNode(common()->Int32Constant(1)));
 
         Node* bit_mask =
             graph()->NewNode(machine()->Word32Xor(), inv_mask,
@@ -771,24 +753,21 @@ void Int64Lowering::LowerNode(Node* node) {
             lt32.Phi(MachineRepresentation::kWord32, GetReplacementHigh(input),
                      GetReplacementLow(input));
 
-        const Operator* oper =
-            is_ror ? machine()->Word32Ror() : machine()->Word32Rol().op();
-
-        Node* rotate_low = graph()->NewNode(oper, input_low, safe_shift);
-        Node* rotate_high = graph()->NewNode(oper, input_high, safe_shift);
-
-        auto* mask1 = bit_mask;
-        auto* mask2 = inv_mask;
-        if (!is_ror) std::swap(mask1, mask2);
+        Node* rotate_low =
+            graph()->NewNode(machine()->Word32Ror(), input_low, safe_shift);
+        Node* rotate_high =
+            graph()->NewNode(machine()->Word32Ror(), input_high, safe_shift);
 
         Node* low_node = graph()->NewNode(
             machine()->Word32Or(),
-            graph()->NewNode(machine()->Word32And(), rotate_low, mask1),
-            graph()->NewNode(machine()->Word32And(), rotate_high, mask2));
+            graph()->NewNode(machine()->Word32And(), rotate_low, bit_mask),
+            graph()->NewNode(machine()->Word32And(), rotate_high, inv_mask));
+
         Node* high_node = graph()->NewNode(
             machine()->Word32Or(),
-            graph()->NewNode(machine()->Word32And(), rotate_high, mask1),
-            graph()->NewNode(machine()->Word32And(), rotate_low, mask2));
+            graph()->NewNode(machine()->Word32And(), rotate_high, bit_mask),
+            graph()->NewNode(machine()->Word32And(), rotate_low, inv_mask));
+
         ReplaceNode(node, low_node, high_node);
       }
       break;
@@ -972,32 +951,6 @@ void Int64Lowering::LowerNode(Node* node) {
       }
       break;
     }
-    case IrOpcode::kI64x2Splat: {
-      DCHECK_EQ(1, node->InputCount());
-      Node* input = node->InputAt(0);
-      node->ReplaceInput(0, GetReplacementLow(input));
-      node->AppendInput(zone(), GetReplacementHigh(input));
-      NodeProperties::ChangeOp(node, machine()->I64x2SplatI32Pair());
-      break;
-    }
-    case IrOpcode::kI64x2ExtractLane: {
-      DCHECK_EQ(1, node->InputCount());
-      Node* input = node->InputAt(0);
-      int32_t lane = OpParameter<int32_t>(node->op());
-      ReplaceNode(
-          node, graph()->NewNode(machine()->I32x4ExtractLane(lane * 2), input),
-          graph()->NewNode(machine()->I32x4ExtractLane(lane * 2 + 1), input));
-      break;
-    }
-    case IrOpcode::kI64x2ReplaceLane: {
-      DCHECK_EQ(2, node->InputCount());
-      int32_t lane = OpParameter<int32_t>(node->op());
-      Node* input = node->InputAt(1);
-      node->ReplaceInput(1, GetReplacementLow(input));
-      node->AppendInput(zone(), GetReplacementHigh(input));
-      NodeProperties::ChangeOp(node, machine()->I64x2ReplaceLaneI32Pair(lane));
-      break;
-    }
 
     default: { DefaultLowering(node); }
   }
@@ -1036,17 +989,6 @@ bool Int64Lowering::DefaultLowering(Node* node, bool low_word_only) {
     }
   }
   return something_changed;
-}
-
-const CallDescriptor* Int64Lowering::LowerCallDescriptor(
-    const CallDescriptor* call_descriptor) {
-  if (special_case_) {
-    auto replacement = special_case_->replacements.find(call_descriptor);
-    if (replacement != special_case_->replacements.end()) {
-      return replacement->second;
-    }
-  }
-  return GetI32WasmCallDescriptor(zone(), call_descriptor);
 }
 
 void Int64Lowering::ReplaceNode(Node* old, Node* new_low, Node* new_high) {

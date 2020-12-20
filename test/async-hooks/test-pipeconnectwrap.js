@@ -8,7 +8,8 @@ const { checkInvocations } = require('./hook-checks');
 const tmpdir = require('../common/tmpdir');
 const net = require('net');
 
-tmpdir.refresh();
+// Spawning messes up `async_hooks` state.
+tmpdir.refresh({ spawn: false });
 
 const hooks = initHooks();
 hooks.enable();
@@ -16,9 +17,9 @@ let pipe1, pipe2;
 let pipeserver;
 let pipeconnect;
 
-const server = net.createServer(common.mustCall((c) => {
+net.createServer(common.mustCall(function(c) {
   c.end();
-  server.close();
+  this.close();
   process.nextTick(maybeOnconnect.bind(null, 'server'));
 })).listen(common.PIPE, common.mustCall(onlisten));
 

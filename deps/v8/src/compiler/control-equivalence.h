@@ -6,9 +6,9 @@
 #define V8_COMPILER_CONTROL_EQUIVALENCE_H_
 
 #include "src/base/compiler-specific.h"
-#include "src/common/globals.h"
 #include "src/compiler/graph.h"
 #include "src/compiler/node.h"
+#include "src/globals.h"
 #include "src/zone/zone-containers.h"
 
 namespace v8 {
@@ -136,7 +136,7 @@ class V8_EXPORT_PRIVATE ControlEquivalence final
   void AllocateData(Node* node) {
     size_t const index = node->id();
     if (index >= node_data_.size()) node_data_.resize(index + 1);
-    node_data_[index] = zone_->New<NodeData>(zone_);
+    node_data_[index] = new (zone_) NodeData(zone_);
   }
 
   int NewClassNumber() { return class_number_++; }

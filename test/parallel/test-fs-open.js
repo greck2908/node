@@ -29,7 +29,7 @@ let caughtException = false;
 try {
   // Should throw ENOENT, not EBADF
   // see https://github.com/joyent/node/pull/1228
-  fs.openSync('/8hvftyuncxrt/path/to/file/that/does/not/exist', 'r');
+  fs.openSync('/path/to/file/that/does/not/exist', 'r');
 } catch (e) {
   assert.strictEqual(e.code, 'ENOENT');
   caughtException = true;
@@ -38,15 +38,25 @@ assert.strictEqual(caughtException, true);
 
 fs.openSync(__filename);
 
-fs.open(__filename, common.mustSucceed());
+fs.open(__filename, common.mustCall((err) => {
+  assert.ifError(err);
+}));
 
-fs.open(__filename, 'r', common.mustSucceed());
+fs.open(__filename, 'r', common.mustCall((err) => {
+  assert.ifError(err);
+}));
 
-fs.open(__filename, 'rs', common.mustSucceed());
+fs.open(__filename, 'rs', common.mustCall((err) => {
+  assert.ifError(err);
+}));
 
-fs.open(__filename, 'r', 0, common.mustSucceed());
+fs.open(__filename, 'r', 0, common.mustCall((err) => {
+  assert.ifError(err);
+}));
 
-fs.open(__filename, 'r', null, common.mustSucceed());
+fs.open(__filename, 'r', null, common.mustCall((err) => {
+  assert.ifError(err);
+}));
 
 async function promise() {
   await fs.promises.open(__filename);
@@ -55,37 +65,37 @@ async function promise() {
 
 promise().then(common.mustCall()).catch(common.mustNotCall());
 
-assert.throws(
+common.expectsError(
   () => fs.open(__filename, 'r', 'boom', common.mustNotCall()),
   {
     code: 'ERR_INVALID_ARG_VALUE',
-    name: 'TypeError'
+    type: TypeError
   }
 );
 
 for (const extra of [[], ['r'], ['r', 0], ['r', 0, 'bad callback']]) {
-  assert.throws(
+  common.expectsError(
     () => fs.open(__filename, ...extra),
     {
       code: 'ERR_INVALID_CALLBACK',
-      name: 'TypeError'
+      type: TypeError
     }
   );
 }
 
 [false, 1, [], {}, null, undefined].forEach((i) => {
-  assert.throws(
+  common.expectsError(
     () => fs.open(i, 'r', common.mustNotCall()),
     {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError'
+      type: TypeError
     }
   );
-  assert.throws(
+  common.expectsError(
     () => fs.openSync(i, 'r', common.mustNotCall()),
     {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError'
+      type: TypeError
     }
   );
   assert.rejects(

@@ -1,5 +1,3 @@
-#include <js_native_api.h>
-
 // Empty value so that macros here are able to return NULL or void
 #define NAPI_RETVAL_NOTHING  // Intentionally blank #define
 
@@ -60,12 +58,3 @@
 
 #define DECLARE_NAPI_GETTER(name, func)                                  \
   { (name), NULL, NULL, (func), NULL, NULL, napi_default, NULL }
-
-void add_returned_status(napi_env env,
-                         const char* key,
-                         napi_value object,
-                         char* expected_message,
-                         napi_status expected_status,
-                         napi_status actual_status);
-
-void add_last_status(napi_env env, const char* key, napi_value return_value);

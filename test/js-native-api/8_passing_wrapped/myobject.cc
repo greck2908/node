@@ -51,9 +51,10 @@ napi_value MyObject::New(napi_env env, napi_callback_info info) {
 
   obj->env_ = env;
 
-  // The below call to napi_wrap() must request a reference to the wrapped
-  // object via the out-parameter, because this ensures that we test the code
-  // path that deals with a reference that is destroyed from its own finalizer.
+  // It is important that the below call to napi_wrap() be such that we request
+  // a reference to the wrapped object via the out-parameter, because this
+  // ensures that we test the code path that deals with a reference that is
+  // destroyed from its own finalizer.
   NAPI_CALL(env, napi_wrap(env,
                           _this,
                           obj,

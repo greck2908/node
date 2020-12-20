@@ -907,7 +907,6 @@ $L$SEH_begin_aesni_ccm64_encrypt_blocks:
 	mov	r9,QWORD[48+rsp]
 
 
-
 	lea	rsp,[((-88))+rsp]
 	movaps	XMMWORD[rsp],xmm6
 	movaps	XMMWORD[16+rsp],xmm7
@@ -984,7 +983,6 @@ $L$ccm64_enc_ret:
 	mov	rdi,QWORD[8+rsp]	;WIN64 epilogue
 	mov	rsi,QWORD[16+rsp]
 	DB	0F3h,0C3h		;repret
-
 $L$SEH_end_aesni_ccm64_encrypt_blocks:
 global	aesni_ccm64_decrypt_blocks
 
@@ -1000,7 +998,6 @@ $L$SEH_begin_aesni_ccm64_decrypt_blocks:
 	mov	rcx,r9
 	mov	r8,QWORD[40+rsp]
 	mov	r9,QWORD[48+rsp]
-
 
 
 	lea	rsp,[((-88))+rsp]
@@ -1113,7 +1110,6 @@ $L$ccm64_dec_ret:
 	mov	rdi,QWORD[8+rsp]	;WIN64 epilogue
 	mov	rsi,QWORD[16+rsp]
 	DB	0F3h,0C3h		;repret
-
 $L$SEH_end_aesni_ccm64_decrypt_blocks:
 global	aesni_ctr32_encrypt_blocks
 
@@ -3023,7 +3019,6 @@ $L$SEH_end_aesni_ocb_encrypt:
 
 ALIGN	32
 __ocb_encrypt6:
-
 	pxor	xmm15,xmm9
 	movdqu	xmm11,XMMWORD[r12*1+rbx]
 	movdqa	xmm12,xmm10
@@ -3124,10 +3119,8 @@ DB	102,65,15,56,221,255
 
 
 
-
 ALIGN	32
 __ocb_encrypt4:
-
 	pxor	xmm15,xmm9
 	movdqu	xmm11,XMMWORD[r12*1+rbx]
 	movdqa	xmm12,xmm10
@@ -3195,10 +3188,8 @@ DB	102,65,15,56,221,237
 
 
 
-
 ALIGN	32
 __ocb_encrypt1:
-
 	pxor	xmm7,xmm15
 	pxor	xmm7,xmm9
 	pxor	xmm8,xmm2
@@ -3229,7 +3220,6 @@ DB	102,15,56,220,209
 
 DB	102,15,56,221,215
 	DB	0F3h,0C3h		;repret
-
 
 
 global	aesni_ocb_decrypt
@@ -3503,7 +3493,6 @@ $L$SEH_end_aesni_ocb_decrypt:
 
 ALIGN	32
 __ocb_decrypt6:
-
 	pxor	xmm15,xmm9
 	movdqu	xmm11,XMMWORD[r12*1+rbx]
 	movdqa	xmm12,xmm10
@@ -3598,10 +3587,8 @@ DB	102,65,15,56,223,255
 
 
 
-
 ALIGN	32
 __ocb_decrypt4:
-
 	pxor	xmm15,xmm9
 	movdqu	xmm11,XMMWORD[r12*1+rbx]
 	movdqa	xmm12,xmm10
@@ -3665,10 +3652,8 @@ DB	102,65,15,56,223,237
 
 
 
-
 ALIGN	32
 __ocb_decrypt1:
-
 	pxor	xmm7,xmm15
 	pxor	xmm7,xmm9
 	pxor	xmm2,xmm7
@@ -3698,7 +3683,6 @@ DB	102,15,56,222,209
 
 DB	102,15,56,223,215
 	DB	0F3h,0C3h		;repret
-
 
 global	aesni_cbc_encrypt
 
@@ -4678,6 +4662,7 @@ $L$enc_key_ret:
 	add	rsp,8
 
 	DB	0F3h,0C3h		;repret
+
 $L$SEH_end_set_encrypt_key:
 
 ALIGN	16
@@ -4748,7 +4733,6 @@ $L$key_expansion_256b:
 	shufps	xmm1,xmm1,170
 	xorps	xmm2,xmm1
 	DB	0F3h,0C3h		;repret
-
 
 
 ALIGN	64

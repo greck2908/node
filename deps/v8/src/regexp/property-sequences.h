@@ -7,7 +7,7 @@
 
 #ifdef V8_INTL_SUPPORT
 
-#include "src/common/globals.h"
+#include "src/globals.h"
 
 namespace v8 {
 namespace internal {

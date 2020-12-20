@@ -12,7 +12,6 @@ function f(osr_and_recurse) {
     for (var i = 0; i < 3; ++i) {
       if (i == 1) %OptimizeOsr();
     }
-    %PrepareFunctionForOptimization(f);
     %OptimizeFunctionOnNextCall(f);
     f(false);     // Trigger tier-up due to recursive call.
     boom(this);   // Causes a deopt due to below dependency.
@@ -21,7 +20,6 @@ function f(osr_and_recurse) {
   }
   return 65;
 }
-%PrepareFunctionForOptimization(f);
 assertEquals(65, f(false));
 assertEquals(65, f(false));
 assertEquals(42, f(true));

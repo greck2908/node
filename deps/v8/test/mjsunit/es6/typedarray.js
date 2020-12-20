@@ -46,10 +46,11 @@ function TestArrayBufferCreation() {
   assertThrows(function() { new ArrayBuffer(-10); }, RangeError);
   assertThrows(function() { new ArrayBuffer(-2.567); }, RangeError);
 
+/* TODO[dslomov]: Reenable the test
   assertThrows(function() {
-    let kArrayBufferByteLengthLimit = %ArrayBufferMaxByteLength() + 1;
-    var ab1 = new ArrayBuffer(kArrayBufferByteLengthLimit);
+    var ab1 = new ArrayBuffer(0xFFFFFFFFFFFF)
   }, RangeError);
+*/
 
   var ab = new ArrayBuffer();
   assertSame(0, ab.byteLength);
@@ -814,10 +815,10 @@ function TestTypedArraysWithIllegalIndicesStrict() {
   assertEquals(255, a[s2]);
   assertEquals(0, a[-0]);
 
-
-  a[-Infinity] = 50;
-  assertEquals(undefined, a[-Infinity]);
-
+  /* Chromium bug: 424619
+   * a[-Infinity] = 50;
+   * assertEquals(undefined, a[-Infinity]);
+   */
   a[1.5] = 10;
   assertEquals(undefined, a[1.5]);
   var nan = Math.sqrt(-1);
@@ -992,9 +993,8 @@ for(i = 0; i < typedArrayConstructors.length; i++) {
 })();
 
 (function TestBufferLengthTooLong() {
-  const kLength = %TypedArrayMaxLength() + 1;
   try {
-    var buf = new ArrayBuffer(kLength);
+    var buf = new ArrayBuffer(2147483648);
   } catch (e) {
     // The ArrayBuffer allocation fails on 32-bit archs, so no need to try to
     // construct the typed array.

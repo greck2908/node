@@ -4,7 +4,6 @@
 // With the twist that we specifically test for Node.js error codes
 
 const common = require('../common');
-const assert = require('assert');
 
 if (!common.hasIntl)
   common.skip('missing Intl');
@@ -16,13 +15,13 @@ if (!common.hasIntl)
     { encoding: 'utf-16be', sequence: [0x00] }
   ].forEach((testCase) => {
     const data = new Uint8Array([testCase.sequence]);
-    assert.throws(
+    common.expectsError(
       () => {
         const decoder = new TextDecoder(testCase.encoding, { fatal: true });
         decoder.decode(data);
       }, {
         code: 'ERR_ENCODING_INVALID_ENCODED_DATA',
-        name: 'TypeError',
+        type: TypeError,
         message:
           `The encoded data was not valid for encoding ${testCase.encoding}`
       }
@@ -35,25 +34,25 @@ if (!common.hasIntl)
   const odd = new Uint8Array([0x00]);
   const even = new Uint8Array([0x00, 0x00]);
 
-  assert.throws(
+  common.expectsError(
     () => {
       decoder.decode(even, { stream: true });
       decoder.decode(odd);
     }, {
       code: 'ERR_ENCODING_INVALID_ENCODED_DATA',
-      name: 'TypeError',
+      type: TypeError,
       message:
         'The encoded data was not valid for encoding utf-16le'
     }
   );
 
-  assert.throws(
+  common.expectsError(
     () => {
       decoder.decode(odd, { stream: true });
       decoder.decode(even);
     }, {
       code: 'ERR_ENCODING_INVALID_ENCODED_DATA',
-      name: 'TypeError',
+      type: TypeError,
       message:
         'The encoded data was not valid for encoding utf-16le'
     }

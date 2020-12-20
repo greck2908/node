@@ -1,11 +1,9 @@
 'use strict';
-const common = require('../common');
+require('../common');
 const ArrayStream = require('../common/arraystream');
 const fixtures = require('../common/fixtures');
 const assert = require('assert');
 const repl = require('repl');
-
-common.skipIfDumbTerminal();
 
 const command = `.load ${fixtures.path('repl-load-multiline.js')}`;
 const terminalCode = '\u001b[1G\u001b[0J \u001b[1G';

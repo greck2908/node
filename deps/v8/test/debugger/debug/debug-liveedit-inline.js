@@ -12,9 +12,8 @@ eval("var something1 = 25; "
 
 function foo() {  return ChooseAnimal() }
 
-%PrepareFunctionForOptimization(foo);
 assertEquals("Cat", foo());
-%OptimizeFunctionOnNextCall(foo);
+    %OptimizeFunctionOnNextCall(foo);
 
 foo();
 

@@ -3,62 +3,79 @@
 
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
 
-#include "allocated_buffer-inl.h"
-#include "async_wrap-inl.h"
-#include "base_object-inl.h"
-#include "node.h"
 #include "stream_base.h"
+
+#include "node.h"
+#include "env-inl.h"
 #include "v8.h"
 
 namespace node {
 
-StreamReq::StreamReq(
-    StreamBase* stream,
-    v8::Local<v8::Object> req_wrap_obj) : stream_(stream) {
-  AttachToObject(req_wrap_obj);
-}
+using v8::Signature;
+using v8::FunctionCallbackInfo;
+using v8::FunctionTemplate;
+using v8::HandleScope;
+using v8::Local;
+using v8::Object;
+using v8::PropertyAttribute;
+using v8::PropertyCallbackInfo;
+using v8::String;
+using v8::Value;
 
-void StreamReq::AttachToObject(v8::Local<v8::Object> req_wrap_obj) {
-  CHECK_EQ(req_wrap_obj->GetAlignedPointerFromInternalField(
-               StreamReq::kStreamReqField),
+inline void StreamReq::AttachToObject(v8::Local<v8::Object> req_wrap_obj) {
+  CHECK_EQ(req_wrap_obj->GetAlignedPointerFromInternalField(kStreamReqField),
            nullptr);
-  req_wrap_obj->SetAlignedPointerInInternalField(
-      StreamReq::kStreamReqField, this);
+  req_wrap_obj->SetAlignedPointerInInternalField(kStreamReqField, this);
 }
 
-StreamReq* StreamReq::FromObject(v8::Local<v8::Object> req_wrap_obj) {
+inline StreamReq* StreamReq::FromObject(v8::Local<v8::Object> req_wrap_obj) {
   return static_cast<StreamReq*>(
-      req_wrap_obj->GetAlignedPointerFromInternalField(
-          StreamReq::kStreamReqField));
+      req_wrap_obj->GetAlignedPointerFromInternalField(kStreamReqField));
 }
 
-void StreamReq::Dispose() {
-  BaseObjectPtr<AsyncWrap> destroy_me{GetAsyncWrap()};
-  object()->SetAlignedPointerInInternalField(
-      StreamReq::kStreamReqField, nullptr);
-  destroy_me->Detach();
+inline void StreamReq::Dispose() {
+  object()->SetAlignedPointerInInternalField(kStreamReqField, nullptr);
+  delete this;
 }
 
-v8::Local<v8::Object> StreamReq::object() {
+inline v8::Local<v8::Object> StreamReq::object() {
   return GetAsyncWrap()->object();
 }
 
-ShutdownWrap::ShutdownWrap(
-    StreamBase* stream,
-    v8::Local<v8::Object> req_wrap_obj)
-    : StreamReq(stream, req_wrap_obj) { }
+inline StreamListener::~StreamListener() {
+  if (stream_ != nullptr)
+    stream_->RemoveStreamListener(this);
+}
 
-WriteWrap::WriteWrap(
-    StreamBase* stream,
-    v8::Local<v8::Object> req_wrap_obj)
-    : StreamReq(stream, req_wrap_obj) { }
-
-void StreamListener::PassReadErrorToPreviousListener(ssize_t nread) {
+inline void StreamListener::PassReadErrorToPreviousListener(ssize_t nread) {
   CHECK_NOT_NULL(previous_listener_);
   previous_listener_->OnStreamRead(nread, uv_buf_init(nullptr, 0));
 }
 
-void StreamResource::PushStreamListener(StreamListener* listener) {
+inline void StreamListener::OnStreamAfterShutdown(ShutdownWrap* w, int status) {
+  CHECK_NOT_NULL(previous_listener_);
+  previous_listener_->OnStreamAfterShutdown(w, status);
+}
+
+inline void StreamListener::OnStreamAfterWrite(WriteWrap* w, int status) {
+  CHECK_NOT_NULL(previous_listener_);
+  previous_listener_->OnStreamAfterWrite(w, status);
+}
+
+inline StreamResource::~StreamResource() {
+  while (listener_ != nullptr) {
+    StreamListener* listener = listener_;
+    listener->OnStreamDestroy();
+    // Remove the listener if it didn’t remove itself. This makes the logic
+    // in `OnStreamDestroy()` implementations easier, because they
+    // may call generic cleanup functions which can just remove the
+    // listener unconditionally.
+    if (listener == listener_)
+      RemoveStreamListener(listener_);
+  }
+}
+
+inline void StreamResource::PushStreamListener(StreamListener* listener) {
   CHECK_NOT_NULL(listener);
   CHECK_NULL(listener->stream_);
 
@@ -68,7 +85,7 @@ void StreamResource::PushStreamListener(StreamListener* listener) {
   listener_ = listener;
 }
 
-void StreamResource::RemoveStreamListener(StreamListener* listener) {
+inline void StreamResource::RemoveStreamListener(StreamListener* listener) {
   CHECK_NOT_NULL(listener);
 
   StreamListener* previous;
@@ -92,41 +109,45 @@ void StreamResource::RemoveStreamListener(StreamListener* listener) {
   listener->previous_listener_ = nullptr;
 }
 
-uv_buf_t StreamResource::EmitAlloc(size_t suggested_size) {
-  DebugSealHandleScope seal_handle_scope;
+inline uv_buf_t StreamResource::EmitAlloc(size_t suggested_size) {
+  DebugSealHandleScope handle_scope(v8::Isolate::GetCurrent());
   return listener_->OnStreamAlloc(suggested_size);
 }
 
-void StreamResource::EmitRead(ssize_t nread, const uv_buf_t& buf) {
-  DebugSealHandleScope seal_handle_scope;
+inline void StreamResource::EmitRead(ssize_t nread, const uv_buf_t& buf) {
+  DebugSealHandleScope handle_scope(v8::Isolate::GetCurrent());
   if (nread > 0)
     bytes_read_ += static_cast<uint64_t>(nread);
   listener_->OnStreamRead(nread, buf);
 }
 
-void StreamResource::EmitAfterWrite(WriteWrap* w, int status) {
-  DebugSealHandleScope seal_handle_scope;
+inline void StreamResource::EmitAfterWrite(WriteWrap* w, int status) {
+  DebugSealHandleScope handle_scope(v8::Isolate::GetCurrent());
   listener_->OnStreamAfterWrite(w, status);
 }
 
-void StreamResource::EmitAfterShutdown(ShutdownWrap* w, int status) {
-  DebugSealHandleScope seal_handle_scope;
+inline void StreamResource::EmitAfterShutdown(ShutdownWrap* w, int status) {
+  DebugSealHandleScope handle_scope(v8::Isolate::GetCurrent());
   listener_->OnStreamAfterShutdown(w, status);
 }
 
-void StreamResource::EmitWantsWrite(size_t suggested_size) {
-  DebugSealHandleScope seal_handle_scope;
+inline void StreamResource::EmitWantsWrite(size_t suggested_size) {
+  DebugSealHandleScope handle_scope(v8::Isolate::GetCurrent());
   listener_->OnStreamWantsWrite(suggested_size);
 }
 
-StreamBase::StreamBase(Environment* env) : env_(env) {
+inline StreamBase::StreamBase(Environment* env) : env_(env) {
   PushStreamListener(&default_listener_);
 }
 
-int StreamBase::Shutdown(v8::Local<v8::Object> req_wrap_obj) {
+inline Environment* StreamBase::stream_env() const {
+  return env_;
+}
+
+inline int StreamBase::Shutdown(v8::Local<v8::Object> req_wrap_obj) {
   Environment* env = stream_env();
 
-  v8::HandleScope handle_scope(env->isolate());
+  HandleScope handle_scope(env->isolate());
 
   if (req_wrap_obj.IsEmpty()) {
     if (!env->shutdown_wrap_template()
@@ -141,7 +162,7 @@ int StreamBase::Shutdown(v8::Local<v8::Object> req_wrap_obj) {
   ShutdownWrap* req_wrap = CreateShutdownWrap(req_wrap_obj);
   int err = DoShutdown(req_wrap);
 
-  if (err != 0 && req_wrap != nullptr) {
+  if (err != 0) {
     req_wrap->Dispose();
   }
 
@@ -156,7 +177,7 @@ int StreamBase::Shutdown(v8::Local<v8::Object> req_wrap_obj) {
   return err;
 }
 
-StreamWriteResult StreamBase::Write(
+inline StreamWriteResult StreamBase::Write(
     uv_buf_t* bufs,
     size_t count,
     uv_stream_t* send_handle,
@@ -176,7 +197,7 @@ StreamWriteResult StreamBase::Write(
     }
   }
 
-  v8::HandleScope handle_scope(env->isolate());
+  HandleScope handle_scope(env->isolate());
 
   if (req_wrap_obj.IsEmpty()) {
     if (!env->write_wrap_template()
@@ -219,6 +240,11 @@ SimpleShutdownWrap<OtherBase>::SimpleShutdownWrap(
               AsyncWrap::PROVIDER_SHUTDOWNWRAP) {
 }
 
+inline ShutdownWrap* StreamBase::CreateShutdownWrap(
+    v8::Local<v8::Object> object) {
+  return new SimpleShutdownWrap<AsyncWrap>(this, object);
+}
+
 template <typename OtherBase>
 SimpleWriteWrap<OtherBase>::SimpleWriteWrap(
     StreamBase* stream,
@@ -229,48 +255,40 @@ SimpleWriteWrap<OtherBase>::SimpleWriteWrap(
               AsyncWrap::PROVIDER_WRITEWRAP) {
 }
 
-void StreamBase::AttachToObject(v8::Local<v8::Object> obj) {
-  obj->SetAlignedPointerInInternalField(
-      StreamBase::kStreamBaseField, this);
+inline WriteWrap* StreamBase::CreateWriteWrap(
+    v8::Local<v8::Object> object) {
+  return new SimpleWriteWrap<AsyncWrap>(this, object);
 }
 
-StreamBase* StreamBase::FromObject(v8::Local<v8::Object> obj) {
-  if (obj->GetAlignedPointerFromInternalField(StreamBase::kSlot) == nullptr)
+inline void StreamBase::AttachToObject(v8::Local<v8::Object> obj) {
+  obj->SetAlignedPointerInInternalField(kStreamBaseField, this);
+}
+
+inline StreamBase* StreamBase::FromObject(v8::Local<v8::Object> obj) {
+  if (obj->GetAlignedPointerFromInternalField(0) == nullptr)
     return nullptr;
 
   return static_cast<StreamBase*>(
-      obj->GetAlignedPointerFromInternalField(
-          StreamBase::kStreamBaseField));
+      obj->GetAlignedPointerFromInternalField(kStreamBaseField));
 }
 
-WriteWrap* WriteWrap::FromObject(v8::Local<v8::Object> req_wrap_obj) {
-  return static_cast<WriteWrap*>(StreamReq::FromObject(req_wrap_obj));
+
+inline void ShutdownWrap::OnDone(int status) {
+  stream()->EmitAfterShutdown(this, status);
+  Dispose();
 }
 
-template <typename T, bool kIsWeak>
-WriteWrap* WriteWrap::FromObject(
-    const BaseObjectPtrImpl<T, kIsWeak>& base_obj) {
-  if (!base_obj) return nullptr;
-  return FromObject(base_obj->object());
-}
-
-ShutdownWrap* ShutdownWrap::FromObject(v8::Local<v8::Object> req_wrap_obj) {
-  return static_cast<ShutdownWrap*>(StreamReq::FromObject(req_wrap_obj));
-}
-
-template <typename T, bool kIsWeak>
-ShutdownWrap* ShutdownWrap::FromObject(
-    const BaseObjectPtrImpl<T, kIsWeak>& base_obj) {
-  if (!base_obj) return nullptr;
-  return FromObject(base_obj->object());
-}
-
-void WriteWrap::SetAllocatedStorage(AllocatedBuffer&& storage) {
+inline void WriteWrap::SetAllocatedStorage(AllocatedBuffer&& storage) {
   CHECK_NULL(storage_.data());
   storage_ = std::move(storage);
 }
 
-void StreamReq::Done(int status, const char* error_str) {
+inline void WriteWrap::OnDone(int status) {
+  stream()->EmitAfterWrite(this, status);
+  Dispose();
+}
+
+inline void StreamReq::Done(int status, const char* error_str) {
   AsyncWrap* async_wrap = GetAsyncWrap();
   Environment* env = async_wrap->env();
   if (error_str != nullptr) {
@@ -283,12 +301,13 @@ void StreamReq::Done(int status, const char* error_str) {
   OnDone(status);
 }
 
-void StreamReq::ResetObject(v8::Local<v8::Object> obj) {
+inline void StreamReq::ResetObject(v8::Local<v8::Object> obj) {
   DCHECK_GT(obj->InternalFieldCount(), StreamReq::kStreamReqField);
 
-  obj->SetAlignedPointerInInternalField(StreamReq::kSlot, nullptr);
+  obj->SetAlignedPointerInInternalField(0, nullptr);  // BaseObject field.
   obj->SetAlignedPointerInInternalField(StreamReq::kStreamReqField, nullptr);
 }
+
 
 }  // namespace node
 

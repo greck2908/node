@@ -1,3 +1,4 @@
+// Flags: --expose-internals
 'use strict';
 const common = require('../common');
 
@@ -78,7 +79,7 @@ async function testBreakpoint(session) {
 
   let { result } = await session.send({
     'method': 'Debugger.evaluateOnCallFrame', 'params': {
-      'callFrameId': session.pausedDetails().callFrames[0].callFrameId,
+      'callFrameId': '{"ordinal":0,"injectedScriptId":1}',
       'expression': 'k + t',
       'objectGroup': 'console',
       'includeCommandLineAPI': true,
@@ -99,8 +100,8 @@ async function testBreakpoint(session) {
 }
 
 async function runTest() {
-  const child = new NodeInstance(['--inspect-brk=0'], '',
-                                 fixtures.path('es-modules/loop.mjs'));
+  const child = new NodeInstance(['--inspect-brk=0', '--experimental-modules'],
+                                 '', fixtures.path('es-modules/loop.mjs'));
 
   const session = await child.connectInspectorSession();
   await testBreakpointOnStart(session);
@@ -109,4 +110,4 @@ async function runTest() {
   assert.strictEqual((await child.expectShutdown()).exitCode, 55);
 }
 
-runTest().then(common.mustCall());
+runTest();

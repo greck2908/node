@@ -6,28 +6,29 @@
 #define V8_PROFILER_HEAP_SNAPSHOT_GENERATOR_H_
 
 #include <deque>
-#include <memory>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 #include "include/v8-profiler.h"
 #include "src/base/platform/time.h"
+#include "src/objects.h"
 #include "src/objects/fixed-array.h"
 #include "src/objects/hash-table.h"
 #include "src/objects/heap-object.h"
 #include "src/objects/js-objects.h"
 #include "src/objects/literal-objects.h"
-#include "src/objects/objects.h"
-#include "src/objects/visitors.h"
 #include "src/profiler/strings-storage.h"
-#include "src/strings/string-hasher.h"
+#include "src/string-hasher.h"
+#include "src/visitors.h"
 
 namespace v8 {
 namespace internal {
 
+class AllocationTracker;
 class AllocationTraceNode;
 class HeapEntry;
+class HeapIterator;
 class HeapProfiler;
 class HeapSnapshot;
 class HeapSnapshotGenerator;
@@ -83,8 +84,8 @@ class HeapGraphEdge {
   V8_INLINE HeapSnapshot* snapshot() const;
   int from_index() const { return FromIndexField::decode(bit_field_); }
 
-  using TypeField = base::BitField<Type, 0, 3>;
-  using FromIndexField = base::BitField<int, 3, 29>;
+  class TypeField : public BitField<Type, 0, 3> {};
+  class FromIndexField : public BitField<int, 3, 29> {};
   uint32_t bit_field_;
   HeapEntry* to_entry_;
   union {
@@ -133,11 +134,6 @@ class HeapEntry {
   V8_INLINE HeapGraphEdge* child(int i);
   V8_INLINE Isolate* isolate() const;
 
-  void set_detachedness(v8::EmbedderGraph::Node::Detachedness value) {
-    detachedness_ = static_cast<uint8_t>(value);
-  }
-  uint8_t detachedness() const { return detachedness_; }
-
   void SetIndexedReference(
       HeapGraphEdge::Type type, int index, HeapEntry* entry);
   void SetNamedReference(
@@ -166,12 +162,7 @@ class HeapEntry {
     unsigned children_count_;
     unsigned children_end_index_;
   };
-#ifdef V8_TARGET_ARCH_64_BIT
-  size_t self_size_ : 48;
-#else   // !V8_TARGET_ARCH_64_BIT
   size_t self_size_;
-#endif  // !V8_TARGET_ARCH_64_BIT
-  uint8_t detachedness_ = 0;
   HeapSnapshot* snapshot_;
   const char* name_;
   SnapshotObjectId id_;
@@ -186,7 +177,7 @@ class HeapEntry {
 // HeapSnapshotGenerator fills in a HeapSnapshot.
 class HeapSnapshot {
  public:
-  explicit HeapSnapshot(HeapProfiler* profiler, bool global_objects_as_roots);
+  explicit HeapSnapshot(HeapProfiler* profiler);
   void Delete();
 
   HeapProfiler* profiler() const { return profiler_; }
@@ -204,9 +195,6 @@ class HeapSnapshot {
     return max_snapshot_js_object_id_;
   }
   bool is_complete() const { return !children_.empty(); }
-  bool treat_global_objects_as_roots() const {
-    return treat_global_objects_as_roots_;
-  }
 
   void AddLocation(HeapEntry* entry, int scriptId, int line, int col);
   HeapEntry* AddEntry(HeapEntry::Type type,
@@ -238,7 +226,6 @@ class HeapSnapshot {
   std::unordered_map<SnapshotObjectId, HeapEntry*> entries_by_id_cache_;
   std::vector<SourceLocation> locations_;
   SnapshotObjectId max_snapshot_js_object_id_ = -1;
-  bool treat_global_objects_as_roots_;
 
   DISALLOW_COPY_AND_ASSIGN(HeapSnapshot);
 };
@@ -264,8 +251,6 @@ class HeapObjectsMap {
   SnapshotObjectId FindOrAddEntry(Address addr,
                                   unsigned int size,
                                   bool accessed = true);
-  SnapshotObjectId FindMergedNativeEntry(NativeObject addr);
-  void AddMergedNativeEntry(NativeObject addr, Address canonical_addr);
   bool MoveObject(Address from, Address to, int size);
   void UpdateObjectSize(Address addr, int size);
   SnapshotObjectId last_assigned_id() const {
@@ -302,8 +287,6 @@ class HeapObjectsMap {
   base::HashMap entries_map_;
   std::vector<EntryInfo> entries_;
   std::vector<TimeInterval> time_intervals_;
-  // Map from NativeObject to EntryInfo index in entries_.
-  std::unordered_map<NativeObject, size_t> merged_native_entries_map_;
   Heap* heap_;
 
   DISALLOW_COPY_AND_ASSIGN(HeapObjectsMap);
@@ -311,7 +294,7 @@ class HeapObjectsMap {
 
 // A typedef for referencing anything that can be snapshotted living
 // in any kind of heap memory.
-using HeapThing = void*;
+typedef void* HeapThing;
 
 // An interface that creates HeapEntries by HeapThings.
 class HeapEntriesAllocator {
@@ -467,16 +450,11 @@ class NativeObjectsExplorer {
   bool IterateAndExtractReferences(HeapSnapshotGenerator* generator);
 
  private:
-  // Returns an entry for a given node, where node may be a V8 node or an
-  // embedder node. Returns the coresponding wrapper node if present.
   HeapEntry* EntryForEmbedderGraphNode(EmbedderGraph::Node* node);
-  void MergeNodeIntoEntry(HeapEntry* entry, EmbedderGraph::Node* original_node,
-                          EmbedderGraph::Node* wrapper_node);
 
   Isolate* isolate_;
   HeapSnapshot* snapshot_;
   StringsStorage* names_;
-  HeapObjectsMap* heap_object_map_;
   std::unique_ptr<HeapEntriesAllocator> embedder_graph_entries_allocator_;
   // Used during references extraction.
   HeapSnapshotGenerator* generator_ = nullptr;

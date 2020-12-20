@@ -29,7 +29,7 @@ for (let i = 1; i < 10; i++) {
   const encoding = String(i).repeat(i);
   const error = common.expectsError({
     code: 'ERR_UNKNOWN_ENCODING',
-    name: 'TypeError',
+    type: TypeError,
     message: `Unknown encoding: ${encoding}`
   });
   assert.ok(!Buffer.isEncoding(encoding));

@@ -22,7 +22,7 @@
 'use strict';
 const common = require('../common');
 const assert = require('assert');
-const { Stream, PassThrough } = require('stream');
+const Stream = require('stream').Stream;
 
 {
   const source = new Stream();
@@ -62,8 +62,8 @@ const { Stream, PassThrough } = require('stream');
   const R = Stream.Readable;
   const W = Stream.Writable;
 
-  const r = new R({ autoDestroy: false });
-  const w = new W({ autoDestroy: false });
+  const r = new R();
+  const w = new W();
   let removed = false;
 
   r._read = common.mustCall(function() {
@@ -107,18 +107,4 @@ const { Stream, PassThrough } = require('stream');
   // Removing some OTHER random listener should not do anything
   w.removeListener('error', () => {});
   removed = true;
-}
-
-{
-  const _err = new Error('this should be handled');
-  const destination = new PassThrough();
-  destination.once('error', common.mustCall((err) => {
-    assert.strictEqual(err, _err);
-  }));
-
-  const stream = new Stream();
-  stream
-    .pipe(destination);
-
-  destination.destroy(_err);
 }

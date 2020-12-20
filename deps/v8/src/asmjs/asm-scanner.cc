@@ -4,12 +4,10 @@
 
 #include "src/asmjs/asm-scanner.h"
 
-#include <cinttypes>
-
-#include "src/flags/flags.h"
-#include "src/numbers/conversions.h"
+#include "src/char-predicates-inl.h"
+#include "src/conversions.h"
+#include "src/flags.h"
 #include "src/parsing/scanner.h"
-#include "src/strings/char-predicates-inl.h"
 
 namespace v8 {
 namespace internal {
@@ -99,7 +97,7 @@ void AsmJsScanner::Next() {
         preceded_by_newline_ = true;
         break;
 
-      case kEndOfInputU:
+      case kEndOfInput:
         token_ = kEndOfInput;
         return;
 
@@ -329,7 +327,7 @@ void AsmJsScanner::ConsumeNumber(uc32 ch) {
     token_ = kParseError;
     return;
   }
-  if (has_dot || trunc(double_value_) != double_value_) {
+  if (has_dot) {
     token_ = kDouble;
   } else {
     // Exceeding safe integer range is an error.
@@ -354,7 +352,7 @@ bool AsmJsScanner::ConsumeCComment() {
     if (ch == '\n') {
       preceded_by_newline_ = true;
     }
-    if (ch == kEndOfInputU) {
+    if (ch == kEndOfInput) {
       return false;
     }
   }
@@ -367,7 +365,7 @@ void AsmJsScanner::ConsumeCPPComment() {
       preceded_by_newline_ = true;
       return;
     }
-    if (ch == kEndOfInputU) {
+    if (ch == kEndOfInput) {
       return;
     }
   }
@@ -377,7 +375,7 @@ void AsmJsScanner::ConsumeString(uc32 quote) {
   // Only string allowed is 'use asm' / "use asm".
   const char* expected = "use asm";
   for (; *expected != '\0'; ++expected) {
-    if (stream_->Advance() != static_cast<uc32>(*expected)) {
+    if (stream_->Advance() != *expected) {
       token_ = kParseError;
       return;
     }
@@ -424,8 +422,7 @@ void AsmJsScanner::ConsumeCompareOrShift(uc32 ch) {
 }
 
 bool AsmJsScanner::IsIdentifierStart(uc32 ch) {
-  return base::IsInRange(AsciiAlphaToLower(ch), 'a', 'z') || ch == '_' ||
-         ch == '$';
+  return IsInRange(AsciiAlphaToLower(ch), 'a', 'z') || ch == '_' || ch == '$';
 }
 
 bool AsmJsScanner::IsIdentifierPart(uc32 ch) { return IsAsciiIdentifier(ch); }

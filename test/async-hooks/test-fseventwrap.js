@@ -10,9 +10,6 @@ const fs = require('fs');
 if (!common.isMainThread)
   common.skip('Worker bootstrapping works differently -> different async IDs');
 
-if (common.isIBMi)
-  common.skip('IBMi does not suppport fs.watch()');
-
 const hooks = initHooks();
 
 hooks.enable();

@@ -11,7 +11,6 @@ function foo(s) {
 var extern = "internalized dummy";
 extern = "1234567890qiaipppiúöäöáœba"+"jalsdjasldjasdlasjdalsdjasldk";
 externalizeString(extern, true /* force two-byte */);
-%PrepareFunctionForOptimization(foo);
 assertEquals(97, foo(extern));
 assertEquals(97, foo(extern));
 %OptimizeFunctionOnNextCall(foo);

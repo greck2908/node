@@ -3,7 +3,6 @@ const common = require('../common');
 
 const assert = require('assert');
 const stream = require('stream');
-const { inspect } = require('util');
 
 {
   // This test ensures that the stream implementation correctly handles values
@@ -22,13 +21,13 @@ const { inspect } = require('util');
 
   for (const invalidHwm of [true, false, '5', {}, -5, NaN]) {
     for (const type of [stream.Readable, stream.Writable]) {
-      assert.throws(() => {
+      common.expectsError(() => {
         type({ highWaterMark: invalidHwm });
       }, {
-        name: 'TypeError',
-        code: 'ERR_INVALID_ARG_VALUE',
-        message: "The property 'options.highWaterMark' is invalid. " +
-          `Received ${inspect(invalidHwm)}`
+        type: TypeError,
+        code: 'ERR_INVALID_OPT_VALUE',
+        message:
+          `The value "${invalidHwm}" is invalid for option "highWaterMark"`
       });
     }
   }

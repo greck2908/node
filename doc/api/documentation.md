@@ -1,4 +1,4 @@
-# About this documentation
+# About this Documentation
 
 <!--introduced_in=v0.10.0-->
 <!-- type=misc -->
@@ -12,7 +12,8 @@ Node.js is a JavaScript runtime built on the [V8 JavaScript engine][].
 Report errors in this documentation in [the issue tracker][]. See
 [the contributing guide][] for directions on how to submit pull requests.
 
-## Stability index
+
+## Stability Index
 
 <!--type=misc-->
 
@@ -27,10 +28,9 @@ The stability indices are as follows:
 
 <!-- separator -->
 
-> Stability: 1 - Experimental. The feature is not subject to
-> [Semantic Versioning][] rules. Non-backward compatible changes or removal may
-> occur in any future release. Use of the feature is not recommended in
-> production environments.
+> Stability: 1 - Experimental. The feature is not subject to Semantic Versioning
+> rules. Non-backward compatible changes or removal may occur in any future
+> release. Use of the feature is not recommended in production environments.
 
 <!-- separator -->
 
@@ -38,12 +38,12 @@ The stability indices are as follows:
 > priority.
 
 Use caution when making use of Experimental features, particularly within
-modules. Users may not be aware that experimental features are being used.
-Bugs or behavior changes may surprise users when Experimental API
+modules. End users may not be aware that experimental features are being used.
+Bugs or behavior changes may surprise end users when Experimental API
 modifications occur. To avoid surprises, use of an Experimental feature may need
 a command-line flag. Experimental features may also emit a [warning][].
 
-## JSON output
+## JSON Output
 <!-- YAML
 added: v0.6.12
 -->
@@ -59,8 +59,7 @@ to the corresponding man pages which describe how the system call works.
 Most Unix system calls have Windows analogues. Still, behavior differences may
 be unavoidable.
 
-[Semantic Versioning]: https://semver.org/
-[V8 JavaScript engine]: https://v8.dev/
 [the contributing guide]: https://github.com/nodejs/node/blob/master/CONTRIBUTING.md
 [the issue tracker]: https://github.com/nodejs/node/issues/new
-[warning]: process.md#process_event_warning
+[V8 JavaScript engine]: https://v8.dev/
+[warning]: process.html#process_event_warning

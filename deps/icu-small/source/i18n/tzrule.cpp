@@ -108,7 +108,7 @@ InitialTimeZoneRule::~InitialTimeZoneRule() {
 }
 
 InitialTimeZoneRule*
-InitialTimeZoneRule::clone() const {
+InitialTimeZoneRule::clone(void) const {
     return new InitialTimeZoneRule(*this);
 }
 

@@ -26,10 +26,9 @@
 
 #include "async_wrap.h"
 #include "connection_wrap.h"
+#include "env.h"
 
 namespace node {
-
-class Environment;
 
 class PipeWrap : public ConnectionWrap<PipeWrap, uv_pipe_t> {
  public:

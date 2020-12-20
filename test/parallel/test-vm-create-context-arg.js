@@ -20,15 +20,14 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
-require('../common');
-const assert = require('assert');
+const common = require('../common');
 const vm = require('vm');
 
-assert.throws(() => {
+common.expectsError(() => {
   vm.createContext('string is not supported');
 }, {
   code: 'ERR_INVALID_ARG_TYPE',
-  name: 'TypeError'
+  type: TypeError
 });
 
 // Should not throw.

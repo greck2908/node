@@ -1,6 +1,5 @@
 'use strict';
-require('../common');
-const assert = require('assert');
+const common = require('../common');
 const fs = require('fs');
 const callbackThrowValues = [null, true, false, 0, 1, 'foo', /foo/, [], {}];
 
@@ -18,9 +17,9 @@ function testMakeCallback(cb) {
 
 function invalidCallbackThrowsTests() {
   callbackThrowValues.forEach((value) => {
-    assert.throws(testMakeCallback(value), {
+    common.expectsError(testMakeCallback(value), {
       code: 'ERR_INVALID_CALLBACK',
-      name: 'TypeError'
+      type: TypeError
     });
   });
 }

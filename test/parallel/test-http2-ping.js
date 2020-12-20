@@ -76,21 +76,20 @@ server.listen(0, common.mustCall(() => {
     // Only max 2 pings at a time based on the maxOutstandingPings option
     assert(!client.ping(common.expectsError({
       code: 'ERR_HTTP2_PING_CANCEL',
-      name: 'Error',
+      type: Error,
       message: 'HTTP2 ping cancelled'
     })));
 
     // Should throw if payload is not of type ArrayBufferView
     {
       [1, true, {}, []].forEach((payload) =>
-        assert.throws(
+        common.expectsError(
           () => client.ping(payload),
           {
-            name: 'TypeError',
+            type: TypeError,
             code: 'ERR_INVALID_ARG_TYPE',
-            message: 'The "payload" argument must be an instance of Buffer, ' +
-                     'TypedArray, or DataView.' +
-                     common.invalidArgTypeHelper(payload)
+            message: 'The "payload" argument must be one of type Buffer, ' +
+                     `TypedArray, or DataView. Received type ${typeof payload}`
           }
         )
       );
@@ -101,10 +100,10 @@ server.listen(0, common.mustCall(() => {
       const shortPayload = Buffer.from('abcdefg');
       const longPayload = Buffer.from('abcdefghi');
       [shortPayload, longPayload].forEach((payloadWithInvalidLength) =>
-        assert.throws(
+        common.expectsError(
           () => client.ping(payloadWithInvalidLength),
           {
-            name: 'RangeError',
+            type: RangeError,
             code: 'ERR_HTTP2_PING_LENGTH',
             message: 'HTTP2 ping payload must be 8 bytes'
           }
@@ -116,10 +115,10 @@ server.listen(0, common.mustCall(() => {
     {
       const payload = Buffer.from('abcdefgh');
       [1, true, {}, []].forEach((invalidCallback) =>
-        assert.throws(
+        common.expectsError(
           () => client.ping(payload, invalidCallback),
           {
-            name: 'TypeError',
+            type: TypeError,
             code: 'ERR_INVALID_CALLBACK',
             message: 'Callback must be a function. ' +
                      `Received ${inspect(invalidCallback)}`

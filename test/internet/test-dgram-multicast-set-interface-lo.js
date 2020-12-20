@@ -83,14 +83,8 @@ if (process.argv[2] !== 'child') {
   let i = 0;
   let done = 0;
   let timer = null;
-
-  const killSubprocesses = (subprocesses) => {
-    for (const i in subprocesses)
-      subprocesses[i].kill();
-  };
-
   // Exit the test if it doesn't succeed within the TIMEOUT.
-  timer = setTimeout(() => {
+  timer = setTimeout(function() {
     console.error('[PARENT] Responses were not received within %d ms.',
                   TIMEOUT);
     console.error('[PARENT] Skip');
@@ -121,7 +115,7 @@ if (process.argv[2] !== 'child') {
     worker.messagesNeeded = messagesNeeded;
 
     // Handle the death of workers.
-    worker.on('exit', (code) => {
+    worker.on('exit', function(code, signal) {
       // Don't consider this a true death if the worker has finished
       // successfully or if the exit code is 0.
       if (worker.isDone || code === 0) {
@@ -144,7 +138,7 @@ if (process.argv[2] !== 'child') {
       }
     });
 
-    worker.on('message', (msg) => {
+    worker.on('message', function(msg) {
       if (msg.listening) {
         listening += 1;
 
@@ -168,12 +162,12 @@ if (process.argv[2] !== 'child') {
                         'required number of ' +
                         'messages. Will now compare.');
 
-          Object.keys(workers).forEach((pid) => {
+          Object.keys(workers).forEach(function(pid) {
             const worker = workers[pid];
 
             let count = 0;
 
-            worker.messagesReceived.forEach((buf) => {
+            worker.messagesReceived.forEach(function(buf) {
               for (let i = 0; i < worker.messagesNeeded.length; ++i) {
                 if (buf.toString() === worker.messagesNeeded[i]) {
                   count++;
@@ -207,15 +201,15 @@ if (process.argv[2] !== 'child') {
   // Don't bind the address explicitly when sending and start with
   // the OSes default multicast interface selection.
   sendSocket.bind(common.PORT, ANY[FAM]);
-  sendSocket.on('listening', () => {
+  sendSocket.on('listening', function() {
     console.error(`outgoing iface ${interfaceAddress}`);
   });
 
-  sendSocket.on('close', () => {
+  sendSocket.on('close', function() {
     console.error('[PARENT] sendSocket closed');
   });
 
-  sendSocket.sendNext = () => {
+  sendSocket.sendNext = function() {
     const msg = messages[i++];
 
     if (!msg) {
@@ -234,7 +228,7 @@ if (process.argv[2] !== 'child') {
       buf.length,
       PORTS[msg.mcast],
       msg.mcast,
-      (err) => {
+      function(err) {
         assert.ifError(err);
         console.error('[PARENT] sent %s to %s:%s',
                       util.inspect(buf.toString()),
@@ -244,6 +238,11 @@ if (process.argv[2] !== 'child') {
       }
     );
   };
+
+  function killSubprocesses(subprocesses) {
+    for (const i in subprocesses)
+      subprocesses[i].kill();
+  }
 }
 
 if (process.argv[2] === 'child') {
@@ -259,7 +258,7 @@ if (process.argv[2] === 'child') {
     reuseAddr: true
   });
 
-  listenSocket.on('message', (buf, rinfo) => {
+  listenSocket.on('message', function(buf, rinfo) {
     // Examine udp messages only when they were sent by the parent.
     if (!buf.toString().startsWith(SESSION)) return;
 
@@ -281,7 +280,7 @@ if (process.argv[2] === 'child') {
   });
 
 
-  listenSocket.on('listening', () => {
+  listenSocket.on('listening', function() {
     listenSocket.addMembership(MULTICAST, IFACE);
     process.send({ listening: true });
   });

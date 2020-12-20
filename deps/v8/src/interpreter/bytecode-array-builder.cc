@@ -4,8 +4,7 @@
 
 #include "src/interpreter/bytecode-array-builder.h"
 
-#include "src/common/assert-scope.h"
-#include "src/common/globals.h"
+#include "src/globals.h"
 #include "src/interpreter/bytecode-array-writer.h"
 #include "src/interpreter/bytecode-jump-table.h"
 #include "src/interpreter/bytecode-label.h"
@@ -13,7 +12,7 @@
 #include "src/interpreter/bytecode-register-optimizer.h"
 #include "src/interpreter/bytecode-source-info.h"
 #include "src/interpreter/interpreter-intrinsics.h"
-#include "src/objects/feedback-vector-inl.h"
+#include "src/objects-inl.h"
 #include "src/objects/smi.h"
 
 namespace v8 {
@@ -24,8 +23,7 @@ class RegisterTransferWriter final
     : public NON_EXPORTED_BASE(BytecodeRegisterOptimizer::BytecodeWriter),
       public NON_EXPORTED_BASE(ZoneObject) {
  public:
-  explicit RegisterTransferWriter(BytecodeArrayBuilder* builder)
-      : builder_(builder) {}
+  RegisterTransferWriter(BytecodeArrayBuilder* builder) : builder_(builder) {}
   ~RegisterTransferWriter() override = default;
 
   void EmitLdar(Register input) override { builder_->OutputLdarRaw(input); }
@@ -59,9 +57,9 @@ BytecodeArrayBuilder::BytecodeArrayBuilder(
   DCHECK_GE(local_register_count_, 0);
 
   if (FLAG_ignition_reo) {
-    register_optimizer_ = zone->New<BytecodeRegisterOptimizer>(
+    register_optimizer_ = new (zone) BytecodeRegisterOptimizer(
         zone, &register_allocator_, fixed_register_count(), parameter_count,
-        zone->New<RegisterTransferWriter>(this));
+        new (zone) RegisterTransferWriter(this));
   }
 }
 
@@ -82,9 +80,7 @@ Register BytecodeArrayBuilder::Local(int index) const {
   return Register(index);
 }
 
-template <typename LocalIsolate>
-Handle<BytecodeArray> BytecodeArrayBuilder::ToBytecodeArray(
-    LocalIsolate* isolate) {
+Handle<BytecodeArray> BytecodeArrayBuilder::ToBytecodeArray(Isolate* isolate) {
   DCHECK(RemainderOfBlockIsDead());
   DCHECK(!bytecode_generated_);
   bytecode_generated_ = true;
@@ -101,35 +97,6 @@ Handle<BytecodeArray> BytecodeArrayBuilder::ToBytecodeArray(
   return bytecode_array_writer_.ToBytecodeArray(
       isolate, register_count, parameter_count(), handler_table);
 }
-
-template EXPORT_TEMPLATE_DEFINE(V8_EXPORT_PRIVATE)
-    Handle<BytecodeArray> BytecodeArrayBuilder::ToBytecodeArray(
-        Isolate* isolate);
-template EXPORT_TEMPLATE_DEFINE(V8_EXPORT_PRIVATE)
-    Handle<BytecodeArray> BytecodeArrayBuilder::ToBytecodeArray(
-        LocalIsolate* isolate);
-
-#ifdef DEBUG
-int BytecodeArrayBuilder::CheckBytecodeMatches(BytecodeArray bytecode) {
-  DisallowHeapAllocation no_gc;
-  return bytecode_array_writer_.CheckBytecodeMatches(bytecode);
-}
-#endif
-
-template <typename LocalIsolate>
-Handle<ByteArray> BytecodeArrayBuilder::ToSourcePositionTable(
-    LocalIsolate* isolate) {
-  DCHECK(RemainderOfBlockIsDead());
-
-  return bytecode_array_writer_.ToSourcePositionTable(isolate);
-}
-
-template EXPORT_TEMPLATE_DEFINE(V8_EXPORT_PRIVATE)
-    Handle<ByteArray> BytecodeArrayBuilder::ToSourcePositionTable(
-        Isolate* isolate);
-template EXPORT_TEMPLATE_DEFINE(V8_EXPORT_PRIVATE)
-    Handle<ByteArray> BytecodeArrayBuilder::ToSourcePositionTable(
-        LocalIsolate* isolate);
 
 BytecodeSourceInfo BytecodeArrayBuilder::CurrentSourcePosition(
     Bytecode bytecode) {
@@ -439,40 +406,40 @@ BytecodeArrayBuilder& BytecodeArrayBuilder::BinaryOperationSmiLiteral(
     Token::Value op, Smi literal, int feedback_slot) {
   switch (op) {
     case Token::Value::ADD:
-      OutputAddSmi(literal.value(), feedback_slot);
+      OutputAddSmi(literal->value(), feedback_slot);
       break;
     case Token::Value::SUB:
-      OutputSubSmi(literal.value(), feedback_slot);
+      OutputSubSmi(literal->value(), feedback_slot);
       break;
     case Token::Value::MUL:
-      OutputMulSmi(literal.value(), feedback_slot);
+      OutputMulSmi(literal->value(), feedback_slot);
       break;
     case Token::Value::DIV:
-      OutputDivSmi(literal.value(), feedback_slot);
+      OutputDivSmi(literal->value(), feedback_slot);
       break;
     case Token::Value::MOD:
-      OutputModSmi(literal.value(), feedback_slot);
+      OutputModSmi(literal->value(), feedback_slot);
       break;
     case Token::Value::EXP:
-      OutputExpSmi(literal.value(), feedback_slot);
+      OutputExpSmi(literal->value(), feedback_slot);
       break;
     case Token::Value::BIT_OR:
-      OutputBitwiseOrSmi(literal.value(), feedback_slot);
+      OutputBitwiseOrSmi(literal->value(), feedback_slot);
       break;
     case Token::Value::BIT_XOR:
-      OutputBitwiseXorSmi(literal.value(), feedback_slot);
+      OutputBitwiseXorSmi(literal->value(), feedback_slot);
       break;
     case Token::Value::BIT_AND:
-      OutputBitwiseAndSmi(literal.value(), feedback_slot);
+      OutputBitwiseAndSmi(literal->value(), feedback_slot);
       break;
     case Token::Value::SHL:
-      OutputShiftLeftSmi(literal.value(), feedback_slot);
+      OutputShiftLeftSmi(literal->value(), feedback_slot);
       break;
     case Token::Value::SAR:
-      OutputShiftRightSmi(literal.value(), feedback_slot);
+      OutputShiftRightSmi(literal->value(), feedback_slot);
       break;
     case Token::Value::SHR:
-      OutputShiftRightLogicalSmi(literal.value(), feedback_slot);
+      OutputShiftRightLogicalSmi(literal->value(), feedback_slot);
       break;
     default:
       UNREACHABLE();
@@ -606,7 +573,7 @@ BytecodeArrayBuilder& BytecodeArrayBuilder::LoadConstantPoolEntry(
 }
 
 BytecodeArrayBuilder& BytecodeArrayBuilder::LoadLiteral(Smi smi) {
-  int32_t raw_smi = smi.value();
+  int32_t raw_smi = smi->value();
   if (raw_smi == 0) {
     OutputLdaZero();
   } else {
@@ -830,13 +797,6 @@ BytecodeArrayBuilder& BytecodeArrayBuilder::LoadNamedProperty(
   return *this;
 }
 
-BytecodeArrayBuilder& BytecodeArrayBuilder::LoadNamedPropertyFromSuper(
-    Register object, const AstRawString* name, int feedback_slot) {
-  size_t name_index = GetConstantPoolEntry(name);
-  OutputLdaNamedPropertyFromSuper(object, name_index, feedback_slot);
-  return *this;
-}
-
 BytecodeArrayBuilder& BytecodeArrayBuilder::LoadNamedPropertyNoFeedback(
     Register object, const AstRawString* name) {
   size_t name_index = GetConstantPoolEntry(name);
@@ -854,12 +814,6 @@ BytecodeArrayBuilder& BytecodeArrayBuilder::LoadIteratorProperty(
     Register object, int feedback_slot) {
   size_t name_index = IteratorSymbolConstantPoolEntry();
   OutputLdaNamedProperty(object, name_index, feedback_slot);
-  return *this;
-}
-
-BytecodeArrayBuilder& BytecodeArrayBuilder::GetIterator(
-    Register object, int load_feedback_slot, int call_feedback_slot) {
-  OutputGetIterator(object, load_feedback_slot, call_feedback_slot);
   return *this;
 }
 
@@ -1205,13 +1159,6 @@ BytecodeArrayBuilder& BytecodeArrayBuilder::JumpIfUndefined(
   return *this;
 }
 
-BytecodeArrayBuilder& BytecodeArrayBuilder::JumpIfUndefinedOrNull(
-    BytecodeLabel* label) {
-  DCHECK(!label->is_bound());
-  OutputJumpIfUndefinedOrNull(label, 0);
-  return *this;
-}
-
 BytecodeArrayBuilder& BytecodeArrayBuilder::JumpIfNotUndefined(
     BytecodeLabel* label) {
   DCHECK(!label->is_bound());
@@ -1263,19 +1210,7 @@ BytecodeArrayBuilder& BytecodeArrayBuilder::JumpIfJSReceiver(
 }
 
 BytecodeArrayBuilder& BytecodeArrayBuilder::JumpLoop(
-    BytecodeLoopHeader* loop_header, int loop_depth, int position) {
-  if (position != kNoSourcePosition) {
-    // We need to attach a non-breakable source position to JumpLoop for its
-    // implicit stack check, so we simply add it as expression position. There
-    // can be a prior statement position from constructs like:
-    //
-    //    do var x;  while (false);
-    //
-    // A Nop could be inserted for empty statements, but since no code
-    // is associated with these positions, instead we force the jump loop's
-    // expression position which eliminates the empty statement's position.
-    latest_source_info_.ForceExpressionPosition(position);
-  }
+    BytecodeLoopHeader* loop_header, int loop_depth) {
   OutputJumpLoop(loop_header, loop_depth);
   return *this;
 }
@@ -1283,6 +1218,24 @@ BytecodeArrayBuilder& BytecodeArrayBuilder::JumpLoop(
 BytecodeArrayBuilder& BytecodeArrayBuilder::SwitchOnSmiNoFeedback(
     BytecodeJumpTable* jump_table) {
   OutputSwitchOnSmiNoFeedback(jump_table);
+  return *this;
+}
+
+BytecodeArrayBuilder& BytecodeArrayBuilder::StackCheck(int position) {
+  if (position != kNoSourcePosition) {
+    // We need to attach a non-breakable source position to a stack
+    // check, so we simply add it as expression position. There can be
+    // a prior statement position from constructs like:
+    //
+    //    do var x;  while (false);
+    //
+    // A Nop could be inserted for empty statements, but since no code
+    // is associated with these positions, instead we force the stack
+    // check's expression position which eliminates the empty
+    // statement's position.
+    latest_source_info_.ForceExpressionPosition(position);
+  }
+  OutputStackCheck();
   return *this;
 }
 
@@ -1561,8 +1514,8 @@ BytecodeJumpTable* BytecodeArrayBuilder::AllocateJumpTable(
 
   size_t constant_pool_index = constant_array_builder()->InsertJumpTable(size);
 
-  return zone()->New<BytecodeJumpTable>(constant_pool_index, size,
-                                        case_value_base, zone());
+  return new (zone())
+      BytecodeJumpTable(constant_pool_index, size, case_value_base, zone());
 }
 
 size_t BytecodeArrayBuilder::AllocateDeferredConstantPoolEntry() {
@@ -1637,14 +1590,6 @@ uint32_t BytecodeArrayBuilder::GetOutputRegisterListOperand(
   if (register_optimizer_)
     register_optimizer_->PrepareOutputRegisterList(reg_list);
   return static_cast<uint32_t>(reg_list.first_register().ToOperand());
-}
-
-void BytecodeArrayBuilder::EmitFunctionStartSourcePosition(int position) {
-  bytecode_array_writer_.SetFunctionEntrySourcePosition(position);
-  // Force an expression position to make sure we have one. If the next bytecode
-  // overwrites it, it’s fine since it would mean we have a source position
-  // anyway.
-  latest_source_info_.ForceExpressionPosition(position);
 }
 
 std::ostream& operator<<(std::ostream& os,

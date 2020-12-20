@@ -7,24 +7,15 @@ if (cluster.isMaster) {
     workers: [1],
     payload: ['string', 'object'],
     sendsPerBroadcast: [1, 10],
-    serialization: ['json', 'advanced'],
     n: [1e5]
   });
 
-  function main({
-    n,
-    workers,
-    sendsPerBroadcast,
-    payload,
-    serialization
-  }) {
+  function main({ n, workers, sendsPerBroadcast, payload }) {
     const expectedPerBroadcast = sendsPerBroadcast * workers;
-    let readies = 0;
-    let broadcasts = 0;
-    let msgCount = 0;
-    let data;
-
-    cluster.settings.serialization = serialization;
+    var readies = 0;
+    var broadcasts = 0;
+    var msgCount = 0;
+    var data;
 
     switch (payload) {
       case 'string':
@@ -37,7 +28,7 @@ if (cluster.isMaster) {
         throw new Error('Unsupported payload type');
     }
 
-    for (let i = 0; i < workers; ++i)
+    for (var i = 0; i < workers; ++i)
       cluster.fork().on('online', onOnline).on('message', onMessage);
 
     function onOnline() {
@@ -48,15 +39,16 @@ if (cluster.isMaster) {
     }
 
     function broadcast() {
+      var id;
       if (broadcasts++ === n) {
         bench.end(n);
-        for (const id in cluster.workers)
+        for (id in cluster.workers)
           cluster.workers[id].disconnect();
         return;
       }
-      for (const id in cluster.workers) {
+      for (id in cluster.workers) {
         const worker = cluster.workers[id];
-        for (let i = 0; i < sendsPerBroadcast; ++i)
+        for (var i = 0; i < sendsPerBroadcast; ++i)
           worker.send(data);
       }
     }

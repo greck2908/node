@@ -34,7 +34,6 @@ function g() {
   b=2;
 }
 
-%PrepareFunctionForOptimization(Debug.setBreakPoint);
 bp = Debug.setBreakPoint(f, 0, 0);
 Debug.clearBreakPoint(bp);
 %OptimizeFunctionOnNextCall(Debug.setBreakPoint);
@@ -42,7 +41,6 @@ bp = Debug.setBreakPoint(f, 0, 0);
 Debug.clearBreakPoint(bp);
 bp = Debug.setBreakPoint(f, 0, 0);
 Debug.clearBreakPoint(bp);
-%PrepareFunctionForOptimization(Debug.setBreakPoint);
 %OptimizeFunctionOnNextCall(Debug.setBreakPoint);
 bp = Debug.setBreakPoint(f, 0, 0);
 Debug.clearBreakPoint(bp);

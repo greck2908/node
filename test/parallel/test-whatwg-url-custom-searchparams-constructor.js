@@ -2,7 +2,7 @@
 
 // Tests below are not from WPT.
 
-require('../common');
+const common = require('../common');
 const assert = require('assert');
 const URLSearchParams = require('url').URLSearchParams;
 
@@ -15,16 +15,16 @@ function makeIterableFunc(array) {
 }
 
 {
-  const iterableError = {
+  const iterableError = common.expectsError({
     code: 'ERR_ARG_NOT_ITERABLE',
-    name: 'TypeError',
+    type: TypeError,
     message: 'Query pairs must be iterable'
-  };
-  const tupleError = {
+  });
+  const tupleError = common.expectsError({
     code: 'ERR_INVALID_TUPLE',
-    name: 'TypeError',
+    type: TypeError,
     message: 'Each query pair must be an iterable [name, value] tuple'
-  };
+  }, 6);
 
   let params;
   params = new URLSearchParams(undefined);

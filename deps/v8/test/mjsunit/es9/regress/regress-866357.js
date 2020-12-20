@@ -10,7 +10,6 @@ var then = p.then = () => {};
 
 function spread() { return { ...p }; }
 
-%PrepareFunctionForOptimization(spread);
 assertEquals({ then }, spread());
 assertEquals({ then }, spread());
 assertEquals({ then }, spread());

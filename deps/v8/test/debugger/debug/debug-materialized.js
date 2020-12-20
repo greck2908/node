@@ -18,8 +18,6 @@ function bar() {
   return t.a;
 }
 
-%PrepareFunctionForOptimization(foo);
-%PrepareFunctionForOptimization(bar);
 foo(1);
 foo(1);
 bar(1);

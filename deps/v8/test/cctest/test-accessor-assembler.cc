@@ -7,7 +7,7 @@
 #include "src/base/utils/random-number-generator.h"
 #include "src/ic/accessor-assembler.h"
 #include "src/ic/stub-cache.h"
-#include "src/objects/objects-inl.h"
+#include "src/objects-inl.h"
 #include "src/objects/smi.h"
 #include "test/cctest/compiler/code-assembler-tester.h"
 #include "test/cctest/compiler/function-tester.h"
@@ -24,14 +24,13 @@ namespace {
 void TestStubCacheOffsetCalculation(StubCache::Table table) {
   Isolate* isolate(CcTest::InitIsolateOnce());
   const int kNumParams = 2;
-  CodeAssemblerTester data(isolate, kNumParams + 1);  // Include receiver.
+  CodeAssemblerTester data(isolate, kNumParams);
   AccessorAssembler m(data.state());
 
   {
-    TNode<Name> name = m.CAST(m.Parameter(1));
-    TNode<Map> map = m.CAST(m.Parameter(2));
-    TNode<IntPtrT> primary_offset =
-        m.StubCachePrimaryOffsetForTesting(name, map);
+    Node* name = m.Parameter(0);
+    Node* map = m.Parameter(1);
+    Node* primary_offset = m.StubCachePrimaryOffsetForTesting(name, map);
     Node* result;
     if (table == StubCache::kPrimary) {
       result = primary_offset;
@@ -60,6 +59,7 @@ void TestStubCacheOffsetCalculation(StubCache::Table table) {
   };
 
   Handle<Map> maps[] = {
+      Handle<Map>(Map(), isolate),
       factory->cell_map(),
       Map::Create(isolate, 0),
       factory->meta_map(),
@@ -107,7 +107,7 @@ TEST(StubCacheSecondaryOffset) {
 
 namespace {
 
-Handle<Code> CreateCodeOfKind(CodeKind kind) {
+Handle<Code> CreateCodeOfKind(Code::Kind kind) {
   Isolate* isolate(CcTest::InitIsolateOnce());
   CodeAssemblerTester data(isolate, kind);
   CodeStubAssembler m(data.state());
@@ -118,20 +118,19 @@ Handle<Code> CreateCodeOfKind(CodeKind kind) {
 }  // namespace
 
 TEST(TryProbeStubCache) {
-  using Label = CodeStubAssembler::Label;
+  typedef CodeStubAssembler::Label Label;
   Isolate* isolate(CcTest::InitIsolateOnce());
   const int kNumParams = 3;
-  CodeAssemblerTester data(isolate, kNumParams + 1);  // Include receiver.
+  CodeAssemblerTester data(isolate, kNumParams);
   AccessorAssembler m(data.state());
 
   StubCache stub_cache(isolate);
   stub_cache.Clear();
 
   {
-    TNode<Object> receiver = m.CAST(m.Parameter(1));
-    TNode<Name> name = m.CAST(m.Parameter(2));
-    TNode<MaybeObject> expected_handler =
-        m.UncheckedCast<MaybeObject>(m.Parameter(3));
+    Node* receiver = m.Parameter(0);
+    Node* name = m.Parameter(1);
+    Node* expected_handler = m.Parameter(2);
 
     Label passed(&m), failed(&m);
 
@@ -141,11 +140,12 @@ TEST(TryProbeStubCache) {
     m.TryProbeStubCache(&stub_cache, receiver, name, &if_handler, &var_handler,
                         &if_miss);
     m.BIND(&if_handler);
-    m.Branch(m.TaggedEqual(expected_handler, var_handler.value()), &passed,
-             &failed);
+    m.Branch(m.WordEqual(expected_handler,
+                         m.BitcastMaybeObjectToWord(var_handler.value())),
+             &passed, &failed);
 
     m.BIND(&if_miss);
-    m.Branch(m.TaggedEqual(expected_handler, m.SmiConstant(0)), &passed,
+    m.Branch(m.WordEqual(expected_handler, m.IntPtrConstant(0)), &passed,
              &failed);
 
     m.BIND(&passed);
@@ -204,7 +204,7 @@ TEST(TryProbeStubCache) {
 
   // Generate some number of handlers.
   for (int i = 0; i < 30; i++) {
-    handlers.push_back(CreateCodeOfKind(CodeKind::STUB));
+    handlers.push_back(CreateCodeOfKind(Code::STUB));
   }
 
   // Ensure that GC does happen because from now on we are going to fill our

@@ -39,39 +39,36 @@ tmpdir.refresh();
 const linkData = fixtures.path('/cycles/root.js');
 const linkPath = path.join(tmpdir.path, 'symlink1.js');
 
-fs.symlink(linkData, linkPath, common.mustSucceed(() => {
-  fs.lstat(linkPath, common.mustSucceed((stats) => {
+fs.symlink(linkData, linkPath, common.mustCall(function(err) {
+  assert.ifError(err);
+
+  fs.lstat(linkPath, common.mustCall(function(err, stats) {
+    assert.ifError(err);
     linkTime = stats.mtime.getTime();
   }));
 
-  fs.stat(linkPath, common.mustSucceed((stats) => {
+  fs.stat(linkPath, common.mustCall(function(err, stats) {
+    assert.ifError(err);
     fileTime = stats.mtime.getTime();
   }));
 
-  fs.readlink(linkPath, common.mustSucceed((destination) => {
+  fs.readlink(linkPath, common.mustCall(function(err, destination) {
+    assert.ifError(err);
     assert.strictEqual(destination, linkData);
   }));
 }));
-
-// Test invalid symlink
-{
-  const linkData = fixtures.path('/not/exists/file');
-  const linkPath = path.join(tmpdir.path, 'symlink2.js');
-
-  fs.symlink(linkData, linkPath, common.mustSucceed(() => {
-    assert(!fs.existsSync(linkPath));
-  }));
-}
 
 [false, 1, {}, [], null, undefined].forEach((input) => {
   const errObj = {
     code: 'ERR_INVALID_ARG_TYPE',
     name: 'TypeError',
-    message: /target|path/
+    message: 'The "target" argument must be one of type string, Buffer, or ' +
+             `URL. Received type ${typeof input}`
   };
   assert.throws(() => fs.symlink(input, '', common.mustNotCall()), errObj);
   assert.throws(() => fs.symlinkSync(input, ''), errObj);
 
+  errObj.message = errObj.message.replace('target', 'path');
   assert.throws(() => fs.symlink('', input, common.mustNotCall()), errObj);
   assert.throws(() => fs.symlinkSync('', input), errObj);
 });
@@ -85,6 +82,6 @@ const errObj = {
 assert.throws(() => fs.symlink('', '', '🍏', common.mustNotCall()), errObj);
 assert.throws(() => fs.symlinkSync('', '', '🍏'), errObj);
 
-process.on('exit', () => {
+process.on('exit', function() {
   assert.notStrictEqual(linkTime, fileTime);
 });

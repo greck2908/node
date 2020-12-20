@@ -68,7 +68,6 @@ server.listen(0, function() {
       process.exit(0);
     write();
   }
-
   function write() {
     // This needs to return false eventually
     while (false !== conn.write(chunk));

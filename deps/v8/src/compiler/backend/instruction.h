@@ -11,16 +11,15 @@
 #include <set>
 
 #include "src/base/compiler-specific.h"
-#include "src/codegen/external-reference.h"
-#include "src/codegen/register-arch.h"
-#include "src/codegen/source-position.h"
-#include "src/common/globals.h"
 #include "src/compiler/backend/instruction-codes.h"
 #include "src/compiler/common-operator.h"
-#include "src/compiler/feedback-source.h"
 #include "src/compiler/frame.h"
 #include "src/compiler/opcodes.h"
-#include "src/numbers/double.h"
+#include "src/double.h"
+#include "src/external-reference.h"
+#include "src/globals.h"
+#include "src/register-arch.h"
+#include "src/source-position.h"
 #include "src/zone/zone-allocator.h"
 
 namespace v8 {
@@ -33,16 +32,7 @@ namespace compiler {
 class Schedule;
 class SourcePositionTable;
 
-#if defined(V8_CC_MSVC) && defined(V8_TARGET_ARCH_IA32)
-// MSVC on x86 has issues with ALIGNAS(8) on InstructionOperand, but does
-// align the object to 8 bytes anyway (covered by a static assert below).
-// See crbug.com/v8/10796
-#define INSTRUCTION_OPERAND_ALIGN
-#else
-#define INSTRUCTION_OPERAND_ALIGN ALIGNAS(8)
-#endif
-
-class V8_EXPORT_PRIVATE INSTRUCTION_OPERAND_ALIGN InstructionOperand {
+class V8_EXPORT_PRIVATE InstructionOperand {
  public:
   static const int kInvalidVirtualRegister = -1;
 
@@ -51,10 +41,10 @@ class V8_EXPORT_PRIVATE INSTRUCTION_OPERAND_ALIGN InstructionOperand {
     UNALLOCATED,
     CONSTANT,
     IMMEDIATE,
-    PENDING,
     // Location operand kinds.
+    EXPLICIT,
     ALLOCATED,
-    FIRST_LOCATION_OPERAND_KIND = ALLOCATED
+    FIRST_LOCATION_OPERAND_KIND = EXPLICIT
     // Location operand kinds must be last.
   };
 
@@ -77,10 +67,11 @@ class V8_EXPORT_PRIVATE INSTRUCTION_OPERAND_ALIGN InstructionOperand {
   // embedded directly in instructions, e.g. small integers and on some
   // platforms Objects.
   INSTRUCTION_OPERAND_PREDICATE(Immediate, IMMEDIATE)
-  // PendingOperands are pending allocation during register allocation and
-  // shouldn't be seen elsewhere. They chain together multiple operators that
-  // will be replaced together with the same value when finalized.
-  INSTRUCTION_OPERAND_PREDICATE(Pending, PENDING)
+  // ExplicitOperands do not participate in register allocation. They are
+  // created by the instruction selector for direct access to registers and
+  // stack slots, completely bypassing the register allocator. They are never
+  // associated with a virtual register
+  INSTRUCTION_OPERAND_PREDICATE(Explicit, EXPLICIT)
   // AllocatedOperands are registers or stack slots that are assigned by the
   // register allocator and are always associated with a virtual register.
   INSTRUCTION_OPERAND_PREDICATE(Allocated, ALLOCATED)
@@ -104,7 +95,8 @@ class V8_EXPORT_PRIVATE INSTRUCTION_OPERAND_ALIGN InstructionOperand {
 
   template <typename SubKindOperand>
   static SubKindOperand* New(Zone* zone, const SubKindOperand& op) {
-    return zone->New<SubKindOperand>(op);
+    void* buffer = zone->New(sizeof(op));
+    return new (buffer) SubKindOperand(op);
   }
 
   static void ReplaceWith(InstructionOperand* dest,
@@ -113,10 +105,6 @@ class V8_EXPORT_PRIVATE INSTRUCTION_OPERAND_ALIGN InstructionOperand {
   }
 
   bool Equals(const InstructionOperand& that) const {
-    if (IsPending()) {
-      // Pending operands are only equal if they are the same operand.
-      return this == &that;
-    }
     return this->value_ == that.value_;
   }
 
@@ -125,15 +113,10 @@ class V8_EXPORT_PRIVATE INSTRUCTION_OPERAND_ALIGN InstructionOperand {
   }
 
   bool EqualsCanonicalized(const InstructionOperand& that) const {
-    if (IsPending()) {
-      // Pending operands can't be canonicalized, so just compare for equality.
-      return Equals(that);
-    }
     return this->GetCanonicalizedValue() == that.GetCanonicalizedValue();
   }
 
   bool CompareCanonicalized(const InstructionOperand& that) const {
-    DCHECK(!IsPending());
     return this->GetCanonicalizedValue() < that.GetCanonicalizedValue();
   }
 
@@ -147,7 +130,7 @@ class V8_EXPORT_PRIVATE INSTRUCTION_OPERAND_ALIGN InstructionOperand {
 
   inline uint64_t GetCanonicalizedValue() const;
 
-  using KindField = base::BitField64<Kind, 0, 3>;
+  class KindField : public BitField64<Kind, 0, 3> {};
 
   uint64_t value_;
 };
@@ -320,8 +303,8 @@ class UnallocatedOperand final : public InstructionOperand {
 
   // [lifetime]: Only for non-FIXED_SLOT.
   bool IsUsedAtStart() const {
-    return basic_policy() == EXTENDED_POLICY &&
-           LifetimeField::decode(value_) == USED_AT_START;
+    DCHECK(basic_policy() == EXTENDED_POLICY);
+    return LifetimeField::decode(value_) == USED_AT_START;
   }
 
   INSTRUCTION_OPERAND_CASTS(UnallocatedOperand, UNALLOCATED)
@@ -344,24 +327,24 @@ class UnallocatedOperand final : public InstructionOperand {
   //     P ... Policy
   //
   // The slot index is a signed value which requires us to decode it manually
-  // instead of using the base::BitField utility class.
+  // instead of using the BitField utility class.
 
   STATIC_ASSERT(KindField::kSize == 3);
 
-  using VirtualRegisterField = base::BitField64<uint32_t, 3, 32>;
+  class VirtualRegisterField : public BitField64<uint32_t, 3, 32> {};
 
-  // base::BitFields for all unallocated operands.
-  using BasicPolicyField = base::BitField64<BasicPolicy, 35, 1>;
+  // BitFields for all unallocated operands.
+  class BasicPolicyField : public BitField64<BasicPolicy, 35, 1> {};
 
   // BitFields specific to BasicPolicy::FIXED_SLOT.
-  using FixedSlotIndexField = base::BitField64<int, 36, 28>;
+  class FixedSlotIndexField : public BitField64<int, 36, 28> {};
 
   // BitFields specific to BasicPolicy::EXTENDED_POLICY.
-  using ExtendedPolicyField = base::BitField64<ExtendedPolicy, 36, 3>;
-  using LifetimeField = base::BitField64<Lifetime, 39, 1>;
-  using HasSecondaryStorageField = base::BitField64<bool, 40, 1>;
-  using FixedRegisterField = base::BitField64<int, 41, 6>;
-  using SecondaryStorageField = base::BitField64<int, 47, 3>;
+  class ExtendedPolicyField : public BitField64<ExtendedPolicy, 36, 3> {};
+  class LifetimeField : public BitField64<Lifetime, 39, 1> {};
+  class HasSecondaryStorageField : public BitField64<bool, 40, 1> {};
+  class FixedRegisterField : public BitField64<int, 41, 6> {};
+  class SecondaryStorageField : public BitField64<int, 47, 3> {};
 
  private:
   explicit UnallocatedOperand(int virtual_register)
@@ -390,7 +373,7 @@ class ConstantOperand : public InstructionOperand {
   INSTRUCTION_OPERAND_CASTS(ConstantOperand, CONSTANT)
 
   STATIC_ASSERT(KindField::kSize == 3);
-  using VirtualRegisterField = base::BitField64<uint32_t, 3, 32>;
+  class VirtualRegisterField : public BitField64<uint32_t, 3, 32> {};
 };
 
 class ImmediateOperand : public InstructionOperand {
@@ -423,46 +406,8 @@ class ImmediateOperand : public InstructionOperand {
   INSTRUCTION_OPERAND_CASTS(ImmediateOperand, IMMEDIATE)
 
   STATIC_ASSERT(KindField::kSize == 3);
-  using TypeField = base::BitField64<ImmediateType, 3, 1>;
-  using ValueField = base::BitField64<int32_t, 32, 32>;
-};
-
-class PendingOperand : public InstructionOperand {
- public:
-  PendingOperand() : InstructionOperand(PENDING) {}
-  explicit PendingOperand(PendingOperand* next_operand) : PendingOperand() {
-    set_next(next_operand);
-  }
-
-  void set_next(PendingOperand* next) {
-    DCHECK_NULL(this->next());
-    uintptr_t shifted_value =
-        reinterpret_cast<uintptr_t>(next) >> kPointerShift;
-    DCHECK_EQ(reinterpret_cast<uintptr_t>(next),
-              shifted_value << kPointerShift);
-    value_ |= NextOperandField::encode(static_cast<uint64_t>(shifted_value));
-  }
-
-  PendingOperand* next() const {
-    uintptr_t shifted_value =
-        static_cast<uint64_t>(NextOperandField::decode(value_));
-    return reinterpret_cast<PendingOperand*>(shifted_value << kPointerShift);
-  }
-
-  static PendingOperand* New(Zone* zone, PendingOperand* previous_operand) {
-    return InstructionOperand::New(zone, PendingOperand(previous_operand));
-  }
-
-  INSTRUCTION_OPERAND_CASTS(PendingOperand, PENDING)
-
- private:
-  // Operands are uint64_t values and so are aligned to 8 byte boundaries,
-  // therefore we can shift off the bottom three zeros without losing data.
-  static const uint64_t kPointerShift = 3;
-  STATIC_ASSERT(alignof(InstructionOperand) >= (1 << kPointerShift));
-
-  STATIC_ASSERT(KindField::kSize == 3);
-  using NextOperandField = base::BitField64<uint64_t, 3, 61>;
+  class TypeField : public BitField64<ImmediateType, 3, 1> {};
+  class ValueField : public BitField64<int32_t, 32, 32> {};
 };
 
 class LocationOperand : public InstructionOperand {
@@ -532,6 +477,7 @@ class LocationOperand : public InstructionOperand {
       case MachineRepresentation::kTaggedSigned:
       case MachineRepresentation::kTaggedPointer:
       case MachineRepresentation::kTagged:
+      case MachineRepresentation::kCompressedSigned:
       case MachineRepresentation::kCompressedPointer:
       case MachineRepresentation::kCompressed:
         return true;
@@ -563,9 +509,22 @@ class LocationOperand : public InstructionOperand {
   }
 
   STATIC_ASSERT(KindField::kSize == 3);
-  using LocationKindField = base::BitField64<LocationKind, 3, 2>;
-  using RepresentationField = base::BitField64<MachineRepresentation, 5, 8>;
-  using IndexField = base::BitField64<int32_t, 35, 29>;
+  class LocationKindField : public BitField64<LocationKind, 3, 2> {};
+  class RepresentationField : public BitField64<MachineRepresentation, 5, 8> {};
+  class IndexField : public BitField64<int32_t, 35, 29> {};
+};
+
+class V8_EXPORT_PRIVATE ExplicitOperand
+    : public NON_EXPORTED_BASE(LocationOperand) {
+ public:
+  ExplicitOperand(LocationKind kind, MachineRepresentation rep, int index);
+
+  static ExplicitOperand* New(Zone* zone, LocationKind kind,
+                              MachineRepresentation rep, int index) {
+    return InstructionOperand::New(zone, ExplicitOperand(kind, rep, index));
+  }
+
+  INSTRUCTION_OPERAND_CASTS(ExplicitOperand, EXPLICIT)
 };
 
 class AllocatedOperand : public LocationOperand {
@@ -683,7 +642,7 @@ uint64_t InstructionOperand::GetCanonicalizedValue() const {
     }
     return InstructionOperand::KindField::update(
         LocationOperand::RepresentationField::update(this->value_, canonical),
-        LocationOperand::ALLOCATED);
+        LocationOperand::EXPLICIT);
   }
   return this->value_;
 }
@@ -764,7 +723,7 @@ class V8_EXPORT_PRIVATE ParallelMove final
                         const InstructionOperand& to,
                         Zone* operand_allocation_zone) {
     if (from.EqualsCanonicalized(to)) return nullptr;
-    MoveOperands* move = operand_allocation_zone->New<MoveOperands>(from, to);
+    MoveOperands* move = new (operand_allocation_zone) MoveOperands(from, to);
     if (empty()) reserve(4);
     push_back(move);
     return move;
@@ -816,11 +775,11 @@ class V8_EXPORT_PRIVATE Instruction final {
  public:
   size_t OutputCount() const { return OutputCountField::decode(bit_field_); }
   const InstructionOperand* OutputAt(size_t i) const {
-    DCHECK_LT(i, OutputCount());
+    DCHECK(i < OutputCount());
     return &operands_[i];
   }
   InstructionOperand* OutputAt(size_t i) {
-    DCHECK_LT(i, OutputCount());
+    DCHECK(i < OutputCount());
     return &operands_[i];
   }
 
@@ -830,21 +789,21 @@ class V8_EXPORT_PRIVATE Instruction final {
 
   size_t InputCount() const { return InputCountField::decode(bit_field_); }
   const InstructionOperand* InputAt(size_t i) const {
-    DCHECK_LT(i, InputCount());
+    DCHECK(i < InputCount());
     return &operands_[OutputCount() + i];
   }
   InstructionOperand* InputAt(size_t i) {
-    DCHECK_LT(i, InputCount());
+    DCHECK(i < InputCount());
     return &operands_[OutputCount() + i];
   }
 
   size_t TempCount() const { return TempCountField::decode(bit_field_); }
   const InstructionOperand* TempAt(size_t i) const {
-    DCHECK_LT(i, TempCount());
+    DCHECK(i < TempCount());
     return &operands_[OutputCount() + InputCount() + i];
   }
   InstructionOperand* TempAt(size_t i) {
-    DCHECK_LT(i, TempCount());
+    DCHECK(i < TempCount());
     return &operands_[OutputCount() + InputCount() + i];
   }
 
@@ -866,10 +825,11 @@ class V8_EXPORT_PRIVATE Instruction final {
                           size_t output_count, InstructionOperand* outputs,
                           size_t input_count, InstructionOperand* inputs,
                           size_t temp_count, InstructionOperand* temps) {
+    DCHECK_LE(0, opcode);
     DCHECK(output_count == 0 || outputs != nullptr);
     DCHECK(input_count == 0 || inputs != nullptr);
     DCHECK(temp_count == 0 || temps != nullptr);
-    // TODO(turbofan): Handle this gracefully. See crbug.com/582702.
+    // TODO(jarin/mstarzinger): Handle this gracefully. See crbug.com/582702.
     CHECK(InputCountField::is_valid(input_count));
 
     size_t total_extra_ops = output_count + input_count + temp_count;
@@ -877,7 +837,7 @@ class V8_EXPORT_PRIVATE Instruction final {
     int size = static_cast<int>(
         RoundUp(sizeof(Instruction), sizeof(InstructionOperand)) +
         total_extra_ops * sizeof(InstructionOperand));
-    return new (zone->Allocate<Instruction>(size)) Instruction(
+    return new (zone->New(size)) Instruction(
         opcode, output_count, outputs, input_count, inputs, temp_count, temps);
   }
 
@@ -921,7 +881,10 @@ class V8_EXPORT_PRIVATE Instruction final {
   bool IsJump() const { return arch_opcode() == ArchOpcode::kArchJmp; }
   bool IsRet() const { return arch_opcode() == ArchOpcode::kArchRet; }
   bool IsTailCall() const {
-    return arch_opcode() <= ArchOpcode::kArchTailCallWasm;
+    return arch_opcode() == ArchOpcode::kArchTailCallCodeObject ||
+           arch_opcode() == ArchOpcode::kArchTailCallCodeObjectFromJSFunction ||
+           arch_opcode() == ArchOpcode::kArchTailCallAddress ||
+           arch_opcode() == ArchOpcode::kArchTailCallWasm;
   }
   bool IsThrow() const {
     return arch_opcode() == ArchOpcode::kArchThrowTerminator;
@@ -936,7 +899,7 @@ class V8_EXPORT_PRIVATE Instruction final {
 
   ParallelMove* GetOrCreateParallelMove(GapPosition pos, Zone* zone) {
     if (parallel_moves_[pos] == nullptr) {
-      parallel_moves_[pos] = zone->New<ParallelMove>(zone);
+      parallel_moves_[pos] = new (zone) ParallelMove(zone);
     }
     return parallel_moves_[pos];
   }
@@ -966,9 +929,9 @@ class V8_EXPORT_PRIVATE Instruction final {
   // APIs to aid debugging. For general-stream APIs, use operator<<.
   void Print() const;
 
-  using OutputCountField = base::BitField<size_t, 0, 8>;
-  using InputCountField = base::BitField<size_t, 8, 16>;
-  using TempCountField = base::BitField<size_t, 24, 6>;
+  using OutputCountField = BitField<size_t, 0, 8>;
+  using InputCountField = BitField<size_t, 8, 16>;
+  using TempCountField = BitField<size_t, 24, 6>;
 
   static const size_t kMaxOutputCount = OutputCountField::kMax;
   static const size_t kMaxInputCount = InputCountField::kMax;
@@ -982,7 +945,7 @@ class V8_EXPORT_PRIVATE Instruction final {
               InstructionOperand* inputs, size_t temp_count,
               InstructionOperand* temps);
 
-  using IsCallField = base::BitField<bool, 30, 1>;
+  using IsCallField = BitField<bool, 30, 1>;
 
   InstructionCode opcode_;
   uint32_t bit_field_;
@@ -1034,7 +997,7 @@ class RpoNumber final {
   int32_t index_;
 };
 
-V8_EXPORT_PRIVATE std::ostream& operator<<(std::ostream&, const RpoNumber&);
+std::ostream& operator<<(std::ostream&, const RpoNumber&);
 
 class V8_EXPORT_PRIVATE Constant final {
  public:
@@ -1044,7 +1007,6 @@ class V8_EXPORT_PRIVATE Constant final {
     kFloat32,
     kFloat64,
     kExternalReference,
-    kCompressedHeapObject,
     kHeapObject,
     kRpoNumber,
     kDelayedStringConstant
@@ -1056,9 +1018,8 @@ class V8_EXPORT_PRIVATE Constant final {
   explicit Constant(double v) : type_(kFloat64), value_(bit_cast<int64_t>(v)) {}
   explicit Constant(ExternalReference ref)
       : type_(kExternalReference), value_(bit_cast<intptr_t>(ref.address())) {}
-  explicit Constant(Handle<HeapObject> obj, bool is_compressed = false)
-      : type_(is_compressed ? kCompressedHeapObject : kHeapObject),
-        value_(bit_cast<intptr_t>(obj)) {}
+  explicit Constant(Handle<HeapObject> obj)
+      : type_(kHeapObject), value_(bit_cast<intptr_t>(obj)) {}
   explicit Constant(RpoNumber rpo) : type_(kRpoNumber), value_(rpo.ToInt()) {}
   explicit Constant(const StringConstantBase* str)
       : type_(kDelayedStringConstant), value_(bit_cast<intptr_t>(str)) {}
@@ -1144,9 +1105,11 @@ class StateValueDescriptor {
     descr.args_type_ = type;
     return descr;
   }
-  static StateValueDescriptor ArgumentsLength() {
-    return StateValueDescriptor(StateValueKind::kArgumentsLength,
-                                MachineType::AnyTagged());
+  static StateValueDescriptor ArgumentsLength(ArgumentsStateType type) {
+    StateValueDescriptor descr(StateValueKind::kArgumentsLength,
+                               MachineType::AnyTagged());
+    descr.args_type_ = type;
+    return descr;
   }
   static StateValueDescriptor Plain(MachineType type) {
     return StateValueDescriptor(StateValueKind::kPlain, type);
@@ -1185,7 +1148,8 @@ class StateValueDescriptor {
     return id_;
   }
   ArgumentsStateType arguments_type() const {
-    DCHECK(kind_ == StateValueKind::kArgumentsElements);
+    DCHECK(kind_ == StateValueKind::kArgumentsElements ||
+           kind_ == StateValueKind::kArgumentsLength);
     return args_type_;
   }
 
@@ -1252,15 +1216,16 @@ class StateValueList {
 
   StateValueList* PushRecursiveField(Zone* zone, size_t id) {
     fields_.push_back(StateValueDescriptor::Recursive(id));
-    StateValueList* nested = zone->New<StateValueList>(zone);
+    StateValueList* nested =
+        new (zone->New(sizeof(StateValueList))) StateValueList(zone);
     nested_.push_back(nested);
     return nested;
   }
   void PushArgumentsElements(ArgumentsStateType type) {
     fields_.push_back(StateValueDescriptor::ArgumentsElements(type));
   }
-  void PushArgumentsLength() {
-    fields_.push_back(StateValueDescriptor::ArgumentsLength());
+  void PushArgumentsLength(ArgumentsStateType type) {
+    fields_.push_back(StateValueDescriptor::ArgumentsLength(type));
   }
   void PushDuplicate(size_t id) {
     fields_.push_back(StateValueDescriptor::Duplicate(id));
@@ -1268,8 +1233,8 @@ class StateValueList {
   void PushPlain(MachineType type) {
     fields_.push_back(StateValueDescriptor::Plain(type));
   }
-  void PushOptimizedOut(size_t num = 1) {
-    fields_.insert(fields_.end(), num, StateValueDescriptor::OptimizedOut());
+  void PushOptimizedOut() {
+    fields_.push_back(StateValueDescriptor::OptimizedOut());
   }
 
   iterator begin() { return iterator(fields_.begin(), nested_.begin()); }
@@ -1303,20 +1268,6 @@ class FrameStateDescriptor : public ZoneObject {
            type_ == FrameStateType::kConstructStub;
   }
 
-  // The frame height on the stack, in number of slots, as serialized into a
-  // Translation and later used by the deoptimizer. Does *not* include
-  // information from the chain of outer states. Unlike |GetSize| this does not
-  // always include parameters, locals, and stack slots; instead, the returned
-  // slot kinds depend on the frame type.
-  size_t GetHeight() const;
-
-  // Returns an overapproximation of the unoptimized stack frame size in bytes,
-  // as later produced by the deoptimizer. Considers both this and the chain of
-  // outer states.
-  size_t total_conservative_frame_size_in_bytes() const {
-    return total_conservative_frame_size_in_bytes_;
-  }
-
   size_t GetSize() const;
   size_t GetTotalSize() const;
   size_t GetFrameCount() const;
@@ -1330,13 +1281,12 @@ class FrameStateDescriptor : public ZoneObject {
   FrameStateType type_;
   BailoutId bailout_id_;
   OutputFrameStateCombine frame_state_combine_;
-  const size_t parameters_count_;
-  const size_t locals_count_;
-  const size_t stack_count_;
-  const size_t total_conservative_frame_size_in_bytes_;
+  size_t parameters_count_;
+  size_t locals_count_;
+  size_t stack_count_;
   StateValueList values_;
   MaybeHandle<SharedFunctionInfo> const shared_info_;
-  FrameStateDescriptor* const outer_state_;
+  FrameStateDescriptor* outer_state_;
 };
 
 // A deoptimization entry is a pair of the reason why we deoptimize and the
@@ -1345,7 +1295,7 @@ class DeoptimizationEntry final {
  public:
   DeoptimizationEntry() = default;
   DeoptimizationEntry(FrameStateDescriptor* descriptor, DeoptimizeKind kind,
-                      DeoptimizeReason reason, FeedbackSource const& feedback)
+                      DeoptimizeReason reason, VectorSlotPair const& feedback)
       : descriptor_(descriptor),
         kind_(kind),
         reason_(reason),
@@ -1354,13 +1304,13 @@ class DeoptimizationEntry final {
   FrameStateDescriptor* descriptor() const { return descriptor_; }
   DeoptimizeKind kind() const { return kind_; }
   DeoptimizeReason reason() const { return reason_; }
-  FeedbackSource const& feedback() const { return feedback_; }
+  VectorSlotPair const& feedback() const { return feedback_; }
 
  private:
   FrameStateDescriptor* descriptor_ = nullptr;
   DeoptimizeKind kind_ = DeoptimizeKind::kEager;
   DeoptimizeReason reason_ = DeoptimizeReason::kUnknown;
-  FeedbackSource feedback_ = FeedbackSource();
+  VectorSlotPair feedback_ = VectorSlotPair();
 };
 
 using DeoptimizationVector = ZoneVector<DeoptimizationEntry>;
@@ -1394,8 +1344,7 @@ class V8_EXPORT_PRIVATE InstructionBlock final
     : public NON_EXPORTED_BASE(ZoneObject) {
  public:
   InstructionBlock(Zone* zone, RpoNumber rpo_number, RpoNumber loop_header,
-                   RpoNumber loop_end, RpoNumber dominator, bool deferred,
-                   bool handler);
+                   RpoNumber loop_end, bool deferred, bool handler);
 
   // Instruction indexes (used by the register allocator).
   int first_instruction_index() const {
@@ -1419,8 +1368,6 @@ class V8_EXPORT_PRIVATE InstructionBlock final
 
   bool IsDeferred() const { return deferred_; }
   bool IsHandler() const { return handler_; }
-  void MarkHandler() { handler_ = true; }
-  void UnmarkHandler() { handler_ = false; }
 
   RpoNumber ao_number() const { return ao_number_; }
   RpoNumber rpo_number() const { return rpo_number_; }
@@ -1444,9 +1391,6 @@ class V8_EXPORT_PRIVATE InstructionBlock final
   const Successors& successors() const { return successors_; }
   size_t SuccessorCount() const { return successors_.size(); }
 
-  RpoNumber dominator() const { return dominator_; }
-  void set_dominator(RpoNumber dominator) { dominator_ = dominator; }
-
   using PhiInstructions = ZoneVector<PhiInstruction*>;
   const PhiInstructions& phis() const { return phis_; }
   PhiInstruction* PhiAt(size_t i) const { return phis_[i]; }
@@ -1466,7 +1410,6 @@ class V8_EXPORT_PRIVATE InstructionBlock final
 
   bool must_deconstruct_frame() const { return must_deconstruct_frame_; }
   void mark_must_deconstruct_frame() { must_deconstruct_frame_ = true; }
-  void clear_must_deconstruct_frame() { must_deconstruct_frame_ = false; }
 
  private:
   Successors successors_;
@@ -1476,11 +1419,10 @@ class V8_EXPORT_PRIVATE InstructionBlock final
   const RpoNumber rpo_number_;
   const RpoNumber loop_header_;
   const RpoNumber loop_end_;
-  RpoNumber dominator_;
   int32_t code_start_;   // start index of arch-specific code.
   int32_t code_end_ = -1;     // end index of arch-specific code.
-  const bool deferred_;       // Block contains deferred code.
-  bool handler_;              // Block is a handler entry point.
+  const bool deferred_ = -1;  // Block contains deferred code.
+  const bool handler_;   // Block is a handler entry point.
   bool switch_target_ = false;
   bool alignment_ = false;  // insert alignment before this block
   bool needs_frame_ = false;
@@ -1598,7 +1540,7 @@ class V8_EXPORT_PRIVATE InstructionSequence final
     return virtual_register;
   }
   Constant GetConstant(int virtual_register) const {
-    auto it = constants_.find(virtual_register);
+    ConstantMap::const_iterator it = constants_.find(virtual_register);
     DCHECK(it != constants_.end());
     DCHECK_EQ(virtual_register, it->first);
     return it->second;
@@ -1633,7 +1575,7 @@ class V8_EXPORT_PRIVATE InstructionSequence final
 
   int AddDeoptimizationEntry(FrameStateDescriptor* descriptor,
                              DeoptimizeKind kind, DeoptimizeReason reason,
-                             FeedbackSource const& feedback);
+                             VectorSlotPair const& feedback);
   DeoptimizationEntry const& GetDeoptimizationEntry(int deoptimization_id);
   int GetDeoptimizationEntryCount() const {
     return static_cast<int>(deoptimization_entries_.size());
@@ -1702,7 +1644,6 @@ class V8_EXPORT_PRIVATE InstructionSequence final
 
 V8_EXPORT_PRIVATE std::ostream& operator<<(std::ostream&,
                                            const InstructionSequence&);
-#undef INSTRUCTION_OPERAND_ALIGN
 
 }  // namespace compiler
 }  // namespace internal

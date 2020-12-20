@@ -8,7 +8,7 @@ const assert = require('assert');
 const crypto = require('crypto');
 
 const { internalBinding } = require('internal/test/binding');
-if (typeof internalBinding('crypto').ScryptJob !== 'function')
+if (typeof internalBinding('crypto').scrypt !== 'function')
   common.skip('no scrypt support');
 
 const good = [
@@ -149,29 +149,34 @@ for (const options of good) {
   const { pass, salt, keylen, expected } = options;
   const actual = crypto.scryptSync(pass, salt, keylen, options);
   assert.strictEqual(actual.toString('hex'), expected);
-  crypto.scrypt(pass, salt, keylen, options, common.mustSucceed((actual) => {
+  crypto.scrypt(pass, salt, keylen, options, common.mustCall((err, actual) => {
+    assert.ifError(err);
     assert.strictEqual(actual.toString('hex'), expected);
   }));
 }
 
 for (const options of bad) {
   const expected = {
-    message: /Invalid scrypt param/,
+    code: 'ERR_CRYPTO_SCRYPT_INVALID_PARAMETER',
+    message: 'Invalid scrypt parameter',
+    type: Error,
   };
-  assert.throws(() => crypto.scrypt('pass', 'salt', 1, options, () => {}),
-                expected);
-  assert.throws(() => crypto.scryptSync('pass', 'salt', 1, options),
-                expected);
+  common.expectsError(() => crypto.scrypt('pass', 'salt', 1, options, () => {}),
+                      expected);
+  common.expectsError(() => crypto.scryptSync('pass', 'salt', 1, options),
+                      expected);
 }
 
 for (const options of toobig) {
   const expected = {
-    message: /Invalid scrypt param/
+    message: new RegExp('error:[^:]+:digital envelope routines:' +
+                        '(?:EVP_PBE_scrypt|scrypt_alg):memory limit exceeded'),
+    type: Error,
   };
-  assert.throws(() => crypto.scrypt('pass', 'salt', 1, options, () => {}),
-                expected);
-  assert.throws(() => crypto.scryptSync('pass', 'salt', 1, options),
-                expected);
+  common.expectsError(() => crypto.scrypt('pass', 'salt', 1, options, () => {}),
+                      expected);
+  common.expectsError(() => crypto.scryptSync('pass', 'salt', 1, options),
+                      expected);
 }
 
 {
@@ -179,7 +184,8 @@ for (const options of toobig) {
   const expected = crypto.scryptSync('pass', 'salt', 1, defaults);
   const actual = crypto.scryptSync('pass', 'salt', 1);
   assert.deepStrictEqual(actual.toString('hex'), expected.toString('hex'));
-  crypto.scrypt('pass', 'salt', 1, common.mustSucceed((actual) => {
+  crypto.scrypt('pass', 'salt', 1, common.mustCall((err, actual) => {
+    assert.ifError(err);
     assert.deepStrictEqual(actual.toString('hex'), expected.toString('hex'));
   }));
 }
@@ -194,7 +200,8 @@ for (const options of toobig) {
   const actual = crypto.scryptSync('pass', 'salt', 1);
   assert.deepStrictEqual(actual, expected.toString(testEncoding));
 
-  crypto.scrypt('pass', 'salt', 1, common.mustSucceed((actual) => {
+  crypto.scrypt('pass', 'salt', 1, common.mustCall((err, actual) => {
+    assert.ifError(err);
     assert.deepStrictEqual(actual, expected.toString(testEncoding));
   }));
 
@@ -202,63 +209,14 @@ for (const options of toobig) {
 }
 
 for (const { args, expected } of badargs) {
-  assert.throws(() => crypto.scrypt(...args), expected);
-  assert.throws(() => crypto.scryptSync(...args), expected);
+  common.expectsError(() => crypto.scrypt(...args), expected);
+  common.expectsError(() => crypto.scryptSync(...args), expected);
 }
 
 {
   const expected = { code: 'ERR_INVALID_CALLBACK' };
-  assert.throws(() => crypto.scrypt('', '', 42, null), expected);
-  assert.throws(() => crypto.scrypt('', '', 42, {}, null), expected);
-  assert.throws(() => crypto.scrypt('', '', 42, {}), expected);
-  assert.throws(() => crypto.scrypt('', '', 42, {}, {}), expected);
-}
-
-{
-  // Values for maxmem that do not fit in 32 bits but that are still safe
-  // integers should be allowed.
-  crypto.scrypt('', '', 4, { maxmem: 2 ** 52 },
-                common.mustSucceed((actual) => {
-                  assert.strictEqual(actual.toString('hex'), 'd72c87d0');
-                }));
-
-  // Values that exceed Number.isSafeInteger should not be allowed.
-  assert.throws(() => crypto.scryptSync('', '', 0, { maxmem: 2 ** 53 }), {
-    code: 'ERR_OUT_OF_RANGE'
-  });
-}
-
-{
-  // Regression test for https://github.com/nodejs/node/issues/28836.
-
-  function testParameter(name, value) {
-    let accessCount = 0;
-
-    // Find out how often the value is accessed.
-    crypto.scryptSync('', '', 1, {
-      get [name]() {
-        accessCount++;
-        return value;
-      }
-    });
-
-    // Try to crash the process on the last access.
-    assert.throws(() => {
-      crypto.scryptSync('', '', 1, {
-        get [name]() {
-          if (--accessCount === 0)
-            return '';
-          return value;
-        }
-      });
-    }, {
-      code: 'ERR_INVALID_ARG_TYPE'
-    });
-  }
-
-  [
-    ['N', 16384], ['cost', 16384],
-    ['r', 8], ['blockSize', 8],
-    ['p', 1], ['parallelization', 1]
-  ].forEach((arg) => testParameter(...arg));
+  common.expectsError(() => crypto.scrypt('', '', 42, null), expected);
+  common.expectsError(() => crypto.scrypt('', '', 42, {}, null), expected);
+  common.expectsError(() => crypto.scrypt('', '', 42, {}), expected);
+  common.expectsError(() => crypto.scrypt('', '', 42, {}, {}), expected);
 }

@@ -9,34 +9,32 @@
 #ifndef V8_OBJECTS_JS_LOCALE_H_
 #define V8_OBJECTS_JS_LOCALE_H_
 
-#include "src/execution/isolate.h"
-#include "src/handles/global-handles.h"
+#include "src/global-handles.h"
 #include "src/heap/factory.h"
+#include "src/isolate.h"
+#include "src/objects.h"
 #include "src/objects/managed.h"
-#include "src/objects/objects.h"
 
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
 
 namespace U_ICU_NAMESPACE {
 class Locale;
-}  // namespace U_ICU_NAMESPACE
+}
 
 namespace v8 {
 namespace internal {
 
-class JSLocale : public TorqueGeneratedJSLocale<JSLocale, JSObject> {
+class JSLocale : public JSObject {
  public:
-  // Creates locale object with properties derived from input locale string
+  // Initializes locale object with properties derived from input locale string
   // and options.
-  static MaybeHandle<JSLocale> New(Isolate* isolate, Handle<Map> map,
-                                   Handle<String> locale,
-                                   Handle<JSReceiver> options);
-
-  static MaybeHandle<JSLocale> Maximize(Isolate* isolate,
-                                        Handle<JSLocale> locale);
-  static MaybeHandle<JSLocale> Minimize(Isolate* isolate,
-                                        Handle<JSLocale> locale);
+  static MaybeHandle<JSLocale> Initialize(Isolate* isolate,
+                                          Handle<JSLocale> locale_holder,
+                                          Handle<String> locale,
+                                          Handle<JSReceiver> options);
+  static Handle<String> Maximize(Isolate* isolate, String locale);
+  static Handle<String> Minimize(Isolate* isolate, String locale);
 
   static Handle<Object> Language(Isolate* isolate, Handle<JSLocale> locale);
   static Handle<Object> Script(Isolate* isolate, Handle<JSLocale> locale);
@@ -52,21 +50,22 @@ class JSLocale : public TorqueGeneratedJSLocale<JSLocale, JSObject> {
   static Handle<String> ToString(Isolate* isolate, Handle<JSLocale> locale);
   static std::string ToString(Handle<JSLocale> locale);
 
-  // Help function to validate locale by other Intl objects.
-  static bool StartsWithUnicodeLanguageId(const std::string& value);
-
-  // Help function to check well-formed
-  // "(3*8alphanum) *("-" (3*8alphanum)) sequence" sequence
-  static bool Is38AlphaNumList(const std::string& value);
-
-  // Help function to check well-formed "3alpha"
-  static bool Is3Alpha(const std::string& value);
+  DECL_CAST(JSLocale)
 
   DECL_ACCESSORS(icu_locale, Managed<icu::Locale>)
 
   DECL_PRINTER(JSLocale)
+  DECL_VERIFIER(JSLocale)
 
-  TQ_OBJECT_CONSTRUCTORS(JSLocale)
+  // Layout description.
+#define JS_LOCALE_FIELDS(V)        \
+  V(kICULocaleOffset, kTaggedSize) \
+  V(kSize, 0)
+
+  DEFINE_FIELD_OFFSET_CONSTANTS(JSObject::kHeaderSize, JS_LOCALE_FIELDS)
+#undef JS_LOCALE_FIELDS
+
+  OBJECT_CONSTRUCTORS(JSLocale, JSObject);
 };
 
 }  // namespace internal

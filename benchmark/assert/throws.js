@@ -13,25 +13,28 @@ function main({ n, method }) {
   const doNotThrowError = () => { return 'foobar'; };
   const regExp = /foobar/;
   const message = 'failure';
+  var i;
 
   switch (method) {
+    case '':
+      // Empty string falls through to next line as default, mostly for tests.
     case 'doesNotThrow':
       bench.start();
-      for (let i = 0; i < n; ++i) {
+      for (i = 0; i < n; ++i) {
         doesNotThrow(doNotThrowError);
       }
       bench.end(n);
       break;
     case 'throws_TypeError':
       bench.start();
-      for (let i = 0; i < n; ++i) {
+      for (i = 0; i < n; ++i) {
         throws(throwError, TypeError, message);
       }
       bench.end(n);
       break;
     case 'throws_RegExp':
       bench.start();
-      for (let i = 0; i < n; ++i) {
+      for (i = 0; i < n; ++i) {
         throws(throwError, regExp, message);
       }
       bench.end(n);

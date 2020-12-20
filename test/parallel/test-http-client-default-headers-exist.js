@@ -23,8 +23,7 @@
 const common = require('../common');
 const assert = require('assert');
 const http = require('http');
-
-const { once } = require('events');
+const Countdown = require('../common/countdown');
 
 const expectedHeaders = {
   'DELETE': ['host', 'connection'],
@@ -38,6 +37,10 @@ const expectedHeaders = {
 
 const expectedMethods = Object.keys(expectedHeaders);
 
+const countdown =
+  new Countdown(expectedMethods.length,
+                common.mustCall(() => server.close()));
+
 const server = http.createServer(common.mustCall((req, res) => {
   res.end();
 
@@ -46,8 +49,9 @@ const server = http.createServer(common.mustCall((req, res) => {
 
   const requestHeaders = Object.keys(req.headers);
   requestHeaders.forEach((header) => {
-    assert.ok(
+    assert.strictEqual(
       expectedHeaders[req.method].includes(header.toLowerCase()),
+      true,
       `${header} should not exist for method ${req.method}`
     );
   });
@@ -57,14 +61,15 @@ const server = http.createServer(common.mustCall((req, res) => {
     expectedHeaders[req.method].length,
     `some headers were missing for method: ${req.method}`
   );
+
+  countdown.dec();
 }, expectedMethods.length));
 
 server.listen(0, common.mustCall(() => {
-  Promise.all(expectedMethods.map(async (method) => {
-    const request = http.request({
+  expectedMethods.forEach((method) => {
+    http.request({
       method: method,
       port: server.address().port
     }).end();
-    return once(request, 'response');
-  })).then(common.mustCall(() => { server.close(); }));
+  });
 }));

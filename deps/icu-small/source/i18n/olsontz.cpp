@@ -197,60 +197,58 @@ OlsonTimeZone::OlsonTimeZone(const UResourceBundle* top,
         }
 
         // Process final rule and data, if any
+        const UChar *ruleIdUStr = ures_getStringByKey(res, kFINALRULE, &len, &ec);
+        ures_getByKey(res, kFINALRAW, r.getAlias(), &ec);
+        int32_t ruleRaw = ures_getInt(r.getAlias(), &ec);
+        ures_getByKey(res, kFINALYEAR, r.getAlias(), &ec);
+        int32_t ruleYear = ures_getInt(r.getAlias(), &ec);
         if (U_SUCCESS(ec)) {
-            const UChar *ruleIdUStr = ures_getStringByKey(res, kFINALRULE, &len, &ec);
-            ures_getByKey(res, kFINALRAW, r.getAlias(), &ec);
-            int32_t ruleRaw = ures_getInt(r.getAlias(), &ec);
-            ures_getByKey(res, kFINALYEAR, r.getAlias(), &ec);
-            int32_t ruleYear = ures_getInt(r.getAlias(), &ec);
-            if (U_SUCCESS(ec)) {
-                UnicodeString ruleID(TRUE, ruleIdUStr, len);
-                UResourceBundle *rule = TimeZone::loadRule(top, ruleID, NULL, ec);
-                const int32_t *ruleData = ures_getIntVector(rule, &len, &ec);
-                if (U_SUCCESS(ec) && len == 11) {
-                    UnicodeString emptyStr;
-                    finalZone = new SimpleTimeZone(
-                        ruleRaw * U_MILLIS_PER_SECOND,
-                        emptyStr,
-                        (int8_t)ruleData[0], (int8_t)ruleData[1], (int8_t)ruleData[2],
-                        ruleData[3] * U_MILLIS_PER_SECOND,
-                        (SimpleTimeZone::TimeMode) ruleData[4],
-                        (int8_t)ruleData[5], (int8_t)ruleData[6], (int8_t)ruleData[7],
-                        ruleData[8] * U_MILLIS_PER_SECOND,
-                        (SimpleTimeZone::TimeMode) ruleData[9],
-                        ruleData[10] * U_MILLIS_PER_SECOND, ec);
-                    if (finalZone == NULL) {
-                        ec = U_MEMORY_ALLOCATION_ERROR;
-                    } else {
-                        finalStartYear = ruleYear;
-
-                        // Note: Setting finalStartYear to the finalZone is problematic.  When a date is around
-                        // year boundary, SimpleTimeZone may return false result when DST is observed at the
-                        // beginning of year.  We could apply safe margin (day or two), but when one of recurrent
-                        // rules falls around year boundary, it could return false result.  Without setting the
-                        // start year, finalZone works fine around the year boundary of the start year.
-
-                        // finalZone->setStartYear(finalStartYear);
-
-
-                        // Compute the millis for Jan 1, 0:00 GMT of the finalYear
-
-                        // Note: finalStartMillis is used for detecting either if
-                        // historic transition data or finalZone to be used.  In an
-                        // extreme edge case - for example, two transitions fall into
-                        // small windows of time around the year boundary, this may
-                        // result incorrect offset computation.  But I think it will
-                        // never happen practically.  Yoshito - Feb 20, 2010
-                        finalStartMillis = Grego::fieldsToDay(finalStartYear, 0, 1) * U_MILLIS_PER_DAY;
-                    }
+            UnicodeString ruleID(TRUE, ruleIdUStr, len);
+            UResourceBundle *rule = TimeZone::loadRule(top, ruleID, NULL, ec);
+            const int32_t *ruleData = ures_getIntVector(rule, &len, &ec);
+            if (U_SUCCESS(ec) && len == 11) {
+                UnicodeString emptyStr;
+                finalZone = new SimpleTimeZone(
+                    ruleRaw * U_MILLIS_PER_SECOND,
+                    emptyStr,
+                    (int8_t)ruleData[0], (int8_t)ruleData[1], (int8_t)ruleData[2],
+                    ruleData[3] * U_MILLIS_PER_SECOND,
+                    (SimpleTimeZone::TimeMode) ruleData[4],
+                    (int8_t)ruleData[5], (int8_t)ruleData[6], (int8_t)ruleData[7],
+                    ruleData[8] * U_MILLIS_PER_SECOND,
+                    (SimpleTimeZone::TimeMode) ruleData[9],
+                    ruleData[10] * U_MILLIS_PER_SECOND, ec);
+                if (finalZone == NULL) {
+                    ec = U_MEMORY_ALLOCATION_ERROR;
                 } else {
-                    ec = U_INVALID_FORMAT_ERROR;
+                    finalStartYear = ruleYear;
+
+                    // Note: Setting finalStartYear to the finalZone is problematic.  When a date is around
+                    // year boundary, SimpleTimeZone may return false result when DST is observed at the
+                    // beginning of year.  We could apply safe margin (day or two), but when one of recurrent
+                    // rules falls around year boundary, it could return false result.  Without setting the
+                    // start year, finalZone works fine around the year boundary of the start year.
+
+                    // finalZone->setStartYear(finalStartYear);
+
+
+                    // Compute the millis for Jan 1, 0:00 GMT of the finalYear
+
+                    // Note: finalStartMillis is used for detecting either if
+                    // historic transition data or finalZone to be used.  In an
+                    // extreme edge case - for example, two transitions fall into
+                    // small windows of time around the year boundary, this may
+                    // result incorrect offset computation.  But I think it will
+                    // never happen practically.  Yoshito - Feb 20, 2010
+                    finalStartMillis = Grego::fieldsToDay(finalStartYear, 0, 1) * U_MILLIS_PER_DAY;
                 }
-                ures_close(rule);
-            } else if (ec == U_MISSING_RESOURCE_ERROR) {
-                // No final zone
-                ec = U_ZERO_ERROR;
+            } else {
+                ec = U_INVALID_FORMAT_ERROR;
             }
+            ures_close(rule);
+        } else if (ec == U_MISSING_RESOURCE_ERROR) {
+            // No final zone
+            ec = U_ZERO_ERROR;
         }
 
         // initialize canonical ID
@@ -289,7 +287,8 @@ OlsonTimeZone& OlsonTimeZone::operator=(const OlsonTimeZone& other) {
     typeMapData = other.typeMapData;
 
     delete finalZone;
-    finalZone = (other.finalZone != 0) ? other.finalZone->clone() : 0;
+    finalZone = (other.finalZone != 0) ?
+        (SimpleTimeZone*) other.finalZone->clone() : 0;
 
     finalStartYear = other.finalStartYear;
     finalStartMillis = other.finalStartMillis;
@@ -320,7 +319,7 @@ UBool OlsonTimeZone::operator==(const TimeZone& other) const {
 /**
  * TimeZone API.
  */
-OlsonTimeZone* OlsonTimeZone::clone() const {
+TimeZone* OlsonTimeZone::clone() const {
     return new OlsonTimeZone(*this);
 }
 
@@ -817,7 +816,7 @@ OlsonTimeZone::initTransitionRules(UErrorCode& status) {
              * For now, we do not set the valid start year when the construction time
              * and create a clone and set the start year when extracting rules.
              */
-            finalZoneWithStartYear = finalZone->clone();
+            finalZoneWithStartYear = (SimpleTimeZone*)finalZone->clone();
             // Check to make sure finalZone was actually cloned.
             if (finalZoneWithStartYear == NULL) {
                 status = U_MEMORY_ALLOCATION_ERROR;
@@ -838,7 +837,7 @@ OlsonTimeZone::initTransitionRules(UErrorCode& status) {
             startTime = tzt.getTime();
         } else {
             // final rule with no transitions
-            finalZoneWithStartYear = finalZone->clone();
+            finalZoneWithStartYear = (SimpleTimeZone*)finalZone->clone();
             // Check to make sure finalZone was actually cloned.
             if (finalZoneWithStartYear == NULL) {
                 status = U_MEMORY_ALLOCATION_ERROR;

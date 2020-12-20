@@ -35,8 +35,6 @@
 
 #include "unicode/utypes.h"
 
-#if U_SHOW_CPLUSPLUS_API
-
 #if !UCONFIG_NO_COLLATION
 
 #include "unicode/unistr.h"
@@ -253,7 +251,7 @@ public:
     /**
     * Checks if a comparison order is ignorable.
     * @param order the collation order.
-    * @return true if a character is ignorable, false otherwise.
+    * @return TRUE if a character is ignorable, FALSE otherwise.
     * @stable ICU 2.0
     */
     static inline UBool isIgnorable(int32_t order);
@@ -405,7 +403,5 @@ inline UBool CollationElementIterator::isIgnorable(int32_t order)
 U_NAMESPACE_END
 
 #endif /* #if !UCONFIG_NO_COLLATION */
-
-#endif /* U_SHOW_CPLUSPLUS_API */
 
 #endif

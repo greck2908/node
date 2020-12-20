@@ -5,26 +5,22 @@
 #ifndef V8_DEBUG_DEBUG_FRAMES_H_
 #define V8_DEBUG_DEBUG_FRAMES_H_
 
-#include <memory>
-
-#include "src/deoptimizer/deoptimizer.h"
-#include "src/execution/isolate.h"
-#include "src/execution/v8threads.h"
-#include "src/objects/objects.h"
+#include "src/deoptimizer.h"
+#include "src/frames.h"
+#include "src/isolate.h"
+#include "src/objects.h"
+#include "src/v8threads.h"
+#include "src/wasm/wasm-interpreter.h"
 
 namespace v8 {
 namespace internal {
-
-class JavaScriptFrame;
-class StandardFrame;
-class WasmFrame;
 
 class FrameInspector {
  public:
   FrameInspector(StandardFrame* frame, int inlined_frame_index,
                  Isolate* isolate);
 
-  ~FrameInspector();
+  ~FrameInspector();  // NOLINT (modernize-use-equals-default)
 
   int GetParametersCount();
   Handle<JSFunction> GetFunction() const { return function_; }
@@ -41,7 +37,10 @@ class FrameInspector {
   bool IsWasm();
   bool IsJavaScript();
 
-  JavaScriptFrame* javascript_frame();
+  inline JavaScriptFrame* javascript_frame() {
+    return frame_->is_arguments_adaptor() ? ArgumentsAdaptorFrame::cast(frame_)
+                                          : JavaScriptFrame::cast(frame_);
+  }
 
   int inlined_frame_index() const { return inlined_frame_index_; }
 
@@ -52,6 +51,7 @@ class FrameInspector {
   StandardFrame* frame_;
   int inlined_frame_index_;
   std::unique_ptr<DeoptimizedFrameInfo> deoptimized_frame_;
+  wasm::WasmInterpreter::FramePtr wasm_interpreted_frame_;
   Isolate* isolate_;
   Handle<Script> script_;
   Handle<Object> receiver_;

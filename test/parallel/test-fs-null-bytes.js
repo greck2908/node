@@ -30,24 +30,24 @@ function check(async, sync) {
   const argsAsync = argsSync.concat(common.mustNotCall());
 
   if (sync) {
-    assert.throws(
+    common.expectsError(
       () => {
         sync.apply(null, argsSync);
       },
       {
         code: 'ERR_INVALID_ARG_VALUE',
-        name: 'TypeError',
+        type: TypeError,
       });
   }
 
   if (async) {
-    assert.throws(
+    common.expectsError(
       () => {
         async.apply(null, argsAsync);
       },
       {
         code: 'ERR_INVALID_ARG_VALUE',
-        name: 'TypeError'
+        type: TypeError
       });
   }
 }

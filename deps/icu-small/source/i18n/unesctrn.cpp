@@ -164,7 +164,7 @@ UnescapeTransliterator::~UnescapeTransliterator() {
 /**
  * Transliterator API.
  */
-UnescapeTransliterator* UnescapeTransliterator::clone() const {
+Transliterator* UnescapeTransliterator::clone() const {
     return new UnescapeTransliterator(*this);
 }
 

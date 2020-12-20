@@ -20,31 +20,26 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
-const {
-  mustCall,
-  mustNotCall,
-  platformTimeout,
-} = require('../common');
+const common = require('../common');
 const fork = require('child_process').fork;
-const debug = require('util').debuglog('test');
 
 if (process.argv[2] === 'child') {
-  debug('child -> call disconnect');
+  console.log('child -> call disconnect');
   process.disconnect();
 
-  setTimeout(() => {
-    debug('child -> will this keep it alive?');
-    process.on('message', mustNotCall());
-  }, platformTimeout(400));
+  setTimeout(function() {
+    console.log('child -> will this keep it alive?');
+    process.on('message', common.mustNotCall());
+  }, 400);
 
 } else {
   const child = fork(__filename, ['child']);
 
-  child.on('disconnect', mustCall(() => {
-    debug('parent -> disconnect');
-  }));
+  child.on('disconnect', function() {
+    console.log('parent -> disconnect');
+  });
 
-  child.once('exit', mustCall(() => {
-    debug('parent -> exit');
-  }));
+  child.once('exit', function() {
+    console.log('parent -> exit');
+  });
 }

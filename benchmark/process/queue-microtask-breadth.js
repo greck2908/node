@@ -6,7 +6,7 @@ const bench = common.createBenchmark(main, {
 });
 
 function main({ n }) {
-  let j = 0;
+  var j = 0;
 
   function cb() {
     j++;
@@ -15,7 +15,7 @@ function main({ n }) {
   }
 
   bench.start();
-  for (let i = 0; i < n; i++) {
+  for (var i = 0; i < n; i++) {
     queueMicrotask(cb);
   }
 }

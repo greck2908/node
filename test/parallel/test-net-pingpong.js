@@ -39,7 +39,8 @@ function pingPongTest(port, host) {
     assert.strictEqual(socket.server, server);
     assert.strictEqual(
       server,
-      server.getConnections(common.mustSucceed((connections) => {
+      server.getConnections(common.mustCall(function(err, connections) {
+        assert.ifError(err);
         assert.strictEqual(connections, 1);
       }))
     );
@@ -102,9 +103,10 @@ function pingPongTest(port, host) {
         assert.strictEqual(client.writable, false);
         assert.strictEqual(client.readable, true);
         return;
+      } else {
+        assert.strictEqual(client.writable, true);
+        assert.strictEqual(client.readable, true);
       }
-      assert.strictEqual(client.writable, true);
-      assert.strictEqual(client.readable, true);
 
       if (count < N) {
         client.write('PING');

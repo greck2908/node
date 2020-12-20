@@ -20,18 +20,18 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
-require('../common');
+const common = require('../common');
 const assert = require('assert');
 const vm = require('vm');
 
 for (const valToTest of [
   'string', null, undefined, 8.9, Symbol('sym'), true
 ]) {
-  assert.throws(() => {
+  common.expectsError(() => {
     vm.isContext(valToTest);
   }, {
     code: 'ERR_INVALID_ARG_TYPE',
-    name: 'TypeError'
+    type: TypeError
   });
 }
 

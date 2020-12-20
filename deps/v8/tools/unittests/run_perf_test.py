@@ -7,7 +7,9 @@
 from __future__ import print_function
 
 from collections import namedtuple
+import coverage
 import json
+import mock
 import os
 import platform
 import shutil
@@ -15,9 +17,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-
-import coverage
-import mock
 
 # Requires python-coverage and python-mock. Native python coverage
 # version >= 3.7.1 should be installed to get the best speed.
@@ -32,7 +31,6 @@ V8_JSON = {
   'path': ['.'],
   'owners': ['username@chromium.org'],
   'binary': 'd7',
-  'timeout': 60,
   'flags': ['--flag'],
   'main': 'run.js',
   'run_count': 1,
@@ -90,20 +88,7 @@ V8_GENERIC_JSON = {
   'units': 'ms',
 }
 
-
-class UnitTest(unittest.TestCase):
-  @classmethod
-  def setUpClass(cls):
-    sys.path.insert(0, BASE_DIR)
-    import run_perf
-    global run_perf
-
-  def testBuildDirectory(self):
-    base_path = os.path.join(TEST_DATA, 'builddirs', 'dir1', 'out')
-    expected_path = os.path.join(base_path, 'build')
-    self.assertEquals(
-        expected_path, run_perf.find_build_directory(base_path, 'x64'))
-
+Output = namedtuple('Output', 'stdout, stderr, timed_out, exit_code')
 
 class PerfTest(unittest.TestCase):
   @classmethod
@@ -114,8 +99,8 @@ class PerfTest(unittest.TestCase):
     cls._cov.start()
     import run_perf
     from testrunner.local import command
-    from testrunner.objects.output import Output, NULL_OUTPUT
-    global command, run_perf, Output, NULL_OUTPUT
+    global command
+    global run_perf
 
   @classmethod
   def tearDownClass(cls):
@@ -140,12 +125,11 @@ class PerfTest(unittest.TestCase):
       f.write(json.dumps(json_content))
 
   def _MockCommand(self, *args, **kwargs):
-    on_bots = kwargs.pop('on_bots', False)
     # Fake output for each test run.
     test_outputs = [Output(stdout=arg,
+                           stderr=None,
                            timed_out=kwargs.get('timed_out', False),
-                           exit_code=kwargs.get('exit_code', 0),
-                           duration=42)
+                           exit_code=kwargs.get('exit_code', 0))
                     for arg in args[1]]
     def create_cmd(*args, **kwargs):
       cmd = mock.MagicMock()
@@ -158,20 +142,10 @@ class PerfTest(unittest.TestCase):
         run_perf.command, 'PosixCommand',
         mock.MagicMock(side_effect=create_cmd)).start()
 
-    build_dir = 'Release' if on_bots else 'x64.release'
-    out_dirs = ['out', 'out-secondary']
-    return_values = [
-      os.path.join(os.path.dirname(BASE_DIR), out, build_dir)
-      for out in out_dirs
-    ]
-    mock.patch.object(
-        run_perf, 'find_build_directory',
-        mock.MagicMock(side_effect=return_values)).start()
-
     # Check that d8 is called from the correct cwd for each test run.
     dirs = [os.path.join(TEST_WORKSPACE, arg) for arg in args[0]]
     def chdir(*args, **kwargs):
-      self.assertEqual(dirs.pop(), args[0])
+      self.assertEquals(dirs.pop(), args[0])
     os.chdir = mock.MagicMock(side_effect=chdir)
 
     subprocess.check_call = mock.MagicMock()
@@ -192,24 +166,15 @@ class PerfTest(unittest.TestCase):
       return json.load(f)
 
   def _VerifyResults(self, suite, units, traces, file_name=None):
-    self.assertListEqual(sorted([
+    self.assertEquals([
       {'units': units,
        'graphs': [suite, trace['name']],
        'results': trace['results'],
-       'stddev': trace['stddev']} for trace in traces]),
-      sorted(self._LoadResults(file_name)['traces']))
-
-  def _VerifyRunnableDurations(self, runs, timeout, file_name=None):
-    self.assertListEqual([
-      {
-        'graphs': ['test'],
-        'durations': [42] * runs,
-        'timeout': timeout,
-      },
-    ], self._LoadResults(file_name)['runnables'])
+       'stddev': trace['stddev']} for trace in traces],
+      self._LoadResults(file_name)['traces'])
 
   def _VerifyErrors(self, errors):
-    self.assertListEqual(errors, self._LoadResults()['errors'])
+    self.assertEquals(errors, self._LoadResults()['errors'])
 
   def _VerifyMock(self, binary, *args, **kwargs):
     shell = os.path.join(os.path.dirname(BASE_DIR), binary)
@@ -217,30 +182,27 @@ class PerfTest(unittest.TestCase):
         cmd_prefix=[],
         shell=shell,
         args=list(args),
-        timeout=kwargs.get('timeout', 60),
-        handle_sigterm=True)
+        timeout=kwargs.get('timeout', 60))
 
   def _VerifyMockMultiple(self, *args, **kwargs):
-    self.assertEqual(len(args), len(command.Command.call_args_list))
+    self.assertEquals(len(args), len(command.Command.call_args_list))
     for arg, actual in zip(args, command.Command.call_args_list):
       expected = {
         'cmd_prefix': [],
         'shell': os.path.join(os.path.dirname(BASE_DIR), arg[0]),
         'args': list(arg[1:]),
-        'timeout': kwargs.get('timeout', 60),
-        'handle_sigterm': True,
+        'timeout': kwargs.get('timeout', 60)
       }
-      self.assertTupleEqual((expected, ), actual)
+      self.assertEquals((expected, ), actual)
 
   def testOneRun(self):
     self._WriteTestInput(V8_JSON)
     self._MockCommand(['.'], ['x\nRichards: 1.234\nDeltaBlue: 10657567\ny\n'])
-    self.assertEqual(0, self._CallMain())
+    self.assertEquals(0, self._CallMain())
     self._VerifyResults('test', 'score', [
-      {'name': 'Richards', 'results': [1.234], 'stddev': ''},
-      {'name': 'DeltaBlue', 'results': [10657567.0], 'stddev': ''},
+      {'name': 'Richards', 'results': ['1.234'], 'stddev': ''},
+      {'name': 'DeltaBlue', 'results': ['10657567.0'], 'stddev': ''},
     ])
-    self._VerifyRunnableDurations(1, 60)
     self._VerifyErrors([])
     self._VerifyMock(
         os.path.join('out', 'x64.release', 'd7'), '--flag', 'run.js')
@@ -250,10 +212,10 @@ class PerfTest(unittest.TestCase):
     test_input['test_flags'] = ['2', 'test_name']
     self._WriteTestInput(test_input)
     self._MockCommand(['.'], ['Richards: 1.234\nDeltaBlue: 10657567'])
-    self.assertEqual(0, self._CallMain())
+    self.assertEquals(0, self._CallMain())
     self._VerifyResults('test', 'score', [
-      {'name': 'Richards', 'results': [1.234], 'stddev': ''},
-      {'name': 'DeltaBlue', 'results': [10657567.0], 'stddev': ''},
+      {'name': 'Richards', 'results': ['1.234'], 'stddev': ''},
+      {'name': 'DeltaBlue', 'results': ['10657567.0'], 'stddev': ''},
     ])
     self._VerifyErrors([])
     self._VerifyMock(os.path.join(
@@ -268,10 +230,10 @@ class PerfTest(unittest.TestCase):
     self._MockCommand(['.', '.'],
                       ['Richards: 100\nDeltaBlue: 200\n',
                        'Richards: 50\nDeltaBlue: 300\n'])
-    self.assertEqual(0, self._CallMain())
+    self.assertEquals(0, self._CallMain())
     self._VerifyResults('v8', 'ms', [
-      {'name': 'Richards', 'results': [50.0, 100.0], 'stddev': ''},
-      {'name': 'DeltaBlue', 'results': [300.0, 200.0], 'stddev': ''},
+      {'name': 'Richards', 'results': ['50.0', '100.0'], 'stddev': ''},
+      {'name': 'DeltaBlue', 'results': ['300.0', '200.0'], 'stddev': ''},
     ])
     self._VerifyErrors([])
     self._VerifyMock(os.path.join(
@@ -287,59 +249,10 @@ class PerfTest(unittest.TestCase):
     self._MockCommand(['.', '.'],
                       ['Richards: 100\nDeltaBlue: 200\n',
                        'Richards: 50\nDeltaBlue: 300\n'])
-    self.assertEqual(0, self._CallMain())
+    self.assertEquals(0, self._CallMain())
     self._VerifyResults('test', 'score', [
-      {'name': 'Richards', 'results': [50.0, 100.0], 'stddev': ''},
-      {'name': 'DeltaBlue', 'results': [300.0, 200.0], 'stddev': ''},
-    ])
-    self._VerifyErrors([])
-    self._VerifyMock(os.path.join(
-      'out', 'x64.release', 'd7'), '--flag', 'run.js')
-
-  def testPerfectConfidenceRuns(self):
-    self._WriteTestInput(V8_JSON)
-    self._MockCommand(
-        ['.'], ['x\nRichards: 1.234\nDeltaBlue: 10657567\ny\n'] * 10)
-    self.assertEqual(0, self._CallMain('--confidence-level', '1'))
-    self._VerifyResults('test', 'score', [
-      {'name': 'Richards', 'results': [1.234] * 10, 'stddev': ''},
-      {'name': 'DeltaBlue', 'results': [10657567.0] * 10, 'stddev': ''},
-    ])
-    self._VerifyErrors([])
-    self._VerifyMock(os.path.join(
-      'out', 'x64.release', 'd7'), '--flag', 'run.js')
-
-  def testNoisyConfidenceRuns(self):
-    self._WriteTestInput(V8_JSON)
-    self._MockCommand(
-        ['.'],
-        reversed([
-          # First 10 runs are mandatory. DeltaBlue is slightly noisy.
-          'x\nRichards: 1.234\nDeltaBlue: 10757567\ny\n',
-          'x\nRichards: 1.234\nDeltaBlue: 10557567\ny\n',
-          'x\nRichards: 1.234\nDeltaBlue: 10657567\ny\n',
-          'x\nRichards: 1.234\nDeltaBlue: 10657567\ny\n',
-          'x\nRichards: 1.234\nDeltaBlue: 10657567\ny\n',
-          'x\nRichards: 1.234\nDeltaBlue: 10657567\ny\n',
-          'x\nRichards: 1.234\nDeltaBlue: 10657567\ny\n',
-          'x\nRichards: 1.234\nDeltaBlue: 10657567\ny\n',
-          'x\nRichards: 1.234\nDeltaBlue: 10657567\ny\n',
-          'x\nRichards: 1.234\nDeltaBlue: 10657567\ny\n',
-          # Need 4 more runs for confidence in DeltaBlue results.
-          'x\nRichards: 1.234\nDeltaBlue: 10657567\ny\n',
-          'x\nRichards: 1.234\nDeltaBlue: 10657567\ny\n',
-          'x\nRichards: 1.234\nDeltaBlue: 10657567\ny\n',
-          'x\nRichards: 1.234\nDeltaBlue: 10657567\ny\n',
-        ]),
-    )
-    self.assertEqual(0, self._CallMain('--confidence-level', '1'))
-    self._VerifyResults('test', 'score', [
-      {'name': 'Richards', 'results': [1.234] * 14, 'stddev': ''},
-      {
-        'name': 'DeltaBlue',
-        'results': [10757567.0, 10557567.0] + [10657567.0] * 12,
-        'stddev': '',
-      },
+      {'name': 'Richards', 'results': ['50.0', '100.0'], 'stddev': ''},
+      {'name': 'DeltaBlue', 'results': ['300.0', '200.0'], 'stddev': ''},
     ])
     self._VerifyErrors([])
     self._VerifyMock(os.path.join(
@@ -354,21 +267,21 @@ class PerfTest(unittest.TestCase):
                        'Simple: 3 ms.\n',
                        'Richards: 100\n',
                        'Richards: 50\n'])
-    self.assertEqual(0, self._CallMain())
-    self.assertListEqual(sorted([
+    self.assertEquals(0, self._CallMain())
+    self.assertEquals([
       {'units': 'score',
        'graphs': ['test', 'Richards'],
-       'results': [50.0, 100.0],
+       'results': ['50.0', '100.0'],
        'stddev': ''},
       {'units': 'ms',
        'graphs': ['test', 'Sub', 'Leaf'],
-       'results': [3.0, 2.0, 1.0],
+       'results': ['3.0', '2.0', '1.0'],
        'stddev': ''},
       {'units': 'score',
        'graphs': ['test', 'DeltaBlue'],
-       'results': [200.0],
+       'results': ['200.0'],
        'stddev': ''},
-      ]), sorted(self._LoadResults()['traces']))
+      ], self._LoadResults()['traces'])
     self._VerifyErrors([])
     self._VerifyMockMultiple(
         (os.path.join('out', 'x64.release', 'd7'), '--flag', 'run.js'),
@@ -385,10 +298,10 @@ class PerfTest(unittest.TestCase):
     self._WriteTestInput(test_input)
     self._MockCommand(['.'], ['Richards: 1.234\nRichards-stddev: 0.23\n'
                               'DeltaBlue: 10657567\nDeltaBlue-stddev: 106\n'])
-    self.assertEqual(0, self._CallMain())
+    self.assertEquals(0, self._CallMain())
     self._VerifyResults('test', 'score', [
-      {'name': 'Richards', 'results': [1.234], 'stddev': '0.23'},
-      {'name': 'DeltaBlue', 'results': [10657567.0], 'stddev': '106'},
+      {'name': 'Richards', 'results': ['1.234'], 'stddev': '0.23'},
+      {'name': 'DeltaBlue', 'results': ['10657567.0'], 'stddev': '106'},
     ])
     self._VerifyErrors([])
     self._VerifyMock(
@@ -403,10 +316,10 @@ class PerfTest(unittest.TestCase):
                               'DeltaBlue: 6\nDeltaBlue-boom: 0.9\n',
                               'Richards: 2\nRichards-stddev: 0.5\n'
                               'DeltaBlue: 5\nDeltaBlue-stddev: 0.8\n'])
-    self.assertEqual(1, self._CallMain())
+    self.assertEquals(1, self._CallMain())
     self._VerifyResults('test', 'score', [
-      {'name': 'Richards', 'results': [2.0, 3.0], 'stddev': '0.7'},
-      {'name': 'DeltaBlue', 'results': [5.0, 6.0], 'stddev': '0.8'},
+      {'name': 'Richards', 'results': ['2.0', '3.0'], 'stddev': '0.7'},
+      {'name': 'DeltaBlue', 'results': ['5.0', '6.0'], 'stddev': '0.8'},
     ])
     self._VerifyErrors(
         ['Test test/Richards should only run once since a stddev is provided '
@@ -420,15 +333,14 @@ class PerfTest(unittest.TestCase):
 
   def testBuildbot(self):
     self._WriteTestInput(V8_JSON)
-    self._MockCommand(['.'], ['Richards: 1.234\nDeltaBlue: 10657567\n'],
-                      on_bots=True)
+    self._MockCommand(['.'], ['Richards: 1.234\nDeltaBlue: 10657567\n'])
     mock.patch.object(
         run_perf.Platform, 'ReadBuildConfig',
         mock.MagicMock(return_value={'is_android': False})).start()
-    self.assertEqual(0, self._CallMain())
+    self.assertEquals(0, self._CallMain('--buildbot'))
     self._VerifyResults('test', 'score', [
-      {'name': 'Richards', 'results': [1.234], 'stddev': ''},
-      {'name': 'DeltaBlue', 'results': [10657567.0], 'stddev': ''},
+      {'name': 'Richards', 'results': ['1.234'], 'stddev': ''},
+      {'name': 'DeltaBlue', 'results': ['10657567.0'], 'stddev': ''},
     ])
     self._VerifyErrors([])
     self._VerifyMock(os.path.join('out', 'Release', 'd7'), '--flag', 'run.js')
@@ -437,16 +349,15 @@ class PerfTest(unittest.TestCase):
     test_input = dict(V8_JSON)
     test_input['total'] = True
     self._WriteTestInput(test_input)
-    self._MockCommand(['.'], ['Richards: 1.234\nDeltaBlue: 10657567\n'],
-                      on_bots=True)
+    self._MockCommand(['.'], ['Richards: 1.234\nDeltaBlue: 10657567\n'])
     mock.patch.object(
         run_perf.Platform, 'ReadBuildConfig',
         mock.MagicMock(return_value={'is_android': False})).start()
-    self.assertEqual(0, self._CallMain())
+    self.assertEquals(0, self._CallMain('--buildbot'))
     self._VerifyResults('test', 'score', [
-      {'name': 'Richards', 'results': [1.234], 'stddev': ''},
-      {'name': 'DeltaBlue', 'results': [10657567.0], 'stddev': ''},
-      {'name': 'Total', 'results': [3626.491097190233], 'stddev': ''},
+      {'name': 'Richards', 'results': ['1.234'], 'stddev': ''},
+      {'name': 'DeltaBlue', 'results': ['10657567.0'], 'stddev': ''},
+      {'name': 'Total', 'results': ['3626.49109719'], 'stddev': ''},
     ])
     self._VerifyErrors([])
     self._VerifyMock(os.path.join('out', 'Release', 'd7'), '--flag', 'run.js')
@@ -455,43 +366,73 @@ class PerfTest(unittest.TestCase):
     test_input = dict(V8_JSON)
     test_input['total'] = True
     self._WriteTestInput(test_input)
-    self._MockCommand(['.'], ['x\nRichards: bla\nDeltaBlue: 10657567\ny\n'],
-                      on_bots=True)
+    self._MockCommand(['.'], ['x\nRichards: bla\nDeltaBlue: 10657567\ny\n'])
     mock.patch.object(
         run_perf.Platform, 'ReadBuildConfig',
         mock.MagicMock(return_value={'is_android': False})).start()
-    self.assertEqual(1, self._CallMain())
+    self.assertEquals(1, self._CallMain('--buildbot'))
     self._VerifyResults('test', 'score', [
-      {'name': 'DeltaBlue', 'results': [10657567.0], 'stddev': ''},
+      {'name': 'Richards', 'results': [], 'stddev': ''},
+      {'name': 'DeltaBlue', 'results': ['10657567.0'], 'stddev': ''},
     ])
     self._VerifyErrors(
         ['Regexp "^Richards: (.+)$" '
          'returned a non-numeric for test test/Richards.',
-         'Not all traces have produced results. Can not compute total for '
-         'test.'])
+         'Not all traces have the same number of results.'])
     self._VerifyMock(os.path.join('out', 'Release', 'd7'), '--flag', 'run.js')
 
   def testRegexpNoMatch(self):
     self._WriteTestInput(V8_JSON)
     self._MockCommand(['.'], ['x\nRichaards: 1.234\nDeltaBlue: 10657567\ny\n'])
-    self.assertEqual(1, self._CallMain())
+    self.assertEquals(1, self._CallMain())
     self._VerifyResults('test', 'score', [
-      {'name': 'DeltaBlue', 'results': [10657567.0], 'stddev': ''},
+      {'name': 'Richards', 'results': [], 'stddev': ''},
+      {'name': 'DeltaBlue', 'results': ['10657567.0'], 'stddev': ''},
     ])
     self._VerifyErrors(
         ['Regexp "^Richards: (.+)$" did not match for test test/Richards.'])
     self._VerifyMock(
         os.path.join('out', 'x64.release', 'd7'), '--flag', 'run.js')
 
-  def testOneRunCrashed(self):
-    test_input = dict(V8_JSON)
-    test_input['retry_count'] = 1
+  def testOneRunGeneric(self):
+    test_input = dict(V8_GENERIC_JSON)
     self._WriteTestInput(test_input)
+    self._MockCommand(['.'], [
+      'RESULT Infra: Constant1= 11 count\n'
+      'RESULT Infra: Constant2= [10,5,10,15] count\n'
+      'RESULT Infra: Constant3= {12,1.2} count\n'
+      'RESULT Infra: Constant4= [10,5,error,15] count\n'])
+    self.assertEquals(1, self._CallMain())
+    self.assertEquals([
+      {'units': 'count',
+       'graphs': ['test', 'Infra', 'Constant1'],
+       'results': ['11.0'],
+       'stddev': ''},
+      {'units': 'count',
+       'graphs': ['test', 'Infra', 'Constant2'],
+       'results': ['10.0', '5.0', '10.0', '15.0'],
+       'stddev': ''},
+      {'units': 'count',
+       'graphs': ['test', 'Infra', 'Constant3'],
+       'results': ['12.0'],
+       'stddev': '1.2'},
+      {'units': 'count',
+       'graphs': ['test', 'Infra', 'Constant4'],
+       'results': [],
+       'stddev': ''},
+      ], self._LoadResults()['traces'])
+    self._VerifyErrors(['Found non-numeric in test/Infra/Constant4'])
+    self._VerifyMock(os.path.join('out', 'x64.release', 'cc'), '--flag', '')
+
+  def testOneRunCrashed(self):
+    self._WriteTestInput(V8_JSON)
     self._MockCommand(
-        ['.'], ['x\nRichards: 1.234\nDeltaBlue: 10657567\ny\n', ''],
-        exit_code=-1)
-    self.assertEqual(1, self._CallMain())
-    self._VerifyResults('test', 'score', [])
+        ['.'], ['x\nRichards: 1.234\nDeltaBlue: 10657567\ny\n'], exit_code=1)
+    self.assertEquals(1, self._CallMain())
+    self._VerifyResults('test', 'score', [
+      {'name': 'Richards', 'results': [], 'stddev': ''},
+      {'name': 'DeltaBlue', 'results': [], 'stddev': ''},
+    ])
     self._VerifyErrors([])
     self._VerifyMock(
         os.path.join('out', 'x64.release', 'd7'), '--flag', 'run.js')
@@ -499,11 +440,13 @@ class PerfTest(unittest.TestCase):
   def testOneRunTimingOut(self):
     test_input = dict(V8_JSON)
     test_input['timeout'] = 70
-    test_input['retry_count'] = 0
     self._WriteTestInput(test_input)
     self._MockCommand(['.'], [''], timed_out=True)
-    self.assertEqual(1, self._CallMain())
-    self._VerifyResults('test', 'score', [])
+    self.assertEquals(1, self._CallMain())
+    self._VerifyResults('test', 'score', [
+      {'name': 'Richards', 'results': [], 'stddev': ''},
+      {'name': 'DeltaBlue', 'results': [], 'stddev': ''},
+    ])
     self._VerifyErrors([])
     self._VerifyMock(os.path.join('out', 'x64.release', 'd7'),
                      '--flag', 'run.js', timeout=70)
@@ -513,19 +456,18 @@ class PerfTest(unittest.TestCase):
     mock.patch('run_perf.AndroidPlatform.PreExecution').start()
     mock.patch('run_perf.AndroidPlatform.PostExecution').start()
     mock.patch('run_perf.AndroidPlatform.PreTests').start()
-    mock.patch('run_perf.find_build_directory').start()
     mock.patch(
         'run_perf.AndroidPlatform.Run',
-        return_value=(Output(stdout='Richards: 1.234\nDeltaBlue: 10657567\n'),
-                      NULL_OUTPUT)).start()
+        return_value=(
+            'Richards: 1.234\nDeltaBlue: 10657567\n', None)).start()
     mock.patch('testrunner.local.android._Driver', autospec=True).start()
     mock.patch(
         'run_perf.Platform.ReadBuildConfig',
         return_value={'is_android': True}).start()
-    self.assertEqual(0, self._CallMain('--arch', 'arm'))
+    self.assertEquals(0, self._CallMain('--arch', 'arm'))
     self._VerifyResults('test', 'score', [
-      {'name': 'Richards', 'results': [1.234], 'stddev': ''},
-      {'name': 'DeltaBlue', 'results': [10657567.0], 'stddev': ''},
+      {'name': 'Richards', 'results': ['1.234'], 'stddev': ''},
+      {'name': 'DeltaBlue', 'results': ['10657567.0'], 'stddev': ''},
     ])
 
   def testTwoRuns_Trybot(self):
@@ -539,19 +481,18 @@ class PerfTest(unittest.TestCase):
                        'Richards: 100\nDeltaBlue: 20\n'])
     test_output_secondary = os.path.join(
         TEST_WORKSPACE, 'results_secondary.json')
-    self.assertEqual(0, self._CallMain(
+    self.assertEquals(0, self._CallMain(
         '--outdir-secondary', 'out-secondary',
         '--json-test-results-secondary', test_output_secondary,
     ))
     self._VerifyResults('test', 'score', [
-      {'name': 'Richards', 'results': [100.0, 200.0], 'stddev': ''},
-      {'name': 'DeltaBlue', 'results': [20.0, 20.0], 'stddev': ''},
+      {'name': 'Richards', 'results': ['100.0', '200.0'], 'stddev': ''},
+      {'name': 'DeltaBlue', 'results': ['20.0', '20.0'], 'stddev': ''},
     ])
     self._VerifyResults('test', 'score', [
-      {'name': 'Richards', 'results': [50.0, 100.0], 'stddev': ''},
-      {'name': 'DeltaBlue', 'results': [200.0, 200.0], 'stddev': ''},
+      {'name': 'Richards', 'results': ['50.0', '100.0'], 'stddev': ''},
+      {'name': 'DeltaBlue', 'results': ['200.0', '200.0'], 'stddev': ''},
     ], test_output_secondary)
-    self._VerifyRunnableDurations(2, 60, test_output_secondary)
     self._VerifyErrors([])
     self._VerifyMockMultiple(
         (os.path.join('out', 'x64.release', 'd7'), '--flag', 'run.js'),
@@ -566,14 +507,22 @@ class PerfTest(unittest.TestCase):
     test_input = dict(V8_JSON)
     self._WriteTestInput(test_input)
     self._MockCommand(['.'], ['x\nRichards: 1.234\nDeltaBlue: 10657567\ny\n'])
-    self.assertEqual(0, self._CallMain('--extra-flags=--prof'))
+    self.assertEquals(0, self._CallMain('--extra-flags=--prof'))
     self._VerifyResults('test', 'score', [
-      {'name': 'Richards', 'results': [1.234], 'stddev': ''},
-      {'name': 'DeltaBlue', 'results': [10657567.0], 'stddev': ''},
+      {'name': 'Richards', 'results': ['1.234'], 'stddev': ''},
+      {'name': 'DeltaBlue', 'results': ['10657567.0'], 'stddev': ''},
     ])
     self._VerifyErrors([])
     self._VerifyMock(os.path.join('out', 'x64.release', 'd7'),
                      '--flag', '--prof', 'run.js')
+
+  def testUnzip(self):
+    def Gen():
+      for i in [1, 2, 3]:
+        yield i, i + 1
+    l, r = run_perf.Unzip(Gen())
+    self.assertEquals([1, 2, 3], list(l()))
+    self.assertEquals([2, 3, 4], list(r()))
 
   #############################################################################
   ### System tests
@@ -591,54 +540,54 @@ class PerfTest(unittest.TestCase):
 
   def testNormal(self):
     results = self._RunPerf('d8_mocked1.py', 'test1.json')
-    self.assertListEqual([], results['errors'])
-    self.assertListEqual(sorted([
+    self.assertEquals([], results['errors'])
+    self.assertEquals([
       {
         'units': 'score',
         'graphs': ['test1', 'Richards'],
-        'results': [1.2, 1.2],
+        'results': [u'1.2', u'1.2'],
         'stddev': '',
       },
       {
         'units': 'score',
         'graphs': ['test1', 'DeltaBlue'],
-        'results': [2.1, 2.1],
+        'results': [u'2.1', u'2.1'],
         'stddev': '',
       },
-    ]), sorted(results['traces']))
+    ], results['traces'])
 
   def testResultsProcessor(self):
     results = self._RunPerf('d8_mocked2.py', 'test2.json')
-    self.assertListEqual([], results['errors'])
-    self.assertListEqual([
+    self.assertEquals([], results['errors'])
+    self.assertEquals([
       {
         'units': 'score',
         'graphs': ['test2', 'Richards'],
-        'results': [1.2, 1.2],
+        'results': [u'1.2', u'1.2'],
         'stddev': '',
       },
       {
         'units': 'score',
         'graphs': ['test2', 'DeltaBlue'],
-        'results': [2.1, 2.1],
+        'results': [u'2.1', u'2.1'],
         'stddev': '',
       },
     ], results['traces'])
 
   def testResultsProcessorNested(self):
     results = self._RunPerf('d8_mocked2.py', 'test3.json')
-    self.assertListEqual([], results['errors'])
-    self.assertListEqual([
+    self.assertEquals([], results['errors'])
+    self.assertEquals([
       {
         'units': 'score',
         'graphs': ['test3', 'Octane', 'Richards'],
-        'results': [1.2],
+        'results': [u'1.2'],
         'stddev': '',
       },
       {
         'units': 'score',
         'graphs': ['test3', 'Octane', 'DeltaBlue'],
-        'results': [2.1],
+        'results': [u'2.1'],
         'stddev': '',
       },
     ], results['traces'])

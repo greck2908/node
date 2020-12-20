@@ -6,9 +6,9 @@
 
 #include "src/debug/debug.h"
 
-#include "src/codegen/macro-assembler.h"
 #include "src/debug/liveedit.h"
-#include "src/execution/frames-inl.h"
+#include "src/frames-inl.h"
+#include "src/macro-assembler.h"
 
 namespace v8 {
 namespace internal {
@@ -33,7 +33,7 @@ void DebugCodegen::GenerateFrameDropperTrampoline(MacroAssembler* masm) {
   // - Leave the frame.
   // - Restart the frame by calling the function.
   __ mov(ebp, eax);
-  __ mov(edi, Operand(ebp, StandardFrameConstants::kFunctionOffset));
+  __ mov(edi, Operand(ebp, JavaScriptFrameConstants::kFunctionOffset));
   __ leave();
 
   __ mov(eax, FieldOperand(edi, JSFunction::kSharedFunctionInfoOffset));
@@ -42,8 +42,9 @@ void DebugCodegen::GenerateFrameDropperTrampoline(MacroAssembler* masm) {
 
   // The expected and actual argument counts don't matter as long as they match
   // and we don't enter the ArgumentsAdaptorTrampoline.
+  ParameterCount dummy(0);
   __ mov(esi, FieldOperand(edi, JSFunction::kContextOffset));
-  __ InvokeFunctionCode(edi, no_reg, eax, eax, JUMP_FUNCTION);
+  __ InvokeFunctionCode(edi, no_reg, dummy, dummy, JUMP_FUNCTION);
 }
 
 const bool LiveEdit::kFrameDropperSupported = true;

@@ -16,11 +16,11 @@ function main({ n, statSyncType }) {
   const fn = fs[statSyncType];
 
   bench.start();
-  for (let i = 0; i < n; i++) {
+  for (var i = 0; i < n; i++) {
     fn(arg);
   }
   bench.end(n);
 
-  if (statSyncType === 'fstatSync')
+  if (statSyncType === 'fstat')
     fs.closeSync(arg);
 }

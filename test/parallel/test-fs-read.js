@@ -35,7 +35,8 @@ function test(bufferAsync, bufferSync, expected) {
           0,
           expected.length,
           0,
-          common.mustSucceed((bytesRead) => {
+          common.mustCall((err, bytesRead) => {
+            assert.ifError(err);
             assert.strictEqual(bytesRead, expected.length);
             assert.deepStrictEqual(bufferAsync, expected);
           }));
@@ -61,14 +62,11 @@ test(new Uint8Array(expected.length),
   const nRead = fs.readSync(fd, Buffer.alloc(1), 0, 1, pos);
   assert.strictEqual(nRead, 0);
 
-  fs.read(fd, Buffer.alloc(1), 0, 1, pos, common.mustSucceed((nRead) => {
+  fs.read(fd, Buffer.alloc(1), 0, 1, pos, common.mustCall((err, nRead) => {
+    assert.ifError(err);
     assert.strictEqual(nRead, 0);
   }));
 }
-
-assert.throws(() => new fs.Dir(), {
-  code: 'ERR_MISSING_ARGS',
-});
 
 assert.throws(
   () => fs.read(fd, Buffer.alloc(1), 0, 1, 0),
@@ -78,18 +76,10 @@ assert.throws(
   }
 );
 
-['buffer', 'offset', 'length'].forEach((option) =>
-  assert.throws(
-    () => fs.read(fd, {
-      [option]: null
-    }),
-    `not throws when options.${option} is null`
-  ));
-
 assert.throws(
   () => fs.read(null, Buffer.alloc(1), 0, 1, 0),
   {
-    message: 'The "fd" argument must be of type number. Received null',
+    message: 'The "fd" argument must be of type number. Received type object',
     code: 'ERR_INVALID_ARG_TYPE',
   }
 );

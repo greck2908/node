@@ -21,8 +21,6 @@
 
 #include "unicode/utypes.h"
 
-#if U_SHOW_CPLUSPLUS_API
-
 /**
  * \file
  * \brief C++ API: Formats messages in a language-neutral way.
@@ -186,7 +184,7 @@ class NumberFormat;
  *       <td><i>argSkeletonText</i>
  *       <td><code>NumberFormatter::forSkeleton(argSkeletonText, status).locale(getLocale()).toFormat(status)</code>
  *    <tr>
- *       <td rowspan=7><code>date</code>
+ *       <td rowspan=6><code>date</code>
  *       <td><i>(none)</i>
  *       <td><code>DateFormat.createDateInstance(kDefault, getLocale(), status)</code>
  *    <tr>
@@ -255,7 +253,7 @@ class NumberFormat;
  * or preformatted values, but not pattern strings or custom format objects.</p>
  *
  * <p>For more details, see the
- * <a href="https://unicode-org.github.io/icu/userguide/format_parse/messages">ICU User Guide</a>.</p>
+ * <a href="http://userguide.icu-project.org/formatparse/messages">ICU User Guide</a>.</p>
  *
  * <h4>Usage Information</h4>
  *
@@ -420,7 +418,7 @@ public:
      * result and should delete it when done.
      * @stable ICU 2.0
      */
-    virtual MessageFormat* clone() const;
+    virtual Format* clone(void) const;
 
     /**
      * Returns true if the given Format objects are semantically equal.
@@ -920,7 +918,7 @@ private:
     int32_t            argTypeCapacity;
 
     /**
-     * true if there are different argTypes for the same argument.
+     * TRUE if there are different argTypes for the same argument.
      * This only matters when the MessageFormat is used in the plain C (umsg_xxx) API
      * where the pattern argTypes determine how the va_arg list is read.
      */
@@ -1089,7 +1087,7 @@ private:
     class U_I18N_API DummyFormat : public Format {
     public:
         virtual UBool operator==(const Format&) const;
-        virtual DummyFormat* clone() const;
+        virtual Format* clone() const;
         virtual UnicodeString& format(const Formattable& obj,
                               UnicodeString& appendTo,
                               UErrorCode& status) const;
@@ -1112,8 +1110,6 @@ private:
 U_NAMESPACE_END
 
 #endif /* #if !UCONFIG_NO_FORMATTING */
-
-#endif /* U_SHOW_CPLUSPLUS_API */
 
 #endif // _MSGFMT
 //eof

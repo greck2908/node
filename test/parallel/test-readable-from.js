@@ -56,20 +56,10 @@ async function toReadablePromises() {
 async function toReadableString() {
   const stream = Readable.from('abc');
 
-  const expected = ['abc'];
+  const expected = ['a', 'b', 'c'];
 
   for await (const chunk of stream) {
     strictEqual(chunk, expected.shift());
-  }
-}
-
-async function toReadableBuffer() {
-  const stream = Readable.from(Buffer.from('abc'));
-
-  const expected = ['abc'];
-
-  for await (const chunk of stream) {
-    strictEqual(chunk.toString(), expected.shift());
   }
 }
 
@@ -159,38 +149,13 @@ async function asTransformStream() {
   }
 }
 
-async function endWithError() {
-  async function* generate() {
-    yield 1;
-    yield 2;
-    yield Promise.reject('Boum');
-  }
-
-  const stream = Readable.from(generate());
-
-  const expected = [1, 2];
-
-  try {
-    for await (const chunk of stream) {
-      strictEqual(chunk, expected.shift());
-    }
-    throw new Error();
-  } catch (err) {
-    strictEqual(expected.length, 0);
-    strictEqual(err, 'Boum');
-  }
-}
-
-
 Promise.all([
   toReadableBasicSupport(),
   toReadableSyncIterator(),
   toReadablePromises(),
   toReadableString(),
-  toReadableBuffer(),
   toReadableOnData(),
   toReadableOnDataNonObject(),
   destroysTheStreamWhenThrowing(),
-  asTransformStream(),
-  endWithError()
+  asTransformStream()
 ]).then(mustCall());

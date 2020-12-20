@@ -9,7 +9,7 @@ function main({ n }) {
 
   bench.start();
 
-  for (let i = 0; i < n; i++) {
+  for (var i = 0; i < n; i++) {
     setTimeout(() => {}, 1);
   }
 

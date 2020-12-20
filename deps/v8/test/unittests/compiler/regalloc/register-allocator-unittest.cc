@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "src/codegen/assembler-inl.h"
+#include "src/assembler-inl.h"
 #include "src/compiler/pipeline.h"
 #include "test/unittests/compiler/backend/instruction-sequence-unittest.h"
 
@@ -73,12 +73,13 @@ bool IsParallelMovePresent(int instr_index, Instruction::GapPosition gap_pos,
   return found_match;
 }
 
+}  // namespace
 
 class RegisterAllocatorTest : public InstructionSequenceTest {
  public:
   void Allocate() {
     WireBlocks();
-    Pipeline::AllocateRegistersForTesting(config(), sequence(), false, true);
+    Pipeline::AllocateRegistersForTesting(config(), sequence(), true);
   }
 };
 
@@ -624,17 +625,77 @@ TEST_F(RegisterAllocatorTest, SingleDeferredBlockSpill) {
 
   const int var_def_index = 1;
   const int call_index = 3;
+  const bool spill_in_deferred =
+      FLAG_turbo_preprocess_ranges || FLAG_turbo_control_flow_aware_allocation;
+  int expect_no_moves = spill_in_deferred ? var_def_index : call_index;
+  int expect_spill_move = spill_in_deferred ? call_index : var_def_index;
 
-  // We should have no parallel moves at the "var_def_index" position.
+  // We should have no parallel moves at the "expect_no_moves" position.
   EXPECT_EQ(
-      0, GetParallelMoveCount(var_def_index, Instruction::START, sequence()));
+      0, GetParallelMoveCount(expect_no_moves, Instruction::START, sequence()));
 
-  // The spill should be performed at the position "call_index".
-  EXPECT_TRUE(IsParallelMovePresent(call_index, Instruction::START, sequence(),
-                                    Reg(0), Slot(0)));
+  // The spill should be performed at the position expect_spill_move.
+  EXPECT_TRUE(IsParallelMovePresent(expect_spill_move, Instruction::START,
+                                    sequence(), Reg(0), Slot(0)));
+}
+
+TEST_F(RegisterAllocatorTest, MultipleDeferredBlockSpills) {
+  if (!FLAG_turbo_preprocess_ranges) return;
+
+  StartBlock();  // B0
+  auto var1 = EmitOI(Reg(0));
+  auto var2 = EmitOI(Reg(1));
+  auto var3 = EmitOI(Reg(2));
+  EndBlock(Branch(Reg(var1, 0), 1, 2));
+
+  StartBlock(true);  // B1
+  EmitCall(Slot(-2), Slot(var1));
+  EndBlock(Jump(2));
+
+  StartBlock(true);  // B2
+  EmitCall(Slot(-1), Slot(var2));
+  EndBlock();
+
+  StartBlock();  // B3
+  EmitNop();
+  EndBlock();
+
+  StartBlock();  // B4
+  Return(Reg(var3, 2));
+  EndBlock();
+
+  const int def_of_v2 = 3;
+  const int call_in_b1 = 4;
+  const int call_in_b2 = 6;
+  const int end_of_b1 = 5;
+  const int end_of_b2 = 7;
+  const int start_of_b3 = 8;
+
+  Allocate();
+  // TODO(mtrofin): at the moment, the linear allocator spills var1 and var2,
+  // so only var3 is spilled in deferred blocks.
+  const int var3_reg = 2;
+  const int var3_slot = 2;
+
+  EXPECT_FALSE(IsParallelMovePresent(def_of_v2, Instruction::START, sequence(),
+                                     Reg(var3_reg), Slot()));
+  EXPECT_TRUE(IsParallelMovePresent(call_in_b1, Instruction::START, sequence(),
+                                    Reg(var3_reg), Slot(var3_slot)));
+  EXPECT_TRUE(IsParallelMovePresent(end_of_b1, Instruction::START, sequence(),
+                                    Slot(var3_slot), Reg()));
+
+  EXPECT_TRUE(IsParallelMovePresent(call_in_b2, Instruction::START, sequence(),
+                                    Reg(var3_reg), Slot(var3_slot)));
+  EXPECT_TRUE(IsParallelMovePresent(end_of_b2, Instruction::START, sequence(),
+                                    Slot(var3_slot), Reg()));
+
+  EXPECT_EQ(0,
+            GetParallelMoveCount(start_of_b3, Instruction::START, sequence()));
 }
 
 TEST_F(RegisterAllocatorTest, ValidMultipleDeferredBlockSpills) {
+  if (!FLAG_turbo_control_flow_aware_allocation) return;
+
   StartBlock();  // B0
   auto var1 = EmitOI(Reg(0));
   auto var2 = EmitOI(Reg(1));
@@ -714,7 +775,7 @@ class SlotConstraintTest : public RegisterAllocatorTest,
   int variant() const { return ::testing::get<1>(B::GetParam()); }
 
  private:
-  using B = ::testing::WithParamInterface<::testing::tuple<ParameterType, int>>;
+  typedef ::testing::WithParamInterface<::testing::tuple<ParameterType, int>> B;
 };
 
 }  // namespace
@@ -756,6 +817,7 @@ TEST_P(SlotConstraintTest, SlotConstraint) {
       break;
     default:
       UNREACHABLE();
+      break;
   }
   EndBlock(Last());
 
@@ -767,7 +829,6 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Combine(::testing::ValuesIn(kParameterTypes),
                        ::testing::Range(0, SlotConstraintTest::kMaxVariant)));
 
-}  // namespace
 }  // namespace compiler
 }  // namespace internal
 }  // namespace v8

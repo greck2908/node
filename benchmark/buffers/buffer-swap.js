@@ -7,8 +7,6 @@ const bench = common.createBenchmark(main, {
   method: ['swap16', 'swap32', 'swap64'/* , 'htons', 'htonl', 'htonll' */],
   len: [64, 256, 768, 1024, 2056, 8192],
   n: [1e6]
-}, {
-  test: { len: 16 }
 });
 
 // The htons and htonl methods below are used to benchmark the
@@ -29,7 +27,7 @@ function swap(b, n, m) {
 Buffer.prototype.htons = function htons() {
   if (this.length % 2 !== 0)
     throw new RangeError();
-  for (let i = 0; i < this.length; i += 2) {
+  for (var i = 0; i < this.length; i += 2) {
     swap(this, i, i + 1);
   }
   return this;
@@ -38,7 +36,7 @@ Buffer.prototype.htons = function htons() {
 Buffer.prototype.htonl = function htonl() {
   if (this.length % 4 !== 0)
     throw new RangeError();
-  for (let i = 0; i < this.length; i += 4) {
+  for (var i = 0; i < this.length; i += 4) {
     swap(this, i, i + 3);
     swap(this, i + 1, i + 2);
   }
@@ -48,7 +46,7 @@ Buffer.prototype.htonl = function htonl() {
 Buffer.prototype.htonll = function htonll() {
   if (this.length % 8 !== 0)
     throw new RangeError();
-  for (let i = 0; i < this.length; i += 8) {
+  for (var i = 0; i < this.length; i += 8) {
     swap(this, i, i + 7);
     swap(this, i + 1, i + 6);
     swap(this, i + 2, i + 5);
@@ -60,7 +58,7 @@ Buffer.prototype.htonll = function htonll() {
 function createBuffer(len, aligned) {
   len += aligned ? 0 : 1;
   const buf = Buffer.allocUnsafe(len);
-  for (let i = 1; i <= len; i++)
+  for (var i = 1; i <= len; i++)
     buf[i - 1] = i;
   return aligned ? buf : buf.slice(1);
 }
@@ -68,7 +66,7 @@ function createBuffer(len, aligned) {
 function genMethod(method) {
   const fnString = `
       return function ${method}(n, buf) {
-        for (let i = 0; i <= n; i++)
+        for (var i = 0; i <= n; i++)
           buf.${method}();
       }`;
   return (new Function(fnString))();
@@ -76,7 +74,7 @@ function genMethod(method) {
 
 function main({ method, len, n, aligned = 'true' }) {
   const buf = createBuffer(len, aligned === 'true');
-  const bufferSwap = genMethod(method);
+  const bufferSwap = genMethod(method || 'swap16');
 
   bufferSwap(n, buf);
   bench.start();

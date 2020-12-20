@@ -14,7 +14,7 @@ const bench = common.createBenchmark(main, {
 });
 
 function main({ n, paths }) {
-  let to = '';
+  var to = '';
   const delimIdx = paths.indexOf('|');
   if (delimIdx > -1) {
     to = paths.slice(delimIdx + 1);

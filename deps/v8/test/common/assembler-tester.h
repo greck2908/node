@@ -5,10 +5,8 @@
 #ifndef V8_TEST_COMMON_ASSEMBLER_TESTER_H_
 #define V8_TEST_COMMON_ASSEMBLER_TESTER_H_
 
-#include <memory>
-
-#include "src/codegen/assembler.h"
-#include "src/codegen/code-desc.h"
+#include "src/assembler.h"
+#include "src/code-desc.h"
 
 namespace v8 {
 namespace internal {
@@ -74,9 +72,9 @@ class TestingAssemblerBuffer : public AssemblerBuffer {
 };
 
 static inline std::unique_ptr<TestingAssemblerBuffer> AllocateAssemblerBuffer(
-    size_t requested = v8::internal::AssemblerBase::kDefaultBufferSize,
+    size_t requested = v8::internal::AssemblerBase::kMinimalBufferSize,
     void* address = nullptr) {
-  return std::make_unique<TestingAssemblerBuffer>(requested, address);
+  return base::make_unique<TestingAssemblerBuffer>(requested, address);
 }
 
 }  // namespace internal

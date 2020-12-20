@@ -3,14 +3,22 @@
 
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
 
-#include <cstdlib>
 #include "node_options.h"
 #include "util.h"
+#include <cstdlib>
 
 namespace node {
 
 PerIsolateOptions* PerProcessOptions::get_per_isolate_options() {
   return per_isolate.get();
+}
+
+DebugOptions* EnvironmentOptions::get_debug_options() {
+  return &debug_options_;
+}
+
+const DebugOptions& EnvironmentOptions::debug_options() const {
+  return debug_options_;
 }
 
 EnvironmentOptions* PerIsolateOptions::get_per_env_options() {
@@ -138,9 +146,10 @@ void OptionsParser<Options>::Implies(const char* from,
                                      const char* to) {
   auto it = options_.find(to);
   CHECK_NE(it, options_.end());
-  CHECK(it->second.type == kBoolean || it->second.type == kV8Option);
-  implications_.emplace(
-      from, Implication{it->second.type, to, it->second.field, true});
+  CHECK_EQ(it->second.type, kBoolean);
+  implications_.emplace(from, Implication {
+    it->second.field, true
+  });
 }
 
 template <typename Options>
@@ -149,8 +158,9 @@ void OptionsParser<Options>::ImpliesNot(const char* from,
   auto it = options_.find(to);
   CHECK_NE(it, options_.end());
   CHECK_EQ(it->second.type, kBoolean);
-  implications_.emplace(
-      from, Implication{it->second.type, to, it->second.field, false});
+  implications_.emplace(from, Implication {
+    it->second.field, false
+  });
 }
 
 template <typename Options>
@@ -194,11 +204,9 @@ template <typename ChildOptions>
 auto OptionsParser<Options>::Convert(
     typename OptionsParser<ChildOptions>::Implication original,
     ChildOptions* (Options::* get_child)()) {
-  return Implication{
-      original.type,
-      original.name,
-      Convert(original.target_field, get_child),
-      original.target_value,
+  return Implication {
+    Convert(original.target_field, get_child),
+    original.target_value
   };
 }
 
@@ -315,10 +323,6 @@ void OptionsParser<Options>::Parse(
     if (equals_index != std::string::npos)
       original_name += '=';
 
-    auto missing_argument = [&]() {
-      errors->push_back(RequiresArgumentErr(original_name));
-    };
-
     // Normalize by replacing `_` with `-` in options.
     for (std::string::size_type i = 2; i < name.size(); ++i) {
       if (name[i] == '_')
@@ -366,21 +370,17 @@ void OptionsParser<Options>::Parse(
       break;
     }
 
-    {
-      auto implications = implications_.equal_range(name);
-      for (auto it = implications.first; it != implications.second; ++it) {
-        if (it->second.type == kV8Option) {
-          v8_args->push_back(it->second.name);
-        } else {
-          *it->second.target_field->template Lookup<bool>(options) =
-              it->second.target_value;
-        }
-      }
-    }
-
     if (it == options_.end()) {
       v8_args->push_back(arg);
       continue;
+    }
+
+    {
+      auto implications = implications_.equal_range(name);
+      for (auto it = implications.first; it != implications.second; ++it) {
+        *it->second.target_field->template Lookup<bool>(options) =
+            it->second.target_value;
+      }
     }
 
     const OptionInfo& info = it->second;
@@ -389,20 +389,18 @@ void OptionsParser<Options>::Parse(
       if (equals_index != std::string::npos) {
         value = arg.substr(equals_index + 1);
         if (value.empty()) {
-          missing_argument();
+        missing_argument:
+          errors->push_back(RequiresArgumentErr(original_name));
           break;
         }
       } else {
-        if (args.empty()) {
-          missing_argument();
-          break;
-        }
+        if (args.empty())
+          goto missing_argument;
 
         value = args.pop_first();
 
         if (!value.empty() && value[0] == '-') {
-          missing_argument();
-          break;
+          goto missing_argument;
         } else {
           if (!value.empty() && value[0] == '\\' && value[1] == '-')
             value = value.substr(1);  // Treat \- as escaping an -.

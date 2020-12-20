@@ -7,7 +7,7 @@
 
 #include "src/objects/js-array.h"
 
-#include "src/objects/objects-inl.h"  // Needed for write barriers
+#include "src/objects-inl.h"  // Needed for write barriers
 
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
@@ -33,8 +33,8 @@ bool JSArray::SetLengthWouldNormalize(Heap* heap, uint32_t new_length) {
 }
 
 bool JSArray::AllowsSetLength() {
-  bool result = elements().IsFixedArray() || elements().IsFixedDoubleArray();
-  DCHECK(result == !HasTypedArrayElements());
+  bool result = elements()->IsFixedArray() || elements()->IsFixedDoubleArray();
+  DCHECK(result == !HasFixedTypedArrayElements());
   return result;
 }
 
@@ -55,20 +55,19 @@ void JSArray::SetContent(Handle<JSArray> array,
 }
 
 bool JSArray::HasArrayPrototype(Isolate* isolate) {
-  return map().prototype() == *isolate->initial_array_prototype();
+  return map()->prototype() == *isolate->initial_array_prototype();
 }
 
 ACCESSORS(JSArrayIterator, iterated_object, Object, kIteratedObjectOffset)
 ACCESSORS(JSArrayIterator, next_index, Object, kNextIndexOffset)
 
-SMI_ACCESSORS(JSArrayIterator, raw_kind, kKindOffset)
-
 IterationKind JSArrayIterator::kind() const {
-  return static_cast<IterationKind>(raw_kind());
+  return static_cast<IterationKind>(
+      Smi::cast(READ_FIELD(*this, kKindOffset))->value());
 }
 
 void JSArrayIterator::set_kind(IterationKind kind) {
-  set_raw_kind(static_cast<int>(kind));
+  WRITE_FIELD(*this, kKindOffset, Smi::FromInt(static_cast<int>(kind)));
 }
 
 }  // namespace internal

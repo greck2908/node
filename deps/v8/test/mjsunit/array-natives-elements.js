@@ -305,7 +305,6 @@ function array_natives_test() {
   assertEquals([1.1,{},2,3], a4);
 }
 
-%PrepareFunctionForOptimization(array_natives_test);
 for (var i = 0; i < 3; i++) {
   array_natives_test();
 }

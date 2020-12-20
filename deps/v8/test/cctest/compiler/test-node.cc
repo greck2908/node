@@ -36,28 +36,15 @@ static Operator dummy_operator3(IrOpcode::kParameter, Operator::kNoWrite,
 
 namespace {
 
-using NodeMSet = std::multiset<Node*, std::less<Node*>>;
+typedef std::multiset<Node*, std::less<Node*>> NodeMSet;
+
 
 void CheckUseChain(Node* node, Node** uses, int use_count) {
   // Check ownership.
   if (use_count == 1) CHECK(node->OwnedBy(uses[0]));
   if (use_count > 1) {
-    Node* first_use = uses[0];
-    bool different_uses = false;
     for (int i = 0; i < use_count; i++) {
-      if (uses[i] != first_use) {
-        different_uses = true;
-        break;
-      }
-    }
-    if (different_uses) {
-      // If there are different uses, check that node is not owned by any use.
-      for (int i = 0; i < use_count; i++) {
-        CHECK(!node->OwnedBy(uses[i]));
-      }
-    } else {
-      // If all uses are the same, check that node is owned by that use.
-      CHECK(node->OwnedBy(first_use));
+      CHECK(!node->OwnedBy(uses[i]));
     }
   }
 
@@ -156,7 +143,7 @@ void CheckInputs(Node* node, Node** inputs, int input_count) {
 
 TEST(NodeUseIteratorReplaceUses) {
   v8::internal::AccountingAllocator allocator;
-  Zone zone(&allocator, ZONE_NAME, kCompressGraphZone);
+  Zone zone(&allocator, ZONE_NAME);
   Graph graph(&zone);
   Node* n0 = graph.NewNode(&dummy_operator0);
   Node* n1 = graph.NewNode(&dummy_operator1, n0);
@@ -182,7 +169,7 @@ TEST(NodeUseIteratorReplaceUses) {
 
 TEST(NodeUseIteratorReplaceUsesSelf) {
   v8::internal::AccountingAllocator allocator;
-  Zone zone(&allocator, ZONE_NAME, kCompressGraphZone);
+  Zone zone(&allocator, ZONE_NAME);
   Graph graph(&zone);
   Node* n0 = graph.NewNode(&dummy_operator0);
   Node* n1 = graph.NewNode(&dummy_operator1, n0);
@@ -207,7 +194,7 @@ TEST(NodeUseIteratorReplaceUsesSelf) {
 
 TEST(ReplaceInput) {
   v8::internal::AccountingAllocator allocator;
-  Zone zone(&allocator, ZONE_NAME, kCompressGraphZone);
+  Zone zone(&allocator, ZONE_NAME);
   Graph graph(&zone);
   Node* n0 = graph.NewNode(&dummy_operator0);
   Node* n1 = graph.NewNode(&dummy_operator0);
@@ -234,7 +221,7 @@ TEST(ReplaceInput) {
 
 TEST(OwnedBy) {
   v8::internal::AccountingAllocator allocator;
-  Zone zone(&allocator, ZONE_NAME, kCompressGraphZone);
+  Zone zone(&allocator, ZONE_NAME);
   Graph graph(&zone);
 
   {
@@ -285,7 +272,7 @@ TEST(OwnedBy) {
 
 TEST(Uses) {
   v8::internal::AccountingAllocator allocator;
-  Zone zone(&allocator, ZONE_NAME, kCompressGraphZone);
+  Zone zone(&allocator, ZONE_NAME);
   Graph graph(&zone);
 
   Node* n0 = graph.NewNode(&dummy_operator0);
@@ -308,7 +295,7 @@ TEST(Uses) {
 
 TEST(Inputs) {
   v8::internal::AccountingAllocator allocator;
-  Zone zone(&allocator, ZONE_NAME, kCompressGraphZone);
+  Zone zone(&allocator, ZONE_NAME);
   Graph graph(&zone);
 
   Node* n0 = graph.NewNode(&dummy_operator0);
@@ -336,7 +323,7 @@ TEST(Inputs) {
 
 TEST(InsertInputs) {
   v8::internal::AccountingAllocator allocator;
-  Zone zone(&allocator, ZONE_NAME, kCompressGraphZone);
+  Zone zone(&allocator, ZONE_NAME);
   Graph graph(&zone);
 
   Node* n0 = graph.NewNode(&dummy_operator0);
@@ -411,7 +398,7 @@ TEST(InsertInputs) {
 
 TEST(RemoveInput) {
   v8::internal::AccountingAllocator allocator;
-  Zone zone(&allocator, ZONE_NAME, kCompressGraphZone);
+  Zone zone(&allocator, ZONE_NAME);
   Graph graph(&zone);
 
   Node* n0 = graph.NewNode(&dummy_operator0);
@@ -442,7 +429,7 @@ TEST(RemoveInput) {
 
 TEST(AppendInputsAndIterator) {
   v8::internal::AccountingAllocator allocator;
-  Zone zone(&allocator, ZONE_NAME, kCompressGraphZone);
+  Zone zone(&allocator, ZONE_NAME);
   Graph graph(&zone);
 
   Node* n0 = graph.NewNode(&dummy_operator0);
@@ -465,7 +452,7 @@ TEST(AppendInputsAndIterator) {
 
 TEST(NullInputsSimple) {
   v8::internal::AccountingAllocator allocator;
-  Zone zone(&allocator, ZONE_NAME, kCompressGraphZone);
+  Zone zone(&allocator, ZONE_NAME);
   Graph graph(&zone);
 
   Node* n0 = graph.NewNode(&dummy_operator0);
@@ -493,7 +480,7 @@ TEST(NullInputsSimple) {
 
 TEST(NullInputsAppended) {
   v8::internal::AccountingAllocator allocator;
-  Zone zone(&allocator, ZONE_NAME, kCompressGraphZone);
+  Zone zone(&allocator, ZONE_NAME);
   Graph graph(&zone);
 
   Node* n0 = graph.NewNode(&dummy_operator0);
@@ -517,7 +504,7 @@ TEST(NullInputsAppended) {
 
 TEST(ReplaceUsesFromAppendedInputs) {
   v8::internal::AccountingAllocator allocator;
-  Zone zone(&allocator, ZONE_NAME, kCompressGraphZone);
+  Zone zone(&allocator, ZONE_NAME);
   Graph graph(&zone);
 
   Node* n0 = graph.NewNode(&dummy_operator0);
@@ -546,7 +533,7 @@ TEST(ReplaceUsesFromAppendedInputs) {
 
 TEST(ReplaceInputMultipleUses) {
   v8::internal::AccountingAllocator allocator;
-  Zone zone(&allocator, ZONE_NAME, kCompressGraphZone);
+  Zone zone(&allocator, ZONE_NAME);
   Graph graph(&zone);
 
   Node* n0 = graph.NewNode(&dummy_operator0);
@@ -565,7 +552,7 @@ TEST(ReplaceInputMultipleUses) {
 
 TEST(TrimInputCountInline) {
   v8::internal::AccountingAllocator allocator;
-  Zone zone(&allocator, ZONE_NAME, kCompressGraphZone);
+  Zone zone(&allocator, ZONE_NAME);
   Graph graph(&zone);
 
   {
@@ -634,7 +621,7 @@ TEST(TrimInputCountInline) {
 
 TEST(TrimInputCountOutOfLine1) {
   v8::internal::AccountingAllocator allocator;
-  Zone zone(&allocator, ZONE_NAME, kCompressGraphZone);
+  Zone zone(&allocator, ZONE_NAME);
   Graph graph(&zone);
 
   {
@@ -729,7 +716,7 @@ TEST(TrimInputCountOutOfLine1) {
 
 TEST(TrimInputCountOutOfLine2) {
   v8::internal::AccountingAllocator allocator;
-  Zone zone(&allocator, ZONE_NAME, kCompressGraphZone);
+  Zone zone(&allocator, ZONE_NAME);
   Graph graph(&zone);
 
   {
@@ -799,7 +786,7 @@ TEST(TrimInputCountOutOfLine2) {
 
 TEST(NullAllInputs) {
   v8::internal::AccountingAllocator allocator;
-  Zone zone(&allocator, ZONE_NAME, kCompressGraphZone);
+  Zone zone(&allocator, ZONE_NAME);
   Graph graph(&zone);
 
   for (int i = 0; i < 2; i++) {
@@ -852,7 +839,7 @@ TEST(NullAllInputs) {
 
 TEST(AppendAndTrim) {
   v8::internal::AccountingAllocator allocator;
-  Zone zone(&allocator, ZONE_NAME, kCompressGraphZone);
+  Zone zone(&allocator, ZONE_NAME);
   Graph graph(&zone);
 
   Node* nodes[] = {

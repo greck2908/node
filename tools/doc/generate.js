@@ -21,17 +21,14 @@
 
 'use strict';
 
-const { promises: fs } = require('fs');
+const fs = require('fs');
 const path = require('path');
 const unified = require('unified');
 const markdown = require('remark-parse');
-const gfm = require('remark-gfm');
 const remark2rehype = require('remark-rehype');
 const raw = require('rehype-raw');
 const htmlStringify = require('rehype-stringify');
 
-const { replaceLinks } = require('./markdown');
-const linksMapper = require('./links-mapper');
 const html = require('./html');
 const json = require('./json');
 
@@ -43,90 +40,59 @@ let filename = null;
 let nodeVersion = null;
 let outputDir = null;
 let apilinks = {};
-let versions = {};
 
-async function main() {
-  for (const arg of args) {
-    if (!arg.startsWith('--')) {
-      filename = arg;
-    } else if (arg.startsWith('--node-version=')) {
-      nodeVersion = arg.replace(/^--node-version=/, '');
-    } else if (arg.startsWith('--output-directory=')) {
-      outputDir = arg.replace(/^--output-directory=/, '');
-    } else if (arg.startsWith('--apilinks=')) {
-      const linkFile = arg.replace(/^--apilinks=/, '');
-      const data = await fs.readFile(linkFile, 'utf8');
-      if (!data.trim()) {
-        throw new Error(`${linkFile} is empty`);
-      }
-      apilinks = JSON.parse(data);
-    } else if (arg.startsWith('--versions-file=')) {
-      const versionsFile = arg.replace(/^--versions-file=/, '');
-      const data = await fs.readFile(versionsFile, 'utf8');
-      if (!data.trim()) {
-        throw new Error(`${versionsFile} is empty`);
-      }
-      versions = JSON.parse(data);
+args.forEach((arg) => {
+  if (!arg.startsWith('--')) {
+    filename = arg;
+  } else if (arg.startsWith('--node-version=')) {
+    nodeVersion = arg.replace(/^--node-version=/, '');
+  } else if (arg.startsWith('--output-directory=')) {
+    outputDir = arg.replace(/^--output-directory=/, '');
+  } else if (arg.startsWith('--apilinks=')) {
+    const linkFile = arg.replace(/^--apilinks=/, '');
+    const data = fs.readFileSync(linkFile, 'utf8');
+    if (!data.trim()) {
+      throw new Error(`${linkFile} is empty`);
     }
+    apilinks = JSON.parse(data);
   }
+});
 
-  nodeVersion = nodeVersion || process.version;
+nodeVersion = nodeVersion || process.version;
 
-  if (!filename) {
-    throw new Error('No input file specified');
-  } else if (!outputDir) {
-    throw new Error('No output directory specified');
-  }
+if (!filename) {
+  throw new Error('No input file specified');
+} else if (!outputDir) {
+  throw new Error('No output directory specified');
+}
 
-  const input = await fs.readFile(filename, 'utf8');
 
-  const content = await unified()
-    .use(replaceLinks, { filename, linksMapper })
+fs.readFile(filename, 'utf8', (er, input) => {
+  if (er) throw er;
+
+  const content = unified()
     .use(markdown)
-    .use(gfm)
-    .use(html.preprocessText, { nodeVersion })
+    .use(html.preprocessText)
     .use(json.jsonAPI, { filename })
     .use(html.firstHeader)
     .use(html.preprocessElements, { filename })
     .use(html.buildToc, { filename, apilinks })
-    .use(remark2rehype, { allowDangerousHtml: true })
+    .use(remark2rehype, { allowDangerousHTML: true })
     .use(raw)
     .use(htmlStringify)
-    .process(input);
+    .processSync(input);
 
-  const myHtml = await html.toHTML({ input, content, filename, nodeVersion,
-                                     versions });
   const basename = path.basename(filename, '.md');
-  const htmlTarget = path.join(outputDir, `${basename}.html`);
-  const jsonTarget = path.join(outputDir, `${basename}.json`);
 
-  return Promise.allSettled([
-    fs.writeFile(htmlTarget, myHtml),
-    fs.writeFile(jsonTarget, JSON.stringify(content.json, null, 2)),
-  ]);
-}
-
-main()
-  .then((tasks) => {
-    // Filter rejected tasks
-    const errors = tasks.filter(({ status }) => status === 'rejected')
-      .map(({ reason }) => reason);
-
-    // Log errors
-    for (const error of errors) {
-      console.error(error);
+  html.toHTML(
+    { input, content, filename, nodeVersion },
+    (err, html) => {
+      const target = path.join(outputDir, `${basename}.html`);
+      if (err) throw err;
+      fs.writeFileSync(target, html);
     }
+  );
 
-    // Exit process with code 1 if some errors
-    if (errors.length > 0) {
-      return process.exit(1);
-    }
-
-    // Else with code 0
-    process.exit(0);
-  })
-  .catch((error) => {
-    console.error(error);
-
-    process.exit(1);
-  });
+  const target = path.join(outputDir, `${basename}.json`);
+  fs.writeFileSync(target, JSON.stringify(content.json, null, 2));
+});

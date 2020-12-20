@@ -8,9 +8,10 @@ const bench = common.createBenchmark(main, {
 });
 
 function runNormal(n) {
+  var i = 0;
   const o = { x: 0, y: 1 };
   bench.start();
-  for (let i = 0; i < n; i++) {
+  for (; i < n; i++) {
     /* eslint-disable no-unused-vars */
     const x = o.x;
     const y = o.y;
@@ -21,9 +22,10 @@ function runNormal(n) {
 }
 
 function runDestructured(n) {
+  var i = 0;
   const o = { x: 0, y: 1 };
   bench.start();
-  for (let i = 0; i < n; i++) {
+  for (; i < n; i++) {
     /* eslint-disable no-unused-vars */
     const { x, y, r = 2 } = o;
     /* eslint-enable no-unused-vars */
@@ -33,6 +35,8 @@ function runDestructured(n) {
 
 function main({ n, method }) {
   switch (method) {
+    case '':
+      // Empty string falls through to next line as default, mostly for tests.
     case 'normal':
       runNormal(n);
       break;

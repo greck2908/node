@@ -21,7 +21,7 @@ server.listen(0, common.mustCall(function() {
     assert.strictEqual(response._header, true);
     response.flushHeaders(); // Idempotent
 
-    assert.throws(() => {
+    common.expectsError(() => {
       response.writeHead(400, { 'foo-bar': 'abc123' });
     }, {
       code: 'ERR_HTTP2_HEADERS_SENT'

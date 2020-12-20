@@ -1,4 +1,4 @@
-// Flags: --expose-internals
+// Flags: --expose_internals
 'use strict';
 const common = require('../common');
 const assert = require('assert');
@@ -37,7 +37,7 @@ assert.strictEqual(command.stdout.toString().trim(), 'bar');
 
 // Verify that the environment is properly inherited
 const env = cp.spawnSync(`"${process.execPath}" -pe process.env.BAZ`, {
-  env: { ...process.env, BAZ: 'buzz' },
+  env: Object.assign({}, process.env, { BAZ: 'buzz' }),
   shell: true
 });
 

@@ -52,7 +52,7 @@ function get(path, callback) {
     port: server.address().port,
     agent: agent,
     path: path
-  }, callback).on('socket', common.mustCall(checkListeners));
+  }, callback);
 }
 
 function checkDataAndSockets(body) {
@@ -63,8 +63,7 @@ function checkDataAndSockets(body) {
 
 function second() {
   // Request second, use the same socket
-  const req = get('/second', common.mustCall((res) => {
-    assert.strictEqual(req.reusedSocket, true);
+  get('/second', common.mustCall((res) => {
     assert.strictEqual(res.statusCode, 200);
     res.on('data', checkDataAndSockets);
     res.on('end', common.mustCall(() => {
@@ -81,8 +80,7 @@ function second() {
 
 function remoteClose() {
   // Mock remote server close the socket
-  const req = get('/remote_close', common.mustCall((res) => {
-    assert.deepStrictEqual(req.reusedSocket, true);
+  get('/remote_close', common.mustCall((res) => {
     assert.deepStrictEqual(res.statusCode, 200);
     res.on('data', checkDataAndSockets);
     res.on('end', common.mustCall(() => {
@@ -122,8 +120,7 @@ function remoteError() {
 server.listen(0, common.mustCall(() => {
   name = `localhost:${server.address().port}:`;
   // Request first, and keep alive
-  const req = get('/first', common.mustCall((res) => {
-    assert.strictEqual(req.reusedSocket, false);
+  get('/first', common.mustCall((res) => {
     assert.strictEqual(res.statusCode, 200);
     res.on('data', checkDataAndSockets);
     res.on('end', common.mustCall(() => {
@@ -137,24 +134,3 @@ server.listen(0, common.mustCall(() => {
     }));
   }));
 }));
-
-// Check for listener leaks when reusing sockets.
-function checkListeners(socket) {
-  const callback = common.mustCall(() => {
-    if (!socket.destroyed) {
-      assert.strictEqual(socket.listenerCount('data'), 0);
-      assert.strictEqual(socket.listenerCount('drain'), 0);
-      // Sockets have freeSocketErrorListener.
-      assert.strictEqual(socket.listenerCount('error'), 1);
-      // Sockets have onReadableStreamEnd.
-      assert.strictEqual(socket.listenerCount('end'), 1);
-    }
-
-    socket.off('free', callback);
-    socket.off('close', callback);
-  });
-  assert.strictEqual(socket.listenerCount('error'), 1);
-  assert.strictEqual(socket.listenerCount('end'), 2);
-  socket.once('free', callback);
-  socket.once('close', callback);
-}

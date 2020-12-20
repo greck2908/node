@@ -24,7 +24,7 @@ function main({ n, nheaders }) {
     'user-agent': 'SuperBenchmarker 3000'
   };
 
-  for (let i = 0; i < nheaders; i++) {
+  for (var i = 0; i < nheaders; i++) {
     headersObject[`foo${i}`] = `some header value ${i}`;
   }
 

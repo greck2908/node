@@ -27,7 +27,6 @@ function TestLargeObjectElements() {
   %HeapObjectVerify(object);
 }
 
-%PrepareFunctionForOptimization(TestLargeObjectElements);
 TestLargeObjectElements();
 TestLargeObjectElements();
 %OptimizeFunctionOnNextCall(TestLargeObjectElements);

@@ -3,7 +3,6 @@
 const common = require('../common');
 if (!common.hasCrypto)
   common.skip('missing crypto');
-const assert = require('assert');
 const http2 = require('http2');
 const net = require('net');
 
@@ -25,18 +24,17 @@ server.listen(0, common.mustCall(() => {
     // Tests to make sure accessing the socket proxy fails with an
     // informative error.
     setImmediate(common.mustCall(() => {
-      assert.throws(() => {
-        socket.example; // eslint-disable-line no-unused-expressions
+      common.expectsError(() => {
+        socket.example;
       }, {
         code: 'ERR_HTTP2_SOCKET_UNBOUND'
       });
-      assert.throws(() => {
+      common.expectsError(() => {
         socket.example = 1;
       }, {
         code: 'ERR_HTTP2_SOCKET_UNBOUND'
       });
-      assert.throws(() => {
-        // eslint-disable-next-line no-unused-expressions
+      common.expectsError(() => {
         socket instanceof net.Socket;
       }, {
         code: 'ERR_HTTP2_SOCKET_UNBOUND'

@@ -1,4 +1,3 @@
-// Flags: --expose-gc --expose-internals
 'use strict';
 
 const common = require('../common');
@@ -6,7 +5,6 @@ const assert = require('assert');
 const {
   monitorEventLoopDelay
 } = require('perf_hooks');
-const { sleep } = require('internal/util');
 
 {
   const histogram = monitorEventLoopDelay();
@@ -20,31 +18,31 @@ const { sleep } = require('internal/util');
 
 {
   [null, 'a', 1, false, Infinity].forEach((i) => {
-    assert.throws(
+    common.expectsError(
       () => monitorEventLoopDelay(i),
       {
-        name: 'TypeError',
+        type: TypeError,
         code: 'ERR_INVALID_ARG_TYPE'
       }
     );
   });
 
   [null, 'a', false, {}, []].forEach((i) => {
-    assert.throws(
+    common.expectsError(
       () => monitorEventLoopDelay({ resolution: i }),
       {
-        name: 'TypeError',
+        type: TypeError,
         code: 'ERR_INVALID_ARG_TYPE'
       }
     );
   });
 
   [-1, 0, Infinity].forEach((i) => {
-    assert.throws(
+    common.expectsError(
       () => monitorEventLoopDelay({ resolution: i }),
       {
-        name: 'RangeError',
-        code: 'ERR_INVALID_ARG_VALUE'
+        type: RangeError,
+        code: 'ERR_INVALID_OPT_VALUE'
       }
     );
   });
@@ -55,7 +53,7 @@ const { sleep } = require('internal/util');
   histogram.enable();
   let m = 5;
   function spinAWhile() {
-    sleep(1000);
+    common.busyLoop(1000);
     if (--m > 0) {
       setTimeout(spinAWhile, common.platformTimeout(500));
     } else {
@@ -78,19 +76,19 @@ const { sleep } = require('internal/util');
       assert.strictEqual(histogram.percentiles.size, 1);
 
       ['a', false, {}, []].forEach((i) => {
-        assert.throws(
+        common.expectsError(
           () => histogram.percentile(i),
           {
-            name: 'TypeError',
+            type: TypeError,
             code: 'ERR_INVALID_ARG_TYPE'
           }
         );
       });
       [-1, 0, 101].forEach((i) => {
-        assert.throws(
+        common.expectsError(
           () => histogram.percentile(i),
           {
-            name: 'RangeError',
+            type: RangeError,
             code: 'ERR_INVALID_ARG_VALUE'
           }
         );
@@ -99,7 +97,3 @@ const { sleep } = require('internal/util');
   }
   spinAWhile();
 }
-
-// Make sure that the histogram instances can be garbage-collected without
-// and not just implictly destroyed when the Environment is torn down.
-process.on('exit', global.gc);

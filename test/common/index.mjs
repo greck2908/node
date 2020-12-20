@@ -1,6 +1,12 @@
+// Flags: --experimental-modules
 /* eslint-disable node-core/require-common-first, node-core/required-modules */
 
-import { createRequire } from 'module';
+import { createRequireFromPath } from 'module';
+import { fileURLToPath as toPath } from 'url';
+
+function createRequire(metaUrl) {
+  return createRequireFromPath(toPath(metaUrl));
+}
 
 const require = createRequire(import.meta.url);
 const common = require('./index.js');
@@ -9,16 +15,15 @@ const {
   isMainThread,
   isWindows,
   isAIX,
-  isIBMi,
   isLinuxPPCBE,
   isSunOS,
-  isDumbTerminal,
   isFreeBSD,
   isOpenBSD,
   isLinux,
   isOSX,
   enoughTestMem,
   enoughTestCpu,
+  rootDir,
   buildType,
   localIPv6Hosts,
   opensslCli,
@@ -31,14 +36,15 @@ const {
   mustCall,
   mustCallAtLeast,
   hasMultiLocalhost,
-  skipIfDumbTerminal,
   skipIfEslintMissing,
   canCreateSymLink,
   getCallSite,
   mustNotCall,
   printSkipMessage,
   skip,
+  ArrayStream,
   nodeProcessAborted,
+  busyLoop,
   isAlive,
   expectWarning,
   expectsError,
@@ -55,16 +61,15 @@ export {
   isMainThread,
   isWindows,
   isAIX,
-  isIBMi,
   isLinuxPPCBE,
   isSunOS,
-  isDumbTerminal,
   isFreeBSD,
   isOpenBSD,
   isLinux,
   isOSX,
   enoughTestMem,
   enoughTestCpu,
+  rootDir,
   buildType,
   localIPv6Hosts,
   opensslCli,
@@ -77,14 +82,15 @@ export {
   mustCall,
   mustCallAtLeast,
   hasMultiLocalhost,
-  skipIfDumbTerminal,
   skipIfEslintMissing,
   canCreateSymLink,
   getCallSite,
   mustNotCall,
   printSkipMessage,
   skip,
+  ArrayStream,
   nodeProcessAborted,
+  busyLoop,
   isAlive,
   expectWarning,
   expectsError,

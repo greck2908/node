@@ -1,4 +1,6 @@
 'use strict';
+// Flags: --expose-internals
+
 // Tests that calling unref() on Http2Session:
 // (1) Prevents it from keeping the process alive
 // (2) Doesn't crash

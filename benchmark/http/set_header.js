@@ -16,11 +16,14 @@ const bench = common.createBenchmark(main, {
   n: [1e6],
 });
 
-function main({ n, value }) {
+function main(conf) {
+  const n = +conf.n;
+  const value = conf.value;
+
   const og = new OutgoingMessage();
 
   bench.start();
-  for (let i = 0; i < n; i++) {
+  for (var i = 0; i < n; i++) {
     og.setHeader(value, '');
   }
   bench.end(n);

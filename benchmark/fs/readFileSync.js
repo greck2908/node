@@ -9,7 +9,7 @@ const bench = common.createBenchmark(main, {
 
 function main({ n }) {
   bench.start();
-  for (let i = 0; i < n; ++i)
+  for (var i = 0; i < n; ++i)
     fs.readFileSync(__filename);
   bench.end(n);
 }

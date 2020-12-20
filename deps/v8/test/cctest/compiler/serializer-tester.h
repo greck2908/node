@@ -5,8 +5,6 @@
 #ifndef V8_CCTEST_COMPILER_SERIALIZER_TESTER_H_
 #define V8_CCTEST_COMPILER_SERIALIZER_TESTER_H_
 
-#include <memory>
-
 #include "src/compiler/js-heap-broker.h"
 #include "test/cctest/cctest.h"
 
@@ -29,13 +27,13 @@ class SerializerTester : public HandleAndZoneScope {
   explicit SerializerTester(const char* source);
 
   JSFunctionRef function() const { return function_.value(); }
-  JSHeapBroker* broker() const { return broker_.get(); }
+  JSHeapBroker* broker() const { return broker_; }
   Isolate* isolate() { return main_isolate(); }
 
  private:
   CanonicalHandleScope canonical_;
   base::Optional<JSFunctionRef> function_;
-  std::unique_ptr<JSHeapBroker> broker_;
+  JSHeapBroker* broker_ = nullptr;
 };
 }  // namespace compiler
 }  // namespace internal

@@ -44,7 +44,6 @@ function TestNew() {
   function indirectSymbol() { return Symbol() }
   function indirect() { return indirectSymbol() }
   for (var i = 0; i < 2; ++i) {
-    %PrepareFunctionForOptimization(indirect);
     for (var j = 0; j < 5; ++j) {
       symbols.push(Symbol())
       symbols.push(Symbol(undefined))
@@ -520,7 +519,6 @@ function TestComparison() {
   var throwFuncs = [lt, gt, le, ge, lt_same, gt_same, le_same, ge_same];
 
   for (var f of throwFuncs) {
-    %PrepareFunctionForOptimization(f);
     assertThrows(f, TypeError);
     %OptimizeFunctionOnNextCall(f);
     assertThrows(f, TypeError);

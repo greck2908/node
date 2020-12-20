@@ -102,7 +102,7 @@ TimeUnit::TimeUnit(const TimeUnit& other)
 :   MeasureUnit(other), fTimeUnitField(other.fTimeUnitField) {
 }
 
-TimeUnit*
+UObject*
 TimeUnit::clone() const {
     return new TimeUnit(*this);
 }

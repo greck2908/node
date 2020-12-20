@@ -9,12 +9,11 @@ const bench = common.createBenchmark(main, {
   type: ['utf', 'asc', 'buf'],
   dur: [5],
 }, {
-  test: { len: 64 },
   flags: ['--expose-internals']
 });
 
-let chunk;
-let encoding;
+var chunk;
+var encoding;
 
 function main({ dur, len, type }) {
   // Can only require internals inside main().

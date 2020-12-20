@@ -21,7 +21,6 @@
   }
 
   %PrepareFunctionForOptimization(slice0);
-  %PrepareFunctionForOptimization(slice);
 
   assertEquals(arr, slice());
   assertFalse(arr === slice());
@@ -30,6 +29,7 @@
 
   %OptimizeFunctionOnNextCall(slice0);
   assertEquals(slice(), slice0());
+  %PrepareFunctionForOptimization(slice);
   %OptimizeFunctionOnNextCall(slice);
 
   assertEquals(slice(), slice0());
@@ -399,11 +399,10 @@
   assertEquals(narr, [6,6,6]);
 })();
 
-// Packed
 // Trigger JSCallReducer on slice() and slice(0)
 (function() {
   // Non-extensible:
-  var arr = Object.preventExtensions([1,2,'a',4,5]);
+  var arr = Object.preventExtensions([1,2,3,4,5]);
 
   function slice() {
     return arr.slice();
@@ -415,7 +414,6 @@
 
   function test() {
     %PrepareFunctionForOptimization(slice0);
-    %PrepareFunctionForOptimization(slice);
 
     assertEquals(arr, slice());
     assertFalse(arr === slice());
@@ -424,6 +422,7 @@
 
     %OptimizeFunctionOnNextCall(slice0);
     assertEquals(slice(), slice0());
+    %PrepareFunctionForOptimization(slice);
     %OptimizeFunctionOnNextCall(slice);
 
     assertEquals(slice(), slice0());
@@ -432,51 +431,10 @@
   test();
 
   // Sealed
-  arr = Object.seal([1,2,'a',4,5]);
+  arr = Object.seal([1,2,3,4,5]);
   test();
 
   // Frozen
-  arr = Object.freeze([1,2,'a',4,5]);
-  test();
-})();
-
-// Holey
-// Trigger JSCallReducer on slice() and slice(0)
-(function() {
-  // Non-extensible:
-  var arr = Object.preventExtensions([,1,2,'a',4,5]);
-
-  function slice() {
-    return arr.slice();
-  }
-
-  function slice0() {
-    return arr.slice(0);
-  }
-
-  function test() {
-    %PrepareFunctionForOptimization(slice0);
-    %PrepareFunctionForOptimization(slice);
-    assertEquals(arr, slice());
-    assertFalse(arr === slice());
-    assertEquals(slice(), slice0());
-    assertEquals(slice0(), slice());
-
-    %OptimizeFunctionOnNextCall(slice0);
-    assertEquals(slice(), slice0());
-    %OptimizeFunctionOnNextCall(slice);
-
-    assertEquals(slice(), slice0());
-    assertOptimized(slice0);
-    assertOptimized(slice);
-  }
-  test();
-
-  // Sealed
-  arr = Object.seal([,1,2,'a',4,5]);
-  test();
-
-  // Frozen
-  arr = Object.freeze([,1,2,'a',4,5]);
+  arr = Object.freeze([1,2,3,4,5]);
   test();
 })();

@@ -1,17 +1,6 @@
-export function resolve(specifier, { parentURL }, defaultResolve) {
-  if (specifier === 'test') {
-    return {
-      url: 'file://'
-    };
+export function resolve(specifier, parentModule, defaultResolver) {
+  if (specifier !== 'test') {
+    return defaultResolver(specifier, parentModule);
   }
-  return defaultResolve(specifier, {parentURL}, defaultResolve);
-}
-
-export function getFormat(url, context, defaultGetFormat) {
-  if (url === 'file://') {
-    return {
-      format: 'dynamic'
-    }
-  }
-  return defaultGetFormat(url, context, defaultGetFormat);
+  return { url: 'file://', format: 'dynamic' };
 }

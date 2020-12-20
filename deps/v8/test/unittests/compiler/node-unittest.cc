@@ -17,10 +17,8 @@ namespace internal {
 namespace compiler {
 namespace node_unittest {
 
-class NodeTest : public TestWithZone {
- public:
-  NodeTest() : TestWithZone(kCompressGraphZone) {}
-};
+typedef TestWithZone NodeTest;
+
 
 const IrOpcode::Value kOpcode0 = static_cast<IrOpcode::Value>(0);
 const IrOpcode::Value kOpcode1 = static_cast<IrOpcode::Value>(1);

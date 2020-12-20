@@ -12,7 +12,6 @@
 #include "src/heap/factory-inl.h"
 #include "src/objects/map.h"
 #include "src/objects/scope-info.h"
-#include "src/objects/template-objects.h"
 
 namespace v8 {
 namespace internal {
@@ -27,21 +26,12 @@ JSHeapBroker* JSHeapCopyReducer::broker() { return broker_; }
 
 Reduction JSHeapCopyReducer::Reduce(Node* node) {
   switch (node->opcode()) {
-    case IrOpcode::kCheckClosure: {
-      FeedbackCellRef cell(broker(), FeedbackCellOf(node->op()));
-      FeedbackVectorRef feedback_vector = cell.value().AsFeedbackVector();
-      feedback_vector.Serialize();
-      break;
-    }
     case IrOpcode::kHeapConstant: {
       ObjectRef object(broker(), HeapConstantOf(node->op()));
       if (object.IsJSFunction()) object.AsJSFunction().Serialize();
-      if (object.IsJSObject()) {
-        object.AsJSObject().SerializeObjectCreateMap();
-      }
-      if (object.IsSourceTextModule()) {
-        object.AsSourceTextModule().Serialize();
-      }
+      if (object.IsJSObject()) object.AsJSObject().SerializeObjectCreateMap();
+      if (object.IsModule()) object.AsModule().Serialize();
+      if (object.IsContext()) object.AsContext().SerializeContextChain();
       break;
     }
     case IrOpcode::kJSCreateArray: {
@@ -74,58 +64,13 @@ Reduction JSHeapCopyReducer::Reduce(Node* node) {
     case IrOpcode::kJSCreateClosure: {
       CreateClosureParameters const& p = CreateClosureParametersOf(node->op());
       SharedFunctionInfoRef(broker(), p.shared_info());
+      HeapObjectRef(broker(), p.feedback_cell());
       HeapObjectRef(broker(), p.code());
       break;
     }
     case IrOpcode::kJSCreateEmptyLiteralArray: {
       FeedbackParameter const& p = FeedbackParameterOf(node->op());
-      if (p.feedback().IsValid()) {
-        broker()->ProcessFeedbackForArrayOrObjectLiteral(p.feedback());
-      }
-      break;
-    }
-    /* Unary ops. */
-    case IrOpcode::kJSBitwiseNot:
-    case IrOpcode::kJSDecrement:
-    case IrOpcode::kJSIncrement:
-    case IrOpcode::kJSNegate: {
-      FeedbackParameter const& p = FeedbackParameterOf(node->op());
-      if (p.feedback().IsValid()) {
-        // Unary ops are treated as binary ops with respect to feedback.
-        broker()->ProcessFeedbackForBinaryOperation(p.feedback());
-      }
-      break;
-    }
-    /* Binary ops. */
-    case IrOpcode::kJSAdd:
-    case IrOpcode::kJSSubtract:
-    case IrOpcode::kJSMultiply:
-    case IrOpcode::kJSDivide:
-    case IrOpcode::kJSModulus:
-    case IrOpcode::kJSExponentiate:
-    case IrOpcode::kJSBitwiseOr:
-    case IrOpcode::kJSBitwiseXor:
-    case IrOpcode::kJSBitwiseAnd:
-    case IrOpcode::kJSShiftLeft:
-    case IrOpcode::kJSShiftRight:
-    case IrOpcode::kJSShiftRightLogical: {
-      FeedbackParameter const& p = FeedbackParameterOf(node->op());
-      if (p.feedback().IsValid()) {
-        broker()->ProcessFeedbackForBinaryOperation(p.feedback());
-      }
-      break;
-    }
-    /* Compare ops. */
-    case IrOpcode::kJSEqual:
-    case IrOpcode::kJSGreaterThan:
-    case IrOpcode::kJSGreaterThanOrEqual:
-    case IrOpcode::kJSLessThan:
-    case IrOpcode::kJSLessThanOrEqual:
-    case IrOpcode::kJSStrictEqual: {
-      FeedbackParameter const& p = FeedbackParameterOf(node->op());
-      if (p.feedback().IsValid()) {
-        broker()->ProcessFeedbackForCompareOperation(p.feedback());
-      }
+      FeedbackVectorRef(broker(), p.feedback().vector()).SerializeSlots();
       break;
     }
     case IrOpcode::kJSCreateFunctionContext: {
@@ -137,50 +82,22 @@ Reduction JSHeapCopyReducer::Reduce(Node* node) {
     case IrOpcode::kJSCreateLiteralArray:
     case IrOpcode::kJSCreateLiteralObject: {
       CreateLiteralParameters const& p = CreateLiteralParametersOf(node->op());
-      if (p.feedback().IsValid()) {
-        broker()->ProcessFeedbackForArrayOrObjectLiteral(p.feedback());
-      }
+      FeedbackVectorRef(broker(), p.feedback().vector()).SerializeSlots();
       break;
     }
     case IrOpcode::kJSCreateLiteralRegExp: {
       CreateLiteralParameters const& p = CreateLiteralParametersOf(node->op());
-      if (p.feedback().IsValid()) {
-        broker()->ProcessFeedbackForRegExpLiteral(p.feedback());
-      }
-      break;
-    }
-    case IrOpcode::kJSGetTemplateObject: {
-      GetTemplateObjectParameters const& p =
-          GetTemplateObjectParametersOf(node->op());
-      SharedFunctionInfoRef shared(broker(), p.shared());
-      TemplateObjectDescriptionRef description(broker(), p.description());
-      shared.GetTemplateObject(description, p.feedback(),
-                               SerializationPolicy::kSerializeIfNeeded);
+      FeedbackVectorRef(broker(), p.feedback().vector()).SerializeSlots();
       break;
     }
     case IrOpcode::kJSCreateWithContext: {
       ScopeInfoRef(broker(), ScopeInfoOf(node->op()));
       break;
     }
-    case IrOpcode::kJSLoadNamed: {
-      NamedAccess const& p = NamedAccessOf(node->op());
-      NameRef name(broker(), p.name());
-      if (p.feedback().IsValid()) {
-        broker()->ProcessFeedbackForPropertyAccess(p.feedback(),
-                                                   AccessMode::kLoad, name);
-      }
-      break;
-    }
-    case IrOpcode::kJSLoadNamedFromSuper: {
-      // TODO(marja, v8:9237): Process feedback once it's added to the byte
-      // code.
-      NamedAccess const& p = NamedAccessOf(node->op());
-      NameRef name(broker(), p.name());
-      break;
-    }
+    case IrOpcode::kJSLoadNamed:
     case IrOpcode::kJSStoreNamed: {
       NamedAccess const& p = NamedAccessOf(node->op());
-      NameRef name(broker(), p.name());
+      NameRef(broker(), p.name());
       break;
     }
     case IrOpcode::kStoreField:
@@ -217,15 +134,7 @@ Reduction JSHeapCopyReducer::Reduce(Node* node) {
       }
       break;
     }
-    case IrOpcode::kJSLoadProperty: {
-      PropertyAccess const& p = PropertyAccessOf(node->op());
-      AccessMode access_mode = AccessMode::kLoad;
-      if (p.feedback().IsValid()) {
-        broker()->ProcessFeedbackForPropertyAccess(p.feedback(), access_mode,
-                                                   base::nullopt);
-      }
-      break;
-    }
+
     default:
       break;
   }

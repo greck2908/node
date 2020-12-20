@@ -1,5 +1,5 @@
 'use strict';
-require('../common');
+const common = require('../common');
 const assert = require('assert');
 
 const { Transform, Readable, Writable } = require('stream');
@@ -64,22 +64,20 @@ testTransform(0, 0, {
 
 // test NaN
 {
-  assert.throws(() => {
+  common.expectsError(() => {
     new Transform({ readableHighWaterMark: NaN });
   }, {
-    name: 'TypeError',
-    code: 'ERR_INVALID_ARG_VALUE',
-    message: "The property 'options.readableHighWaterMark' is invalid. " +
-      'Received NaN'
+    type: TypeError,
+    code: 'ERR_INVALID_OPT_VALUE',
+    message: 'The value "NaN" is invalid for option "readableHighWaterMark"'
   });
 
-  assert.throws(() => {
+  common.expectsError(() => {
     new Transform({ writableHighWaterMark: NaN });
   }, {
-    name: 'TypeError',
-    code: 'ERR_INVALID_ARG_VALUE',
-    message: "The property 'options.writableHighWaterMark' is invalid. " +
-      'Received NaN'
+    type: TypeError,
+    code: 'ERR_INVALID_OPT_VALUE',
+    message: 'The value "NaN" is invalid for option "writableHighWaterMark"'
   });
 }
 

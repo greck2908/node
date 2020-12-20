@@ -21,8 +21,6 @@
 
 'use strict';
 const common = require('../common');
-if (common.isIBMi)
-  common.skip('IBMi does not support fs.watch()');
 
 const assert = require('assert');
 const fs = require('fs');
@@ -42,15 +40,6 @@ const testDir = tmpdir.path;
 
 tmpdir.refresh();
 
-// Because macOS (and possibly other operating systems) can return a watcher
-// before it is actually watching, we need to repeat the operation to avoid
-// a race condition.
-function repeat(fn) {
-  setImmediate(fn);
-  const interval = setInterval(fn, 5000);
-  return interval;
-}
-
 {
   const filepath = path.join(testDir, 'watch.txt');
 
@@ -63,11 +52,12 @@ function repeat(fn) {
     if (expectFilePath) {
       assert.strictEqual(filename, 'watch.txt');
     }
-    clearInterval(interval);
     watcher.close();
   }));
 
-  const interval = repeat(() => { fs.writeFileSync(filepath, 'world'); });
+  setImmediate(function() {
+    fs.writeFileSync(filepath, 'world');
+  });
 }
 
 {
@@ -84,11 +74,12 @@ function repeat(fn) {
       if (expectFilePath) {
         assert.strictEqual(filename, 'hasOwnProperty');
       }
-      clearInterval(interval);
       watcher.close();
     }));
 
-  const interval = repeat(() => { fs.writeFileSync(filepathAbs, 'pardner'); });
+  setImmediate(function() {
+    fs.writeFileSync(filepathAbs, 'pardner');
+  });
 }
 
 {
@@ -104,15 +95,14 @@ function repeat(fn) {
       } else {
         assert.strictEqual(filename, null);
       }
-      clearInterval(interval);
       watcher.close();
     }));
 
-  const interval = repeat(() => {
-    fs.rmSync(filepath, { force: true });
+  setImmediate(function() {
     const fd = fs.openSync(filepath, 'w');
     fs.closeSync(fd);
   });
+
 }
 
 // https://github.com/joyent/node/issues/2293 - non-persistent watcher should
@@ -125,40 +115,14 @@ function repeat(fn) {
 // https://github.com/joyent/node/issues/6690
 {
   let oldhandle;
-  assert.throws(
+  common.expectsInternalAssertion(
     () => {
       const w = fs.watch(__filename, common.mustNotCall());
       oldhandle = w._handle;
       w._handle = { close: w._handle.close };
       w.close();
     },
-    {
-      name: 'Error',
-      code: 'ERR_INTERNAL_ASSERTION',
-      message: /^handle must be a FSEvent/,
-    }
-  );
-  oldhandle.close(); // clean up
-}
-
-{
-  let oldhandle;
-  assert.throws(
-    () => {
-      const w = fs.watch(__filename, common.mustNotCall());
-      oldhandle = w._handle;
-      const protoSymbols =
-        Object.getOwnPropertySymbols(Object.getPrototypeOf(w));
-      const kFSWatchStart =
-        protoSymbols.find((val) => val.toString() === 'Symbol(kFSWatchStart)');
-      w._handle = {};
-      w[kFSWatchStart]();
-    },
-    {
-      name: 'Error',
-      code: 'ERR_INTERNAL_ASSERTION',
-      message: /^handle must be a FSEvent/,
-    }
+    'handle must be a FSEvent'
   );
   oldhandle.close(); // clean up
 }

@@ -54,16 +54,15 @@ class FunctionalTest : public ::testing::Test {
   DISALLOW_COPY_AND_ASSIGN(FunctionalTest);
 };
 
-using FunctionalTypes =
-    ::testing::Types<signed char, unsigned char,
-                     short,                    // NOLINT(runtime/int)
-                     unsigned short,           // NOLINT(runtime/int)
-                     int, unsigned int, long,  // NOLINT(runtime/int)
-                     unsigned long,            // NOLINT(runtime/int)
-                     long long,                // NOLINT(runtime/int)
-                     unsigned long long,       // NOLINT(runtime/int)
-                     int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t,
-                     int64_t, uint64_t, float, double>;
+typedef ::testing::Types<signed char, unsigned char,
+                         short,                    // NOLINT(runtime/int)
+                         unsigned short,           // NOLINT(runtime/int)
+                         int, unsigned int, long,  // NOLINT(runtime/int)
+                         unsigned long,            // NOLINT(runtime/int)
+                         long long,                // NOLINT(runtime/int)
+                         unsigned long long,       // NOLINT(runtime/int)
+                         int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t,
+                         int64_t, uint64_t, float, double> FunctionalTypes;
 
 TYPED_TEST_SUITE(FunctionalTest, FunctionalTypes);
 

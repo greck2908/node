@@ -1,6 +1,6 @@
 // Flags: --expose-internals
 'use strict';
-require('../common');
+const common = require('../common');
 const {
   hijackStdout,
   restoreStdout,
@@ -50,33 +50,30 @@ errors.E('TEST_ERROR_2', (a, b) => `${a} ${b}`, Error);
 }
 
 {
-  assert.throws(
+  common.expectsInternalAssertion(
     () => new errors.codes.TEST_ERROR_1(),
-    {
-      message: /^Code: TEST_ERROR_1; The provided arguments length \(0\) does not match the required ones \(1\)\./,
-      name: 'Error',
-      code: 'ERR_INTERNAL_ASSERTION'
-    }
+    'Code: TEST_ERROR_1; The provided arguments ' +
+    'length (0) does not match the required ones (1).'
   );
 }
 
 // Tests for common.expectsError
-assert.throws(() => {
+common.expectsError(() => {
   throw new errors.codes.TEST_ERROR_1.TypeError('a');
 }, { code: 'TEST_ERROR_1' });
-assert.throws(() => {
+common.expectsError(() => {
   throw new errors.codes.TEST_ERROR_1.TypeError('a');
 }, { code: 'TEST_ERROR_1',
-     name: 'TypeError',
+     type: TypeError,
      message: /^Error for testing/ });
-assert.throws(() => {
+common.expectsError(() => {
   throw new errors.codes.TEST_ERROR_1.TypeError('a');
-}, { code: 'TEST_ERROR_1', name: 'TypeError' });
-assert.throws(() => {
+}, { code: 'TEST_ERROR_1', type: TypeError });
+common.expectsError(() => {
   throw new errors.codes.TEST_ERROR_1.TypeError('a');
 }, {
   code: 'TEST_ERROR_1',
-  name: 'TypeError',
+  type: TypeError,
   message: 'Error for testing purposes: a'
 });
 
@@ -85,9 +82,9 @@ assert.throws(() => {
 {
   const myError = new errors.codes.TEST_ERROR_1('foo');
   assert.strictEqual(myError.code, 'TEST_ERROR_1');
-  assert.strictEqual(myError.hasOwnProperty('code'), true);
+  assert.strictEqual(myError.hasOwnProperty('code'), false);
   assert.strictEqual(myError.hasOwnProperty('name'), false);
-  assert.deepStrictEqual(Object.keys(myError), ['code']);
+  assert.deepStrictEqual(Object.keys(myError), []);
   const initialName = myError.name;
   myError.code = 'FHQWHGADS';
   assert.strictEqual(myError.code, 'FHQWHGADS');
@@ -102,11 +99,11 @@ assert.throws(() => {
 // browser. Note that `name` becomes enumerable after being assigned.
 {
   const myError = new errors.codes.TEST_ERROR_1('foo');
-  assert.deepStrictEqual(Object.keys(myError), ['code']);
+  assert.deepStrictEqual(Object.keys(myError), []);
   const initialToString = myError.toString();
 
   myError.name = 'Fhqwhgads';
-  assert.deepStrictEqual(Object.keys(myError), ['code', 'name']);
+  assert.deepStrictEqual(Object.keys(myError), ['name']);
   assert.notStrictEqual(myError.toString(), initialToString);
 }
 
@@ -117,7 +114,7 @@ assert.throws(() => {
   let initialConsoleLog = '';
   hijackStdout((data) => { initialConsoleLog += data; });
   const myError = new errors.codes.TEST_ERROR_1('foo');
-  assert.deepStrictEqual(Object.keys(myError), ['code']);
+  assert.deepStrictEqual(Object.keys(myError), []);
   const initialToString = myError.toString();
   console.log(myError);
   assert.notStrictEqual(initialConsoleLog, '');
@@ -127,7 +124,7 @@ assert.throws(() => {
   let subsequentConsoleLog = '';
   hijackStdout((data) => { subsequentConsoleLog += data; });
   myError.message = 'Fhqwhgads';
-  assert.deepStrictEqual(Object.keys(myError), ['code']);
+  assert.deepStrictEqual(Object.keys(myError), []);
   assert.notStrictEqual(myError.toString(), initialToString);
   console.log(myError);
   assert.strictEqual(subsequentConsoleLog, initialConsoleLog);

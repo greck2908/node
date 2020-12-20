@@ -12,11 +12,19 @@ const names = [
   'v8Start',
   'loopStart',
   'loopExit',
-  'bootstrapComplete'
+  'bootstrapComplete',
+  'thirdPartyMainStart',
+  'thirdPartyMainEnd',
+  'clusterSetupStart',
+  'clusterSetupEnd',
+  'moduleLoadStart',
+  'moduleLoadEnd',
+  'preloadModulesLoadStart',
+  'preloadModulesLoadEnd'
 ];
 
 if (process.argv[2] === 'child') {
-  1 + 1; // eslint-disable-line no-unused-expressions
+  1 + 1;
 } else {
   tmpdir.refresh();
 

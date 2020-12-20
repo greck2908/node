@@ -243,7 +243,7 @@ UBool Edits::growArray() {
     return TRUE;
 }
 
-UBool Edits::copyErrorTo(UErrorCode &outErrorCode) const {
+UBool Edits::copyErrorTo(UErrorCode &outErrorCode) {
     if (U_FAILURE(outErrorCode)) { return TRUE; }
     if (U_SUCCESS(errorCode_)) { return FALSE; }
     outErrorCode = errorCode_;

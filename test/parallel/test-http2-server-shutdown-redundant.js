@@ -3,7 +3,6 @@
 const common = require('../common');
 if (!common.hasCrypto)
   common.skip('missing crypto');
-const assert = require('assert');
 const http2 = require('http2');
 
 const server = http2.createServer();
@@ -13,11 +12,11 @@ server.on('stream', common.mustCall((stream) => {
   session.goaway(1);
   session.goaway(2);
   stream.session.on('close', common.mustCall(() => {
-    assert.throws(
+    common.expectsError(
       () => session.goaway(3),
       {
         code: 'ERR_HTTP2_INVALID_SESSION',
-        name: 'Error'
+        type: Error
       }
     );
   }));

@@ -34,7 +34,6 @@ Debug.setListener(listener);
       return e;
     }
   }
-  %PrepareFunctionForOptimization(f);
   assertEquals("boom1", f(1));
   assertEquals("boom2", f(2));
   %OptimizeFunctionOnNextCall(f);
@@ -52,7 +51,6 @@ Debug.setListener(listener);
       return a + 10;
     }
   }
-  %PrepareFunctionForOptimization(f);
   assertEquals(11, f(1));
   assertEquals(12, f(2));
   %OptimizeFunctionOnNextCall(f);
@@ -72,7 +70,6 @@ Debug.setListener(listener);
       // Nothing.
     }
   }
-  %PrepareFunctionForOptimization(f);
   assertEquals("wosh11", f(1));
   assertEquals("wosh22", f(2));
   %OptimizeFunctionOnNextCall(f);
@@ -94,7 +91,6 @@ Debug.setListener(listener);
       return e + a;
     }
   }
-  %PrepareFunctionForOptimization(f);
   assertEquals("bang11", f(1));
   assertEquals("bang22", f(2));
   %OptimizeFunctionOnNextCall(f);
@@ -116,7 +112,6 @@ Debug.setListener(listener);
       return a + 10;
     }
   }
-  %PrepareFunctionForOptimization(f);
   assertEquals(11, f(1));
   assertEquals(12, f(2));
   %OptimizeFunctionOnNextCall(f);
@@ -138,7 +133,6 @@ Debug.setListener(listener);
       return a + 10;
     }
   }
-  %PrepareFunctionForOptimization(f);
   assertEquals(11, f(1));
   assertEquals(12, f(2));
   %OptimizeFunctionOnNextCall(f);

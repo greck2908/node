@@ -19,7 +19,7 @@ function main({ ext, cache, files }) {
     `${benchmarkDirectory}/a.js`,
     'module.exports = {};'
   );
-  for (let i = 0; i <= files; i++) {
+  for (var i = 0; i <= files; i++) {
     fs.mkdirSync(`${benchmarkDirectory}/${i}`);
     fs.writeFileSync(
       `${benchmarkDirectory}/${i}/package.json`,
@@ -37,13 +37,14 @@ function main({ ext, cache, files }) {
 }
 
 function measureDir(cache, files) {
+  var i;
   if (cache) {
-    for (let i = 0; i <= files; i++) {
+    for (i = 0; i <= files; i++) {
       require(`${benchmarkDirectory}/${i}`);
     }
   }
   bench.start();
-  for (let i = 0; i <= files; i++) {
+  for (i = 0; i <= files; i++) {
     require(`${benchmarkDirectory}/${i}`);
   }
   bench.end(files);

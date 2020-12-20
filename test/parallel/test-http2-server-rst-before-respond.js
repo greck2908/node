@@ -14,7 +14,7 @@ server.on('stream', common.mustCall(onStream));
 function onStream(stream, headers, flags) {
   stream.close();
 
-  assert.throws(() => {
+  common.expectsError(() => {
     stream.additionalHeaders({
       ':status': 123,
       'abc': 123

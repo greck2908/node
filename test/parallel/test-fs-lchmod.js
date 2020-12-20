@@ -21,18 +21,18 @@ assert.throws(() => fs.lchmod(f, {}), { code: 'ERR_INVALID_CALLBACK' });
 
 // Check path
 [false, 1, {}, [], null, undefined].forEach((i) => {
-  assert.throws(
+  common.expectsError(
     () => fs.lchmod(i, 0o777, common.mustNotCall()),
     {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError'
+      type: TypeError
     }
   );
-  assert.throws(
+  common.expectsError(
     () => fs.lchmodSync(i),
     {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError'
+      type: TypeError
     }
   );
 });

@@ -1,4 +1,4 @@
-// Flags: --expose-internals
+// Flags: --expose_internals
 'use strict';
 require('../common');
 const fixtures = require('../common/fixtures');

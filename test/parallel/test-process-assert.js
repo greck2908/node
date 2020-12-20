@@ -9,17 +9,17 @@ common.expectWarning(
 );
 
 assert.strictEqual(process.assert(1, 'error'), undefined);
-assert.throws(() => {
+common.expectsError(() => {
   process.assert(undefined, 'errorMessage');
 }, {
   code: 'ERR_ASSERTION',
-  name: 'Error',
+  type: Error,
   message: 'errorMessage'
 });
-assert.throws(() => {
+common.expectsError(() => {
   process.assert(false);
 }, {
   code: 'ERR_ASSERTION',
-  name: 'Error',
+  type: Error,
   message: 'assertion error'
 });

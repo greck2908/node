@@ -107,7 +107,6 @@ function runTests(tests, func) {
   for (test in tests) {
     %DeoptimizeFunction(func);
     %ClearFunctionFeedback(func);
-    %PrepareFunctionForOptimization(func);
     tests[test]();
     %OptimizeFunctionOnNextCall(func);
     tests[test]();

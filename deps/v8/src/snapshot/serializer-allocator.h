@@ -5,8 +5,7 @@
 #ifndef V8_SNAPSHOT_SERIALIZER_ALLOCATOR_H_
 #define V8_SNAPSHOT_SERIALIZER_ALLOCATOR_H_
 
-#include "src/snapshot/references.h"
-#include "src/snapshot/snapshot-data.h"
+#include "src/snapshot/serializer-common.h"
 
 namespace v8 {
 namespace internal {
@@ -17,7 +16,7 @@ class SerializerAllocator final {
  public:
   explicit SerializerAllocator(Serializer* serializer);
 
-  SerializerReference Allocate(SnapshotSpace space, uint32_t size);
+  SerializerReference Allocate(AllocationSpace space, uint32_t size);
   SerializerReference AllocateMap();
   SerializerReference AllocateLargeObject(uint32_t size);
   SerializerReference AllocateOffHeapBackingStore();
@@ -36,12 +35,12 @@ class SerializerAllocator final {
  private:
   // We try to not exceed this size for every chunk. We will not succeed for
   // larger objects though.
-  uint32_t TargetChunkSize(SnapshotSpace space);
+  uint32_t TargetChunkSize(int space);
 
   static constexpr int kNumberOfPreallocatedSpaces =
-      static_cast<int>(SnapshotSpace::kNumberOfPreallocatedSpaces);
+      SerializerDeserializer::kNumberOfPreallocatedSpaces;
   static constexpr int kNumberOfSpaces =
-      static_cast<int>(SnapshotSpace::kNumberOfSpaces);
+      SerializerDeserializer::kNumberOfSpaces;
 
   // Objects from the same space are put into chunks for bulk-allocation
   // when deserializing. We have to make sure that each chunk fits into a

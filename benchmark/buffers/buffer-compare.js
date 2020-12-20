@@ -34,7 +34,7 @@ function main({ n, size }) {
   b1[size - 1] = 'b'.charCodeAt(0);
 
   bench.start();
-  for (let i = 0; i < n; i++) {
+  for (var i = 0; i < n; i++) {
     Buffer.compare(b0, b1);
   }
   bench.end(n);

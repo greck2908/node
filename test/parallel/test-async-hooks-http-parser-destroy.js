@@ -1,5 +1,5 @@
 'use strict';
-const common = require('../common');
+require('../common');
 const assert = require('assert');
 const async_hooks = require('async_hooks');
 const http = require('http');
@@ -11,58 +11,40 @@ const http = require('http');
 const N = 50;
 const KEEP_ALIVE = 100;
 
-const createdIdsIncomingMessage = [];
-const createdIdsClientRequest = [];
-const destroyedIdsIncomingMessage = [];
-const destroyedIdsClientRequest = [];
-
+const createdIds = [];
+const destroyedIds = [];
 async_hooks.createHook({
   init: (asyncId, type) => {
-    if (type === 'HTTPINCOMINGMESSAGE') {
-      createdIdsIncomingMessage.push(asyncId);
-    }
-    if (type === 'HTTPCLIENTREQUEST') {
-      createdIdsClientRequest.push(asyncId);
+    if (type === 'HTTPINCOMINGMESSAGE' || type === 'HTTPCLIENTREQUEST') {
+      createdIds.push(asyncId);
     }
   },
   destroy: (asyncId) => {
-    if (createdIdsIncomingMessage.includes(asyncId)) {
-      destroyedIdsIncomingMessage.push(asyncId);
+    if (createdIds.includes(asyncId)) {
+      destroyedIds.push(asyncId);
     }
-    if (createdIdsClientRequest.includes(asyncId)) {
-      destroyedIdsClientRequest.push(asyncId);
-    }
-
-    if (destroyedIdsClientRequest.length === N && keepAliveAgent) {
-      keepAliveAgent.destroy();
-      keepAliveAgent = undefined;
-    }
-
-    if (destroyedIdsIncomingMessage.length === N && server.listening) {
+    if (destroyedIds.length === 2 * N) {
       server.close();
     }
   }
 }).enable();
 
 const server = http.createServer((req, res) => {
-  req.on('close', common.mustCall(() => {
-    req.on('readable', common.mustNotCall());
-  }));
   res.end('Hello');
 });
 
-let keepAliveAgent = new http.Agent({
+const keepAliveAgent = new http.Agent({
   keepAlive: true,
   keepAliveMsecs: KEEP_ALIVE,
 });
 
-server.listen(0, () => {
+server.listen(0, function() {
   for (let i = 0; i < N; ++i) {
     (function makeRequest() {
       http.get({
         port: server.address().port,
         agent: keepAliveAgent
-      }, (res) => {
+      }, function(res) {
         res.resume();
       });
     })();
@@ -70,15 +52,9 @@ server.listen(0, () => {
 });
 
 function checkOnExit() {
-  assert.strictEqual(createdIdsIncomingMessage.length, N);
-  assert.strictEqual(createdIdsClientRequest.length, N);
-  assert.strictEqual(destroyedIdsIncomingMessage.length, N);
-  assert.strictEqual(destroyedIdsClientRequest.length, N);
-
-  assert.deepStrictEqual(destroyedIdsIncomingMessage.sort(),
-                         createdIdsIncomingMessage.sort());
-  assert.deepStrictEqual(destroyedIdsClientRequest.sort(),
-                         createdIdsClientRequest.sort());
+  assert.deepStrictEqual(destroyedIds.sort(), createdIds.sort());
+  // There should be two IDs for each request.
+  assert.strictEqual(createdIds.length, N * 2);
 }
 
 process.on('SIGTERM', () => {

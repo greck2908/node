@@ -8,11 +8,11 @@ const MAX_REQUESTS = 13;
 let reqNum = 0;
 
 function test(res, header, code) {
-  assert.throws(() => {
+  common.expectsError(() => {
     res.writeHead(header);
   }, {
     code: 'ERR_HTTP_INVALID_STATUS_CODE',
-    name: 'RangeError',
+    type: RangeError,
     message: `Invalid status code: ${code}`
   });
 }
@@ -56,12 +56,12 @@ const server = http.Server(common.mustCall(function(req, res) {
       test(res, '404 this is not valid either', '404 this is not valid either');
       break;
     case 12:
-      assert.throws(() => { res.writeHead(); },
-                    {
-                      code: 'ERR_HTTP_INVALID_STATUS_CODE',
-                      name: 'RangeError',
-                      message: 'Invalid status code: undefined'
-                    });
+      common.expectsError(() => { res.writeHead(); },
+                          {
+                            code: 'ERR_HTTP_INVALID_STATUS_CODE',
+                            type: RangeError,
+                            message: 'Invalid status code: undefined'
+                          });
       this.close();
       break;
     default:

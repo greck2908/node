@@ -26,7 +26,7 @@
 #include "uassert.h"
 #include "number_decimalquantity.h"
 #include "number_utypes.h"
-#include "formatted_string_builder.h"
+#include "number_stringbuilder.h"
 
 U_NAMESPACE_BEGIN
 
@@ -180,7 +180,7 @@ void QuantityFormatter::formatAndSelect(
         double quantity,
         const NumberFormat& fmt,
         const PluralRules& rules,
-        FormattedStringBuilder& output,
+        number::impl::NumberStringBuilder& output,
         StandardPlural::Form& pluralForm,
         UErrorCode& status) {
     UnicodeString pluralKeyword;
@@ -188,11 +188,7 @@ void QuantityFormatter::formatAndSelect(
     if (df != nullptr) {
         number::impl::UFormattedNumberData fn;
         fn.quantity.setToDouble(quantity);
-        const number::LocalizedNumberFormatter* lnf = df->toNumberFormatter(status);
-        if (U_FAILURE(status)) {
-            return;
-        }
-        lnf->formatImpl(&fn, status);
+        df->toNumberFormatter().formatImpl(&fn, status);
         if (U_FAILURE(status)) {
             return;
         }
@@ -204,8 +200,7 @@ void QuantityFormatter::formatAndSelect(
         if (U_FAILURE(status)) {
             return;
         }
-        // This code path is probably RBNF. Use the generic numeric field.
-        output.append(result, kGeneralNumericField, status);
+        output.append(result, UNUM_FIELD_COUNT, status);
         if (U_FAILURE(status)) {
             return;
         }

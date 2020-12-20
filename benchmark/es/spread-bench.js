@@ -16,24 +16,27 @@ function makeTest(count, rest) {
     return function test(...args) {
       assert.strictEqual(count, args.length);
     };
+  } else {
+    return function test() {
+      assert.strictEqual(count, arguments.length);
+    };
   }
-  return function test() {
-    assert.strictEqual(count, arguments.length);
-  };
 }
 
 function main({ n, context, count, rest, method }) {
   const ctx = context === 'context' ? {} : null;
-  let fn = makeTest(count, rest);
+  var fn = makeTest(count, rest);
   const args = new Array(count);
-
-  for (let i = 0; i < count; i++)
+  var i;
+  for (i = 0; i < count; i++)
     args[i] = i;
 
   switch (method) {
+    case '':
+      // Empty string falls through to next line as default, mostly for tests.
     case 'apply':
       bench.start();
-      for (let i = 0; i < n; i++)
+      for (i = 0; i < n; i++)
         fn.apply(ctx, args);
       bench.end(n);
       break;
@@ -41,13 +44,13 @@ function main({ n, context, count, rest, method }) {
       if (ctx !== null)
         fn = fn.bind(ctx);
       bench.start();
-      for (let i = 0; i < n; i++)
+      for (i = 0; i < n; i++)
         fn(...args);
       bench.end(n);
       break;
     case 'call-spread':
       bench.start();
-      for (let i = 0; i < n; i++)
+      for (i = 0; i < n; i++)
         fn.call(ctx, ...args);
       bench.end(n);
       break;

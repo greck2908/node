@@ -8,7 +8,7 @@
 #include "src/compiler/js-operator.h"
 #include "src/compiler/machine-operator.h"
 #include "src/compiler/simplified-operator.h"
-#include "src/numbers/dtoa.h"
+#include "src/dtoa.h"
 
 namespace v8 {
 namespace internal {

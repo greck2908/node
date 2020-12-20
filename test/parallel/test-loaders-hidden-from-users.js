@@ -2,10 +2,9 @@
 
 'use strict';
 
-require('../common');
-const assert = require('assert');
+const common = require('../common');
 
-assert.throws(
+common.expectsError(
   () => {
     require('internal/bootstrap/loaders');
   }, {
@@ -14,7 +13,7 @@ assert.throws(
   }
 );
 
-assert.throws(
+common.expectsError(
   () => {
     const source = 'module.exports = require("internal/bootstrap/loaders")';
     const { internalBinding } = require('internal/test/binding');

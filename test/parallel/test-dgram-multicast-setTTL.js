@@ -35,13 +35,12 @@ socket.on('listening', common.mustCall(() => {
     socket.setMulticastTTL(1000);
   }, /^Error: setMulticastTTL EINVAL$/);
 
-  assert.throws(() => {
+  common.expectsError(() => {
     socket.setMulticastTTL('foo');
   }, {
     code: 'ERR_INVALID_ARG_TYPE',
-    name: 'TypeError',
-    message: 'The "ttl" argument must be of type number. Received type string' +
-             " ('foo')"
+    type: TypeError,
+    message: 'The "ttl" argument must be of type number. Received type string'
   });
 
   // Close the socket

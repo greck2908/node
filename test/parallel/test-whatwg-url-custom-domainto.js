@@ -17,7 +17,8 @@ const wptToASCIITests = require(
 );
 
 {
-  const expectedError = { code: 'ERR_MISSING_ARGS', name: 'TypeError' };
+  const expectedError = common.expectsError(
+    { code: 'ERR_MISSING_ARGS', type: TypeError }, 2);
   assert.throws(() => domainToASCII(), expectedError);
   assert.throws(() => domainToUnicode(), expectedError);
   assert.strictEqual(domainToASCII(undefined), 'undefined');

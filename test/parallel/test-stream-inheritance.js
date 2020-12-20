@@ -1,5 +1,5 @@
 'use strict';
-require('../common');
+const common = require('../common');
 const assert = require('assert');
 const { Readable, Writable, Duplex, Transform } = require('stream');
 
@@ -48,11 +48,11 @@ Object.setPrototypeOf(CustomWritable.prototype, Writable.prototype);
 
 new CustomWritable();
 
-assert.throws(
+common.expectsError(
   CustomWritable,
   {
     code: 'ERR_ASSERTION',
-    constructor: assert.AssertionError,
+    type: assert.AssertionError,
     message: 'undefined does not inherit from CustomWritable'
   }
 );

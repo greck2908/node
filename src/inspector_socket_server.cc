@@ -343,8 +343,7 @@ void InspectorSocketServer::SendListResponse(InspectorSocket* socket,
     response.push_back(std::map<std::string, std::string>());
     std::map<std::string, std::string>& target_map = response.back();
     target_map["description"] = "node.js instance";
-    target_map["faviconUrl"] =
-                        "https://nodejs.org/static/images/favicons/favicon.ico";
+    target_map["faviconUrl"] = "https://nodejs.org/static/favicon.ico";
     target_map["id"] = id;
     target_map["title"] = delegate_->GetTargetTitle(id);
     Escape(&target_map["title"]);
@@ -373,7 +372,7 @@ void InspectorSocketServer::SendListResponse(InspectorSocket* socket,
 std::string InspectorSocketServer::GetFrontendURL(bool is_compat,
     const std::string &formatted_address) {
   std::ostringstream frontend_url;
-  frontend_url << "devtools://devtools/bundled/";
+  frontend_url << "chrome-devtools://devtools/bundled/";
   frontend_url << (is_compat ? "inspector" : "js_app");
   frontend_url << ".html?experiments=true&v8only=true&ws=";
   frontend_url << formatted_address;

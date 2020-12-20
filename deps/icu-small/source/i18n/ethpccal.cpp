@@ -46,7 +46,7 @@ EthiopicCalendar::~EthiopicCalendar()
 {
 }
 
-EthiopicCalendar*
+Calendar*
 EthiopicCalendar::clone() const
 {
     return new EthiopicCalendar(*this);

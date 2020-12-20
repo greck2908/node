@@ -2,29 +2,27 @@
 # Moved some utilities here from ../../configure
 
 from __future__ import print_function
+import urllib
 import hashlib
 import sys
 import zipfile
 import tarfile
+import fpformat
 import contextlib
-try:
-    from urllib.request import FancyURLopener, URLopener
-except ImportError:
-    from urllib import FancyURLopener, URLopener
 
 def formatSize(amt):
     """Format a size as a string in MB"""
-    return "%.1f" % (amt / 1024000.)
+    return fpformat.fix(amt / 1024000., 1)
 
 def spin(c):
     """print out an ASCII 'spinner' based on the value of counter 'c'"""
     spin = ".:|'"
     return (spin[c % len(spin)])
 
-class ConfigOpener(FancyURLopener):
+class ConfigOpener(urllib.FancyURLopener):
     """fancy opener used by retrievefile. Set a UA"""
     # append to existing version (UA)
-    version = '%s node.js/configure' % URLopener.version
+    version = '%s node.js/configure' % urllib.URLopener.version
 
 def reporthook(count, size, total):
     """internal hook used by retrievefile"""
@@ -63,7 +61,7 @@ def checkHash(targetfile, hashAlgo):
     digest = hashlib.new(hashAlgo)
     with open(targetfile, 'rb') as f:
       chunk = f.read(1024)
-      while len(chunk) > 0:
+      while chunk !=  "":
         digest.update(chunk)
         chunk = f.read(1024)
     return digest.hexdigest()

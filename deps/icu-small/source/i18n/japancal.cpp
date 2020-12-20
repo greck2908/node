@@ -136,7 +136,7 @@ JapaneseCalendar& JapaneseCalendar::operator= ( const JapaneseCalendar& right)
     return *this;
 }
 
-JapaneseCalendar* JapaneseCalendar::clone() const
+Calendar* JapaneseCalendar::clone(void) const
 {
     return new JapaneseCalendar(*this);
 }

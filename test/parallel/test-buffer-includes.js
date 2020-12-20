@@ -277,14 +277,13 @@ for (let lengthIndex = 0; lengthIndex < lengths.length; lengthIndex++) {
   {},
   []
 ].forEach((val) => {
-  assert.throws(
+  common.expectsError(
     () => b.includes(val),
     {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError',
-      message: 'The "value" argument must be one of type number or string ' +
-               'or an instance of Buffer or Uint8Array.' +
-               common.invalidArgTypeHelper(val)
+      type: TypeError,
+      message: 'The "value" argument must be one of type string, ' +
+               `Buffer, or Uint8Array. Received type ${typeof val}`
     }
   );
 });

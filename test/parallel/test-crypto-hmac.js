@@ -13,29 +13,31 @@ const crypto = require('crypto');
                                    ' when called without `new`');
 }
 
-assert.throws(
+common.expectsError(
   () => crypto.createHmac(null),
   {
     code: 'ERR_INVALID_ARG_TYPE',
-    name: 'TypeError',
-    message: 'The "hmac" argument must be of type string. Received null'
+    type: TypeError,
+    message: 'The "hmac" argument must be of type string. Received type object'
   });
 
 // This used to segfault. See: https://github.com/nodejs/node/issues/9819
-assert.throws(
+common.expectsError(
   () => crypto.createHmac('sha256', 'key').digest({
     toString: () => { throw new Error('boom'); },
   }),
   {
-    name: 'Error',
+    type: Error,
     message: 'boom'
   });
 
-assert.throws(
+common.expectsError(
   () => crypto.createHmac('sha1', null),
   {
     code: 'ERR_INVALID_ARG_TYPE',
-    name: 'TypeError',
+    type: TypeError,
+    message: 'The "key" argument must be one of type Buffer, TypedArray, ' +
+             'DataView, string, or KeyObject. Received type object'
   });
 
 function testHmac(algo, key, data, expected) {
@@ -406,9 +408,12 @@ const rfc2202_sha1 = [
 for (const { key, data, hmac } of rfc2202_sha1)
   testHmac('sha1', key, data, hmac);
 
-assert.strictEqual(
-  crypto.createHmac('sha256', 'w00t').digest('ucs2'),
-  crypto.createHmac('sha256', 'w00t').digest().toString('ucs2'));
+common.expectsError(
+  () => crypto.createHmac('sha256', 'w00t').digest('ucs2'),
+  {
+    code: 'ERR_CRYPTO_HASH_DIGEST_NO_UTF16',
+    type: Error
+  });
 
 // Check initialized -> uninitialized state transition after calling digest().
 {
@@ -448,5 +453,5 @@ assert.strictEqual(
 {
   assert.throws(
     () => crypto.createHmac('sha7', 'key'),
-    /Invalid digest/);
+    /Unknown message digest/);
 }

@@ -60,7 +60,7 @@ UnicodeNameTransliterator::UnicodeNameTransliterator(const UnicodeNameTransliter
 /**
  * Transliterator API.
  */
-UnicodeNameTransliterator* UnicodeNameTransliterator::clone() const {
+Transliterator* UnicodeNameTransliterator::clone(void) const {
     return new UnicodeNameTransliterator(*this);
 }
 

@@ -16,4 +16,3 @@ TypeError: Converting circular structure to JSON
     --- property 'y' closes the circle
     at JSON.stringify (<anonymous>)
     at *%(basename)s:27:6
-

@@ -14,8 +14,6 @@ function f(o) {
   return result;
 }
 
-%PrepareFunctionForOptimization(f);
-
 assertEquals(["0"], f("a"));
 assertEquals(["0"], f("a"));
 
@@ -64,8 +62,6 @@ function check_f2() {
   property_descriptor_keys.length = 0;
 }
 
-%PrepareFunctionForOptimization(f2);
-
 check_f2();
 check_f2();
 
@@ -75,7 +71,6 @@ deopt_enum = true;
 check_f2();
 
 // Test lazy deopt after FILTER_KEY
-%PrepareFunctionForOptimization(f2);
 %OptimizeFunctionOnNextCall(f2);
 deopt_property_descriptor = true;
 check_f2();
@@ -86,7 +81,6 @@ function f3(o) {
   }
 }
 
-%PrepareFunctionForOptimization(f3);
 f3({__proto__:{x:1}});
 f3({__proto__:{x:1}});
 
@@ -111,8 +105,6 @@ function check_f4() {
   assertEquals(keys, property_descriptor_keys);
   property_descriptor_keys.length = 0;
 }
-
-%PrepareFunctionForOptimization(f4);
 
 check_f4();
 check_f4();
@@ -154,7 +146,6 @@ function f5() {
 
 x = false;
 
-%PrepareFunctionForOptimization(f5);
 f5(); f5(); f5();
 %OptimizeFunctionOnNextCall(f5);
 x = true;

@@ -12,11 +12,10 @@
 #include <set>
 #include <string>
 
-#include "src/base/bit-field.h"
-#include "src/execution/isolate.h"
 #include "src/heap/factory.h"
+#include "src/isolate.h"
+#include "src/objects.h"
 #include "src/objects/managed.h"
-#include "src/objects/objects.h"
 #include "unicode/uversion.h"
 
 // Has to be the last include (doesn't have include guards):
@@ -24,19 +23,18 @@
 
 namespace U_ICU_NAMESPACE {
 class ListFormatter;
-}  // namespace U_ICU_NAMESPACE
+}
 
 namespace v8 {
 namespace internal {
 
-class JSListFormat
-    : public TorqueGeneratedJSListFormat<JSListFormat, JSObject> {
+class JSListFormat : public JSObject {
  public:
-  // Creates relative time format object with properties derived from input
+  // Initializes relative time format object with properties derived from input
   // locales and options.
-  static MaybeHandle<JSListFormat> New(Isolate* isolate, Handle<Map> map,
-                                       Handle<Object> locales,
-                                       Handle<Object> options);
+  static MaybeHandle<JSListFormat> Initialize(
+      Isolate* isolate, Handle<JSListFormat> list_format_holder,
+      Handle<Object> locales, Handle<Object> options);
 
   static Handle<JSObject> ResolvedOptions(Isolate* isolate,
                                           Handle<JSListFormat> format_holder);
@@ -56,16 +54,20 @@ class JSListFormat
   Handle<String> StyleAsString() const;
   Handle<String> TypeAsString() const;
 
+  DECL_CAST(JSListFormat)
+
   // ListFormat accessors.
+  DECL_ACCESSORS(locale, String)
   DECL_ACCESSORS(icu_formatter, Managed<icu::ListFormatter>)
 
   // Style: identifying the relative time format style used.
   //
   // ecma402/#sec-properties-of-intl-listformat-instances
   enum class Style {
-    LONG,   // Everything spelled out.
-    SHORT,  // Abbreviations used when possible.
-    NARROW  // Use the shortest possible form.
+    LONG,    // Everything spelled out.
+    SHORT,   // Abbreviations used when possible.
+    NARROW,  // Use the shortest possible form.
+    COUNT
   };
   inline void set_style(Style style);
   inline Style style() const;
@@ -76,13 +78,18 @@ class JSListFormat
   enum class Type {
     CONJUNCTION,  // for "and"-based lists (e.g., "A, B and C")
     DISJUNCTION,  // for "or"-based lists (e.g., "A, B or C"),
-    UNIT  // for lists of values with units (e.g., "5 pounds, 12 ounces").
+    UNIT,  // for lists of values with units (e.g., "5 pounds, 12 ounces").
+    COUNT
   };
   inline void set_type(Type type);
   inline Type type() const;
 
-  // Bit positions in |flags|.
-  DEFINE_TORQUE_GENERATED_JS_LIST_FORMAT_FLAGS()
+// Bit positions in |flags|.
+#define FLAGS_BIT_FIELDS(V, _) \
+  V(StyleBits, Style, 2, _)    \
+  V(TypeBits, Type, 2, _)
+  DEFINE_BIT_FIELDS(FLAGS_BIT_FIELDS)
+#undef FLAGS_BIT_FIELDS
 
   STATIC_ASSERT(Style::LONG <= StyleBits::kMax);
   STATIC_ASSERT(Style::SHORT <= StyleBits::kMax);
@@ -91,9 +98,24 @@ class JSListFormat
   STATIC_ASSERT(Type::DISJUNCTION <= TypeBits::kMax);
   STATIC_ASSERT(Type::UNIT <= TypeBits::kMax);
 
-  DECL_PRINTER(JSListFormat)
+  // [flags] Bit field containing various flags about the function.
+  DECL_INT_ACCESSORS(flags)
 
-  TQ_OBJECT_CONSTRUCTORS(JSListFormat)
+  DECL_PRINTER(JSListFormat)
+  DECL_VERIFIER(JSListFormat)
+
+  // Layout description.
+#define JS_LIST_FORMAT_FIELDS(V)      \
+  V(kLocaleOffset, kTaggedSize)       \
+  V(kICUFormatterOffset, kTaggedSize) \
+  V(kFlagsOffset, kTaggedSize)        \
+  /* Header size. */                  \
+  V(kSize, 0)
+
+  DEFINE_FIELD_OFFSET_CONSTANTS(JSObject::kHeaderSize, JS_LIST_FORMAT_FIELDS)
+#undef JS_LIST_FORMAT_FIELDS
+
+  OBJECT_CONSTRUCTORS(JSListFormat, JSObject);
 };
 
 }  // namespace internal

@@ -35,6 +35,7 @@ from testrunner.outproc import message
 
 
 INVALID_FLAGS = ["--enable-slow-asserts"]
+MODULE_PATTERN = re.compile(r"^// MODULE$", flags=re.MULTILINE)
 
 
 class TestSuite(testsuite.TestSuite):
@@ -55,7 +56,9 @@ class TestCase(testcase.D8TestCase):
 
   def _parse_source_files(self, source):
     files = []
-    files.append(self._get_source_path())
+    if MODULE_PATTERN.search(source):
+      files.append("--module")
+    files.append(os.path.join(self.suite.root, self.path + ".js"))
     return files
 
   def _expected_fail(self):
@@ -78,13 +81,7 @@ class TestCase(testcase.D8TestCase):
     return self._source_flags
 
   def _get_source_path(self):
-    base_path = os.path.join(self.suite.root, self.path)
-    # Try .js first, and fall back to .mjs.
-    # TODO(v8:9406): clean this up by never separating the path from
-    # the extension in the first place.
-    if os.path.exists(base_path + self._get_suffix()):
-      return base_path + self._get_suffix()
-    return base_path + '.mjs'
+    return os.path.join(self.suite.root, self.path + self._get_suffix())
 
   def skip_predictable(self):
     # Message tests expected to fail don't print allocation output for

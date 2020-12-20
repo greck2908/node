@@ -5,7 +5,6 @@
 #ifndef V8_INSPECTOR_V8_PROFILER_AGENT_IMPL_H_
 #define V8_INSPECTOR_V8_PROFILER_AGENT_IMPL_H_
 
-#include <memory>
 #include <vector>
 
 #include "src/base/macros.h"
@@ -15,7 +14,7 @@
 namespace v8 {
 class CpuProfiler;
 class Isolate;
-}  // namespace v8
+}
 
 namespace v8_inspector {
 
@@ -39,14 +38,12 @@ class V8ProfilerAgentImpl : public protocol::Profiler::Backend {
   Response start() override;
   Response stop(std::unique_ptr<protocol::Profiler::Profile>*) override;
 
-  Response startPreciseCoverage(Maybe<bool> binary, Maybe<bool> detailed,
-                                Maybe<bool> allow_triggered_updates,
-                                double* out_timestamp) override;
+  Response startPreciseCoverage(Maybe<bool> binary,
+                                Maybe<bool> detailed) override;
   Response stopPreciseCoverage() override;
   Response takePreciseCoverage(
       std::unique_ptr<protocol::Array<protocol::Profiler::ScriptCoverage>>*
-          out_result,
-      double* out_timestamp) override;
+          out_result) override;
   Response getBestEffortCoverage(
       std::unique_ptr<protocol::Array<protocol::Profiler::ScriptCoverage>>*
           out_result) override;
@@ -57,23 +54,8 @@ class V8ProfilerAgentImpl : public protocol::Profiler::Backend {
       std::unique_ptr<protocol::Array<protocol::Profiler::ScriptTypeProfile>>*
           out_result) override;
 
-  Response enableCounters() override;
-  Response disableCounters() override;
-  Response getCounters(
-      std::unique_ptr<protocol::Array<protocol::Profiler::CounterInfo>>*
-          out_result) override;
-
-  Response enableRuntimeCallStats() override;
-  Response disableRuntimeCallStats() override;
-  Response getRuntimeCallStats(
-      std::unique_ptr<
-          protocol::Array<protocol::Profiler::RuntimeCallCounterInfo>>*
-          out_result) override;
-
   void consoleProfile(const String16& title);
   void consoleProfileEnd(const String16& title);
-
-  void triggerPreciseCoverageDeltaUpdate(const String16& occassion);
 
  private:
   String16 nextProfileId();
@@ -93,8 +75,6 @@ class V8ProfilerAgentImpl : public protocol::Profiler::Backend {
   std::vector<ProfileDescriptor> m_startedProfiles;
   String16 m_frontendInitiatedProfileId;
   int m_startedProfilesCount = 0;
-  std::shared_ptr<V8Inspector::Counters> m_counters;
-  bool m_runtime_call_stats_enabled = false;
 
   DISALLOW_COPY_AND_ASSIGN(V8ProfilerAgentImpl);
 };

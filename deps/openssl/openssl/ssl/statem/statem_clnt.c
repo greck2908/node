@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2019 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright (c) 2002, Oracle and/or its affiliates. All rights reserved
  * Copyright 2005 Nokia. All rights reserved.
  *
@@ -12,8 +12,8 @@
 #include <stdio.h>
 #include <time.h>
 #include <assert.h>
-#include "../ssl_local.h"
-#include "statem_local.h"
+#include "../ssl_locl.h"
+#include "statem_locl.h"
 #include <openssl/buffer.h>
 #include <openssl/rand.h>
 #include <openssl/objects.h>
@@ -473,6 +473,12 @@ static WRITE_TRAN ossl_statem_client13_write_transition(SSL *s)
         return WRITE_TRAN_CONTINUE;
 
     case TLS_ST_CR_KEY_UPDATE:
+        if (s->key_update != SSL_KEY_UPDATE_NONE) {
+            st->hand_state = TLS_ST_CW_KEY_UPDATE;
+            return WRITE_TRAN_CONTINUE;
+        }
+        /* Fall through */
+
     case TLS_ST_CW_KEY_UPDATE:
     case TLS_ST_CR_SESSION_TICKET:
     case TLS_ST_CW_FINISHED:
@@ -909,14 +915,6 @@ int ossl_statem_client_construct_message(SSL *s, WPACKET *pkt,
         break;
 
     case TLS_ST_CW_END_OF_EARLY_DATA:
-#ifndef OPENSSL_NO_QUIC
-        /* QUIC does not send EndOfEarlyData, draft-ietf-quic-tls-24 S8.3 */
-        if (s->quic_method != NULL) {
-            *confunc = NULL;
-            *mt = SSL3_MT_DUMMY;
-            break;
-        }
-#endif
         *confunc = tls_construct_end_of_early_data;
         *mt = SSL3_MT_END_OF_EARLY_DATA;
         break;
@@ -2153,17 +2151,15 @@ static int tls_process_ske_dhe(SSL *s, PACKET *pkt, EVP_PKEY **pkey)
     }
     bnpub_key = NULL;
 
+    if (!ssl_security(s, SSL_SECOP_TMP_DH, DH_security_bits(dh), 0, dh)) {
+        SSLfatal(s, SSL_AD_HANDSHAKE_FAILURE, SSL_F_TLS_PROCESS_SKE_DHE,
+                 SSL_R_DH_KEY_TOO_SMALL);
+        goto err;
+    }
+
     if (EVP_PKEY_assign_DH(peer_tmp, dh) == 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_SKE_DHE,
                  ERR_R_EVP_LIB);
-        goto err;
-    }
-    dh = NULL;
-
-    if (!ssl_security(s, SSL_SECOP_TMP_DH, EVP_PKEY_security_bits(peer_tmp),
-                      0, peer_tmp)) {
-        SSLfatal(s, SSL_AD_HANDSHAKE_FAILURE, SSL_F_TLS_PROCESS_SKE_DHE,
-                 SSL_R_DH_KEY_TOO_SMALL);
         goto err;
     }
 

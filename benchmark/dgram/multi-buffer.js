@@ -18,22 +18,18 @@ const bench = common.createBenchmark(main, {
 
 function main({ dur, len, num, type, chunks }) {
   const chunk = [];
-  for (let i = 0; i < chunks; i++) {
+  for (var i = 0; i < chunks; i++) {
     chunk.push(Buffer.allocUnsafe(Math.round(len / chunks)));
   }
-  let sent = 0;
-  let received = 0;
+  var sent = 0;
+  var received = 0;
   const socket = dgram.createSocket('udp4');
 
   function onsend() {
     if (sent++ % num === 0) {
-      // The setImmediate() is necessary to have event loop progress on OSes
-      // that only perform synchronous I/O on nonblocking UDP sockets.
-      setImmediate(() => {
-        for (let i = 0; i < num; i++) {
-          socket.send(chunk, PORT, '127.0.0.1', onsend);
-        }
-      });
+      for (var i = 0; i < num; i++) {
+        socket.send(chunk, PORT, '127.0.0.1', onsend);
+      }
     }
   }
 

@@ -51,7 +51,7 @@ RelativeDateFormat::RelativeDateFormat(const RelativeDateFormat& other) :
  fCapitalizationBrkIter(NULL)
 {
     if(other.fDateTimeFormatter != NULL) {
-        fDateTimeFormatter = other.fDateTimeFormatter->clone();
+        fDateTimeFormatter = (SimpleDateFormat*)other.fDateTimeFormatter->clone();
     }
     if(other.fCombinedFormat != NULL) {
         fCombinedFormat = new SimpleFormatter(*other.fCombinedFormat);
@@ -131,7 +131,7 @@ RelativeDateFormat::~RelativeDateFormat() {
 }
 
 
-RelativeDateFormat* RelativeDateFormat::clone() const {
+Format* RelativeDateFormat::clone(void) const {
     return new RelativeDateFormat(*this);
 }
 

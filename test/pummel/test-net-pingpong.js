@@ -88,8 +88,9 @@ function pingPongTest(host, on_complete) {
       if (sent_final_ping) {
         assert.strictEqual(client.readyState, 'readOnly');
         return;
+      } else {
+        assert.strictEqual(client.readyState, 'open');
       }
-      assert.strictEqual(client.readyState, 'open');
 
       if (count < N) {
         client.write('PING');
@@ -113,8 +114,9 @@ function pingPongTest(host, on_complete) {
 pingPongTest('localhost');
 pingPongTest(null);
 
-if (common.hasIPv6) pingPongTest('::1');
+// This IPv6 isn't working on Solaris.
+if (!common.isSunOS) pingPongTest('::1');
 
 process.on('exit', function() {
-  assert.strictEqual(tests_run, common.hasIPv6 ? 3 : 2);
+  assert.strictEqual(tests_run, common.isSunOS ? 2 : 3);
 });

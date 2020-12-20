@@ -144,7 +144,7 @@ class U_I18N_API ChineseCalendar : public Calendar {
   virtual ~ChineseCalendar();
 
   // clone
-  virtual ChineseCalendar* clone() const;
+  virtual Calendar* clone() const;
 
  private:
 
@@ -242,7 +242,7 @@ class U_I18N_API ChineseCalendar : public Calendar {
 
 
   /**
-   * Returns true because the Islamic Calendar does have a default century
+   * Returns TRUE because the Islamic Calendar does have a default century
    * @internal
    */
   virtual UBool haveDefaultCentury() const;

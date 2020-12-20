@@ -4,17 +4,13 @@
 
 # for py2/py3 compatibility
 from __future__ import print_function
-from __future__ import absolute_import
 
-import datetime
 import json
 import os
-import platform
 import sys
 import time
 
 from . import base
-from . import util
 from ..local import junit_output
 
 
@@ -54,15 +50,8 @@ class ResultsTracker(base.TestProcObserver):
 
 
 class ProgressIndicator(base.TestProcObserver):
-  def __init__(self):
-    super(base.TestProcObserver, self).__init__()
-    self.options = None
-
   def finished(self):
     pass
-
-  def configure(self, options):
-    self.options = options
 
 
 class SimpleProgressIndicator(ProgressIndicator):
@@ -90,7 +79,7 @@ class SimpleProgressIndicator(ProgressIndicator):
         print(result.output.stdout.strip())
       print("Command: %s" % result.cmd.to_string())
       if result.output.HasCrashed():
-        print("exit code: %s" % result.output.exit_code_string)
+        print("exit code: %d" % result.output.exit_code)
         print("--- CRASHED ---")
         crashed += 1
       if result.output.HasTimedOut():
@@ -108,28 +97,6 @@ class SimpleProgressIndicator(ProgressIndicator):
       print("===")
 
 
-class StreamProgressIndicator(ProgressIndicator):
-  def __init__(self):
-    super(StreamProgressIndicator, self).__init__()
-    self._requirement = base.DROP_PASS_OUTPUT
-
-  def _on_result_for(self, test, result):
-      if not result.has_unexpected_output:
-        self.print('PASS', test)
-      elif result.output.HasCrashed():
-        self.print("CRASH", test)
-      elif result.output.HasTimedOut():
-        self.print("TIMEOUT", test)
-      else:
-        if test.is_fail:
-          self.print("UNEXPECTED PASS", test)
-        else:
-          self.print("FAIL", test)
-
-  def print(self, prefix, test):
-    print('%s: %ss' % (prefix, test))
-    sys.stdout.flush()
-
 class VerboseProgressIndicator(SimpleProgressIndicator):
   def __init__(self):
     super(VerboseProgressIndicator, self).__init__()
@@ -140,7 +107,8 @@ class VerboseProgressIndicator(SimpleProgressIndicator):
     sys.stdout.flush()
     self._last_printed_time = time.time()
 
-  def _message(self, test, result):
+  def _on_result_for(self, test, result):
+    super(VerboseProgressIndicator, self)._on_result_for(test, result)
     # TODO(majeski): Support for dummy/grouped results
     if result.has_unexpected_output:
       if result.output.HasCrashed():
@@ -149,53 +117,15 @@ class VerboseProgressIndicator(SimpleProgressIndicator):
         outcome = 'FAIL'
     else:
       outcome = 'pass'
-    return '%s %s: %s' % (
-      test, test.variant or 'default', outcome)
 
-  def _on_result_for(self, test, result):
-    super(VerboseProgressIndicator, self)._on_result_for(test, result)
-    self._print(self._message(test, result))
-
-  # TODO(machenbach): Remove this platform specific hack and implement a proper
-  # feedback channel from the workers, providing which tests are currently run.
-  def _print_processes_linux(self):
-    if platform.system() == 'Linux':
-      self._print('List of processes:')
-      for pid, cmd in util.list_processes_linux():
-        # Show command with pid, but other process info cut off.
-        self._print('pid: %d cmd: %s' % (pid, cmd))
-
-  def _ensure_delay(self, delay):
-    return time.time() - self._last_printed_time > delay
+    self._print('Done running %s %s: %s' % (
+      test, test.variant or 'default', outcome))
 
   def _on_heartbeat(self):
-    if self._ensure_delay(30):
+    if time.time() - self._last_printed_time > 30:
       # Print something every 30 seconds to not get killed by an output
       # timeout.
       self._print('Still working...')
-      self._print_processes_linux()
-
-  def _on_event(self, event):
-    self._print(event)
-    self._print_processes_linux()
-
-
-class CIProgressIndicator(VerboseProgressIndicator):
-  def _on_result_for(self, test, result):
-    super(VerboseProgressIndicator, self)._on_result_for(test, result)
-    if self.options.ci_test_completion:
-      with open(self.options.ci_test_completion, "a") as f:
-        f.write(self._message(test, result) + "\n")
-    self._output_feedback()
-
-  def _output_feedback(self):
-    """Reduced the verbosity leads to getting killed by an ouput timeout.
-    We ensure output every minute.
-    """
-    if self._ensure_delay(60):
-      dt = time.time()
-      st = datetime.datetime.fromtimestamp(dt).strftime('%Y-%m-%d %H:%M:%S')
-      self._print(st)
 
 
 class DotsProgressIndicator(SimpleProgressIndicator):
@@ -255,24 +185,15 @@ class CompactProgressIndicator(ProgressIndicator):
       self._clear_line(self._last_status_length)
       print_failure_header(test)
       if len(stdout):
-        self.printFormatted('stdout', stdout)
+        print(self._templates['stdout'] % stdout)
       if len(stderr):
-        self.printFormatted('stderr', stderr)
-      self.printFormatted(
-          'command', "Command: %s" % result.cmd.to_string(relative=True))
+        print(self._templates['stderr'] % stderr)
+      print("Command: %s" % result.cmd.to_string(relative=True))
       if output.HasCrashed():
-        self.printFormatted(
-            'failure', "exit code: %s" % output.exit_code_string)
-        self.printFormatted('failure', "--- CRASHED ---")
-      elif output.HasTimedOut():
-        self.printFormatted('failure', "--- TIMEOUT ---")
-      else:
-        if test.is_fail:
-          self.printFormatted('failure', "--- UNEXPECTED PASS ---")
-          if test.expected_failure_reason != None:
-            self.printFormatted('failure', test.expected_failure_reason)
-        else:
-          self.printFormatted('failure', "--- FAILED ---")
+        print("exit code: %d" % output.exit_code)
+        print("--- CRASHED ---")
+      if output.HasTimedOut():
+        print("--- TIMEOUT ---")
 
   def finished(self):
     self._print_progress('Done')
@@ -290,15 +211,15 @@ class CompactProgressIndicator(ProgressIndicator):
       'progress': progress,
       'failed': self._failed,
       'test': name,
-      'mins': int(elapsed) // 60,
+      'mins': int(elapsed) / 60,
       'secs': int(elapsed) % 60
     }
-    status = self._truncateStatusLine(status, 78)
+    status = self._truncate(status, 78)
     self._last_status_length = len(status)
     print(status, end='')
     sys.stdout.flush()
 
-  def _truncateStatusLine(self, string, length):
+  def _truncate(self, string, length):
     if length and len(string) > (length - 3):
       return string[:(length - 3)] + "..."
     else:
@@ -317,18 +238,8 @@ class ColorProgressIndicator(CompactProgressIndicator):
                       "\033[31m-%(failed) 4d\033[0m]: %(test)s"),
       'stdout': "\033[1m%s\033[0m",
       'stderr': "\033[31m%s\033[0m",
-      'failure': "\033[1;31m%s\033[0m",
-      'command': "\033[33m%s\033[0m",
     }
     super(ColorProgressIndicator, self).__init__(templates)
-
-  def printFormatted(self, format, string):
-    print(self._templates[format] % string)
-
-  def _truncateStatusLine(self, string, length):
-    # Add some slack for the color control chars
-    return super(ColorProgressIndicator, self)._truncateStatusLine(
-        string, length + 3*9)
 
   def _clear_line(self, last_length):
     print("\033[1K\r", end='')
@@ -336,14 +247,13 @@ class ColorProgressIndicator(CompactProgressIndicator):
 
 class MonochromeProgressIndicator(CompactProgressIndicator):
   def __init__(self):
-   templates = {
-     'status_line': ("[%(mins)02i:%(secs)02i|%%%(progress) 4d|"
-                     "+%(passed) 4d|-%(failed) 4d]: %(test)s"),
-   }
-   super(MonochromeProgressIndicator, self).__init__(templates)
-
-  def printFormatted(self, format, string):
-    print(string)
+    templates = {
+      'status_line': ("[%(mins)02i:%(secs)02i|%%%(progress) 4d|"
+                      "+%(passed) 4d|-%(failed) 4d]: %(test)s"),
+      'stdout': '%s',
+      'stderr': '%s',
+    }
+    super(MonochromeProgressIndicator, self).__init__(templates)
 
   def _clear_line(self, last_length):
     print(("\r" + (" " * last_length) + "\r"), end='')
@@ -389,7 +299,7 @@ class JUnitTestProgressIndicator(ProgressIndicator):
 
 
 class JsonTestProgressIndicator(ProgressIndicator):
-  def __init__(self, framework_name):
+  def __init__(self, framework_name, json_test_results, arch, mode):
     super(JsonTestProgressIndicator, self).__init__()
     # We want to drop stdout/err for all passed tests on the first try, but we
     # need to get outputs for all runs after the first one. To accommodate that,
@@ -398,15 +308,11 @@ class JsonTestProgressIndicator(ProgressIndicator):
     self._requirement = base.DROP_PASS_STDOUT
 
     self.framework_name = framework_name
+    self.json_test_results = json_test_results
+    self.arch = arch
+    self.mode = mode
     self.results = []
-    self.duration_sum = 0
-    self.test_count = 0
-
-  def configure(self, options):
-    super(JsonTestProgressIndicator, self).configure(options)
-    self.tests = util.FixedSizeTopList(
-        self.options.slow_tests_cutoff,
-        key=lambda rec: rec['duration'])
+    self.tests = []
 
   def _on_result_for(self, test, result):
     if result.is_rerun:
@@ -418,8 +324,9 @@ class JsonTestProgressIndicator(ProgressIndicator):
     for run, result in enumerate(results):
       # TODO(majeski): Support for dummy/grouped results
       output = result.output
-
-      self._buffer_slow_tests(test, result, output, run)
+      # Buffer all tests for sorting the durations in the end.
+      # TODO(machenbach): Running average + buffer only slowest 20 tests.
+      self.tests.append((test, output.duration, result.cmd))
 
       # Omit tests that run as expected on the first try.
       # Everything that happens after the first run is included in the output
@@ -427,36 +334,15 @@ class JsonTestProgressIndicator(ProgressIndicator):
       if not result.has_unexpected_output and run == 0:
         continue
 
-      record = self._test_record(test, result, output, run)
-      record.update({
-          "result": test.output_proc.get_outcome(output),
-          "stdout": output.stdout,
-          "stderr": output.stderr,
-        })
-      self.results.append(record)
-
-  def _buffer_slow_tests(self, test, result, output, run):
-    def result_value(test, result, output):
-      if not result.has_unexpected_output:
-        return ""
-      return test.output_proc.get_outcome(output)
-
-    record = self._test_record(test, result, output, run)
-    record.update({
-        "result": result_value(test, result, output),
-        "marked_slow": test.is_slow,
-      })
-    self.tests.add(record)
-    self.duration_sum += record['duration']
-    self.test_count += 1
-
-  def _test_record(self, test, result, output, run):
-    return {
+      self.results.append({
         "name": str(test),
         "flags": result.cmd.args,
         "command": result.cmd.to_string(relative=True),
         "run": run + 1,
+        "stdout": output.stdout,
+        "stderr": output.stderr,
         "exit_code": output.exit_code,
+        "result": test.output_proc.get_outcome(output),
         "expected": test.expected_outcomes,
         "duration": output.duration,
         "random_seed": test.random_seed,
@@ -464,19 +350,42 @@ class JsonTestProgressIndicator(ProgressIndicator):
         "variant": test.variant,
         "variant_flags": test.variant_flags,
         "framework_name": self.framework_name,
-      }
+      })
 
   def finished(self):
+    complete_results = []
+    if os.path.exists(self.json_test_results):
+      with open(self.json_test_results, "r") as f:
+        # Buildbot might start out with an empty file.
+        complete_results = json.loads(f.read() or "[]")
+
     duration_mean = None
-    if self.test_count:
-      duration_mean = self.duration_sum / self.test_count
+    if self.tests:
+      # Get duration mean.
+      duration_mean = (
+          sum(duration for (_, duration, cmd) in self.tests) /
+          float(len(self.tests)))
 
-    result = {
+    # Sort tests by duration.
+    self.tests.sort(key=lambda __duration_cmd: __duration_cmd[1], reverse=True)
+    slowest_tests = [
+      {
+        "name": str(test),
+        "flags": cmd.args,
+        "command": cmd.to_string(relative=True),
+        "duration": duration,
+        "marked_slow": test.is_slow,
+      } for (test, duration, cmd) in self.tests[:20]
+    ]
+
+    complete_results.append({
+      "arch": self.arch,
+      "mode": self.mode,
       "results": self.results,
-      "slowest_tests": self.tests.as_list(),
+      "slowest_tests": slowest_tests,
       "duration_mean": duration_mean,
-      "test_total": self.test_count,
-    }
+      "test_total": len(self.tests),
+    })
 
-    with open(self.options.json_test_results, "w") as f:
-      json.dump(result, f)
+    with open(self.json_test_results, "w") as f:
+      f.write(json.dumps(complete_results))

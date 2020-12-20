@@ -2,9 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The test needs --wasm-tier-up because we can't serialize and deserialize
-// Liftoff code.
-// Flags: --allow-natives-syntax --throws --wasm-tier-up
+// Flags: --allow-natives-syntax --throws
 
 load('test/mjsunit/wasm/wasm-module-builder.js');
 let kTableSize = 3;
@@ -12,7 +10,7 @@ let kTableSize = 3;
 var builder = new WasmModuleBuilder();
 var sig_index1 = builder.addType(kSig_i_v);
 builder.addFunction('main', kSig_i_ii).addBody([
-    kExprLocalGet,
+    kExprGetLocal,
     0,
     kExprCallIndirect,
     sig_index1,

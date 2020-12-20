@@ -64,7 +64,7 @@ BreakTransliterator::BreakTransliterator(const BreakTransliterator& o) :
 /**
  * Transliterator API.
  */
-BreakTransliterator* BreakTransliterator::clone() const {
+Transliterator* BreakTransliterator::clone(void) const {
     return new BreakTransliterator(*this);
 }
 

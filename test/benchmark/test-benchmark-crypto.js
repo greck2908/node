@@ -10,4 +10,17 @@ if (common.hasFipsCrypto)
 
 const runBenchmark = require('../common/benchmark');
 
-runBenchmark('crypto', { NODEJS_BENCHMARK_ZERO_ALLOWED: 1 });
+runBenchmark('crypto',
+             [
+               'algo=sha256',
+               'api=stream',
+               'cipher=',
+               'keylen=1024',
+               'len=1',
+               'n=1',
+               'out=buffer',
+               'type=buf',
+               'v=crypto',
+               'writes=1',
+             ],
+             { NODEJS_BENCHMARK_ZERO_ALLOWED: 1 });

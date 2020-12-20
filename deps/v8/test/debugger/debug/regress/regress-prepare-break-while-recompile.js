@@ -45,7 +45,6 @@ function bar() {
   return x;
 }
 
-%PrepareFunctionForOptimization(foo);
 foo();
 foo();
 // Mark and kick off recompilation.

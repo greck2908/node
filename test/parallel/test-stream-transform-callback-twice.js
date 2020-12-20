@@ -6,7 +6,7 @@ const stream = new Transform({
 });
 
 stream.on('error', common.expectsError({
-  name: 'Error',
+  type: Error,
   message: 'Callback called multiple times',
   code: 'ERR_MULTIPLE_CALLBACK'
 }));

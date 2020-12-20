@@ -12,28 +12,18 @@ process.emitWarning = () => {};
 
 const { runInCallbackScope } = require(`./build/${common.buildType}/binding`);
 
-const expectedResource = {};
-const expectedResourceType = 'test-resource';
 let insideHook = false;
-let expectedId;
 async_hooks.createHook({
-  init: common.mustCall((id, type, triggerAsyncId, resource) => {
-    if (type !== expectedResourceType) {
-      return;
-    }
-    assert.strictEqual(resource, expectedResource);
-    expectedId = id;
-  }),
   before: common.mustCall((id) => {
-    assert.strictEqual(id, expectedId);
+    assert.strictEqual(id, 1000);
     insideHook = true;
   }),
   after: common.mustCall((id) => {
-    assert.strictEqual(id, expectedId);
+    assert.strictEqual(id, 1000);
     insideHook = false;
   })
 }).enable();
 
-runInCallbackScope(expectedResource, expectedResourceType, () => {
+runInCallbackScope({}, 1000, 1000, () => {
   assert(insideHook);
 });

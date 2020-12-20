@@ -4,8 +4,6 @@
 const common = require('../common');
 if (!common.hasCrypto)
   common.skip('missing crypto');
-if (process.config.variables.asan)
-  common.skip('ASAN messes with memory measurements');
 
 const assert = require('assert');
 const crypto = require('crypto');

@@ -4,7 +4,7 @@
 
 const common = require('../common');
 
-const { strictEqual, throws } = require('assert');
+const { strictEqual } = require('assert');
 const { setUnrefTimeout } = require('internal/timers');
 const { inspect } = require('util');
 
@@ -22,7 +22,7 @@ const { inspect } = require('util');
   }), 1);
   timer.unref();
 
-  // This relies on implicit timers handle sorting within libuv.
+  // This relies on implicit timers handle sorting withing libuv.
 
   setTimeout(common.mustCall(() => {
     strictEqual(called, false, 'unref()\'d timer returned before check');
@@ -34,7 +34,7 @@ const { inspect } = require('util');
 // Should throw with non-functions
 {
   [null, true, false, 0, 1, NaN, '', 'foo', {}, Symbol()].forEach((cb) => {
-    throws(
+    common.expectsError(
       () => setUnrefTimeout(cb),
       {
         code: 'ERR_INVALID_CALLBACK',
@@ -70,20 +70,6 @@ const { inspect } = require('util');
   }), 1);
 
   strictEqual(timer.refresh(), timer);
-}
-
-// regular timer
-{
-  let called = false;
-  const timer = setTimeout(common.mustCall(() => {
-    if (!called) {
-      called = true;
-      process.nextTick(common.mustCall(() => {
-        timer.refresh();
-        strictEqual(timer.hasRef(), true);
-      }));
-    }
-  }, 2), 1);
 }
 
 // interval

@@ -19,8 +19,6 @@
 
 #include "unicode/utypes.h"
 
-#if U_SHOW_CPLUSPLUS_API
-
 /**
  * \file
  * \brief C++ API: Formattable is a thin wrapper for primitive types used for formatting and parsing
@@ -179,7 +177,7 @@ public:
     /**
      * Equality comparison.
      * @param other    the object to be compared with.
-     * @return        true if other are equal to this, false otherwise.
+     * @return        TRUE if other are equal to this, FALSE otherwise.
      * @stable ICU 2.0
      */
     UBool          operator==(const Formattable &other) const;
@@ -187,7 +185,7 @@ public:
     /**
      * Equality operator.
      * @param other    the object to be compared with.
-     * @return        true if other are unequal to this, false otherwise.
+     * @return        TRUE if other are unequal to this, FALSE otherwise.
      * @stable ICU 2.0
      */
     UBool          operator!=(const Formattable& other) const
@@ -277,9 +275,9 @@ public:
     Type            getType(void) const;
 
     /**
-     * Returns true if the data type of this Formattable object
+     * Returns TRUE if the data type of this Formattable object
      * is kDouble, kLong, or kInt64
-     * @return true if this is a pure numeric object
+     * @return TRUE if this is a pure numeric object
      * @stable ICU 3.0
      */
     UBool           isNumeric() const;
@@ -752,8 +750,6 @@ inline const Formattable* Formattable::fromUFormattable(const UFormattable *fmt)
 U_NAMESPACE_END
 
 #endif /* #if !UCONFIG_NO_FORMATTING */
-
-#endif /* U_SHOW_CPLUSPLUS_API */
 
 #endif //_FMTABLE
 //eof

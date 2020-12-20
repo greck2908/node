@@ -12,8 +12,8 @@ const bench = common.createBenchmark(main, {
 });
 
 function main({ dur, len, type, method }) {
-  let encoding;
-  let chunk;
+  var encoding;
+  var chunk;
   switch (type) {
     case 'buf':
       chunk = Buffer.alloc(len, 'x');
@@ -27,7 +27,7 @@ function main({ dur, len, type, method }) {
       break;
   }
 
-  let nreqs = 0;
+  var nreqs = 0;
   const options = {
     headers: { 'Connection': 'keep-alive', 'Transfer-Encoding': 'chunked' },
     agent: new http.Agent({ maxSockets: 1 }),

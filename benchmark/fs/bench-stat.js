@@ -10,7 +10,7 @@ const bench = common.createBenchmark(main, {
 
 
 function main({ n, statType }) {
-  let arg;
+  var arg;
   if (statType === 'fstat')
     arg = fs.openSync(__filename, 'r');
   else

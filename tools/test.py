@@ -29,6 +29,7 @@
 
 
 from __future__ import print_function
+import imp
 import logging
 import optparse
 import os
@@ -44,28 +45,6 @@ import multiprocessing
 import errno
 import copy
 
-
-if sys.version_info >= (3, 5):
-  from importlib import machinery, util
-  def get_module(name, path):
-    loader_details = (machinery.SourceFileLoader, machinery.SOURCE_SUFFIXES)
-    spec = machinery.FileFinder(path, loader_details).find_spec(name)
-    module = util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-else:
-  import imp
-  def get_module(name, path):
-    file = None
-    try:
-      (file, pathname, description) = imp.find_module(name, [path])
-      return imp.load_module(name, file, pathname, description)
-    finally:
-      if file:
-        file.close()
-
-
-from io import open
 from os.path import join, dirname, abspath, basename, isdir, exists
 from datetime import datetime
 try:
@@ -98,7 +77,6 @@ class ProgressIndicator(object):
 
   def __init__(self, cases, flaky_tests_mode):
     self.cases = cases
-    self.serial_id = 0
     self.flaky_tests_mode = flaky_tests_mode
     self.parallel_queue = Queue(len(cases))
     self.sequential_queue = Queue(len(cases))
@@ -115,25 +93,6 @@ class ProgressIndicator(object):
     self.crashed = 0
     self.lock = threading.Lock()
     self.shutdown_event = threading.Event()
-
-  def GetFailureOutput(self, failure):
-    output = []
-    if failure.output.stderr:
-      output += ["--- stderr ---" ]
-      output += [failure.output.stderr.strip()]
-    if failure.output.stdout:
-      output += ["--- stdout ---"]
-      output += [failure.output.stdout.strip()]
-    output += ["Command: %s" % EscapeCommand(failure.command)]
-    if failure.HasCrashed():
-      output += ["--- %s ---" % PrintCrashed(failure.output.exit_code)]
-    if failure.HasTimedOut():
-      output += ["--- TIMEOUT ---"]
-    output = "\n".join(output)
-    return output
-
-  def PrintFailureOutput(self, failure):
-    print(self.GetFailureOutput(failure))
 
   def PrintFailureHeader(self, test):
     if test.IsNegative():
@@ -161,7 +120,7 @@ class ProgressIndicator(object):
       # Wait for the remaining threads
       for thread in threads:
         # Use a timeout so that signals (ctrl-c) will be processed.
-        thread.join(timeout=1000000)
+        thread.join(timeout=10000000)
     except (KeyboardInterrupt, SystemExit):
       self.shutdown_event.set()
     except Exception:
@@ -187,8 +146,6 @@ class ProgressIndicator(object):
       case = test
       case.thread_id = thread_id
       self.lock.acquire()
-      case.serial_id = self.serial_id
-      self.serial_id += 1
       self.AboutToRun(case)
       self.lock.release()
       try:
@@ -243,7 +200,17 @@ class SimpleProgressIndicator(ProgressIndicator):
     print()
     for failed in self.failed:
       self.PrintFailureHeader(failed.test)
-      self.PrintFailureOutput(failed)
+      if failed.output.stderr:
+        print("--- stderr ---")
+        print(failed.output.stderr.strip())
+      if failed.output.stdout:
+        print("--- stdout ---")
+        print(failed.output.stdout.strip())
+      print("Command: %s" % EscapeCommand(failed.command))
+      if failed.HasCrashed():
+        print("--- %s ---" % PrintCrashed(failed.output.exit_code))
+      if failed.HasTimedOut():
+        print("--- TIMEOUT ---")
     if len(self.failed) == 0:
       print("===")
       print("=== All tests succeeded")
@@ -297,21 +264,6 @@ class DotsProgressIndicator(SimpleProgressIndicator):
       sys.stdout.write('.')
       sys.stdout.flush()
 
-class ActionsAnnotationProgressIndicator(DotsProgressIndicator):
-  def GetAnnotationInfo(self, test, output):
-    traceback = output.stdout + output.stderr
-    find_full_path = re.search(r' +at .*\(.*%s:([0-9]+):([0-9]+)' % test.file, traceback)
-    col = line = 0
-    if find_full_path:
-        line, col = map(int, find_full_path.groups())
-    root_path = abspath(join(dirname(__file__), '../')) + os.sep
-    filename = test.file.replace(root_path, "")
-    return filename, line, col
-
-  def PrintFailureOutput(self, failure):
-    output = self.GetFailureOutput(failure)
-    filename, line, column = self.GetAnnotationInfo(failure.test, failure.output)
-    print("::error file=%s,line=%d,col=%d::%s" % (filename, line, column, output.replace('\n', '%0A')))
 
 class TapProgressIndicator(SimpleProgressIndicator):
 
@@ -520,7 +472,6 @@ class MonochromeProgressIndicator(CompactProgressIndicator):
 PROGRESS_INDICATORS = {
   'verbose': VerboseProgressIndicator,
   'dots': DotsProgressIndicator,
-  'actions': ActionsAnnotationProgressIndicator,
   'color': ColorProgressIndicator,
   'tap': TapProgressIndicator,
   'mono': MonochromeProgressIndicator,
@@ -553,7 +504,6 @@ class TestCase(object):
     self.mode = mode
     self.parallel = False
     self.disable_core_files = False
-    self.serial_id = 0
     self.thread_id = 0
 
   def IsNegative(self):
@@ -585,7 +535,6 @@ class TestCase(object):
   def Run(self):
     try:
       result = self.RunCommand(self.GetCommand(), {
-        "TEST_SERIAL_ID": "%d" % self.serial_id,
         "TEST_THREAD_ID": "%d" % self.thread_id,
         "TEST_PARALLEL" : "%d" % self.parallel
       })
@@ -751,10 +700,6 @@ def Execute(args, context, timeout=None, env=None, disable_core_files=False, std
   if "NODE_PATH" in env_copy:
     del env_copy["NODE_PATH"]
 
-  # Remove NODE_REPL_EXTERNAL_MODULE
-  if "NODE_REPL_EXTERNAL_MODULE" in env_copy:
-    del env_copy["NODE_REPL_EXTERNAL_MODULE"]
-
   # Extend environment
   for key, value in env.items():
     env_copy[key] = value
@@ -779,8 +724,8 @@ def Execute(args, context, timeout=None, env=None, disable_core_files=False, std
   )
   os.close(fd_out)
   os.close(fd_err)
-  output = open(outname, encoding='utf8').read()
-  errors = open(errname, encoding='utf8').read()
+  output = open(outname).read()
+  errors = open(errname).read()
   CheckedUnlink(outname)
   CheckedUnlink(errname)
 
@@ -836,13 +781,18 @@ class TestRepository(TestSuite):
     if self.is_loaded:
       return self.config
     self.is_loaded = True
-
-    module = get_module('testcfg', self.path)
-    self.config = module.GetConfiguration(context, self.path)
-    if hasattr(self.config, 'additional_flags'):
-      self.config.additional_flags += context.node_args
-    else:
-      self.config.additional_flags = context.node_args
+    file = None
+    try:
+      (file, pathname, description) = imp.find_module('testcfg', [ self.path ])
+      module = imp.load_module('testcfg', file, pathname, description)
+      self.config = module.GetConfiguration(context, self.path)
+      if hasattr(self.config, 'additional_flags'):
+        self.config.additional_flags += context.node_args
+      else:
+        self.config.additional_flags = context.node_args
+    finally:
+      if file:
+        file.close()
     return self.config
 
   def GetBuildRequirements(self, path, context):
@@ -1324,7 +1274,7 @@ def BuildOptions():
   result.add_option('--logfile', dest='logfile',
       help='write test output to file. NOTE: this only applies the tap progress indicator')
   result.add_option("-p", "--progress",
-      help="The style of progress indicator (%s)" % ", ".join(PROGRESS_INDICATORS.keys()),
+      help="The style of progress indicator (verbose, dots, color, mono, tap)",
       choices=list(PROGRESS_INDICATORS.keys()), default="mono")
   result.add_option("--report", help="Print a summary of the tests to be run",
       default=False, action="store_true")
@@ -1516,7 +1466,6 @@ IGNORED_SUITES = [
   'addons',
   'benchmark',
   'doctool',
-  'embedding',
   'internet',
   'js-native-api',
   'node-api',
@@ -1560,7 +1509,7 @@ def Main():
   logger.addHandler(ch)
   logger.setLevel(logging.INFO)
   if options.logfile:
-    fh = logging.FileHandler(options.logfile, encoding='utf-8', mode='w')
+    fh = logging.FileHandler(options.logfile, mode='wb')
     logger.addHandler(fh)
 
   workspace = abspath(join(dirname(sys.argv[0]), '..'))

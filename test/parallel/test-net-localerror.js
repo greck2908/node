@@ -20,14 +20,13 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
-require('../common');
-const assert = require('assert');
+const common = require('../common');
 const net = require('net');
 
 const connect = (opts, code, type) => {
-  assert.throws(
+  common.expectsError(
     () => net.connect(opts),
-    { code, name: type.name }
+    { code, type }
   );
 };
 

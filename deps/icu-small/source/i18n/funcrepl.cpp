@@ -59,7 +59,7 @@ FunctionReplacer::~FunctionReplacer() {
 /**
  * Implement UnicodeFunctor
  */
-FunctionReplacer* FunctionReplacer::clone() const {
+UnicodeFunctor* FunctionReplacer::clone() const {
     return new FunctionReplacer(*this);
 }
 

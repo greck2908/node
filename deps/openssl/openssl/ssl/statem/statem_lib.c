@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2019 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright (c) 2002, Oracle and/or its affiliates. All rights reserved
  *
  * Licensed under the OpenSSL license (the "License").  You may not use
@@ -11,8 +11,8 @@
 #include <limits.h>
 #include <string.h>
 #include <stdio.h>
-#include "../ssl_local.h"
-#include "statem_local.h"
+#include "../ssl_locl.h"
+#include "statem_locl.h"
 #include "internal/cryptlib.h"
 #include <openssl/buffer.h>
 #include <openssl/objects.h>
@@ -43,28 +43,8 @@ int ssl3_do_write(SSL *s, int type)
     int ret;
     size_t written = 0;
 
-#ifndef OPENSSL_NO_QUIC
-    if (SSL_IS_QUIC(s)) {
-        if (type == SSL3_RT_HANDSHAKE) {
-            ret = s->quic_method->add_handshake_data(s, s->quic_write_level,
-                                                     (const uint8_t*)&s->init_buf->data[s->init_off],
-                                                     s->init_num);
-            if (!ret) {
-                ret = -1;
-                /* QUIC can't sent anything out sice the above failed */
-                SSLerr(SSL_F_SSL3_DO_WRITE, SSL_R_INTERNAL_ERROR);
-            } else {
-                written = s->init_num;
-            }
-        } else {
-            /* QUIC doesn't use ChangeCipherSpec */
-            ret = -1;
-            SSLerr(SSL_F_SSL3_DO_WRITE, ERR_R_SHOULD_NOT_HAVE_BEEN_CALLED);
-        }
-    } else
-#endif
-        ret = ssl3_write_bytes(s, type, &s->init_buf->data[s->init_off],
-                               s->init_num, &written);
+    ret = ssl3_write_bytes(s, type, &s->init_buf->data[s->init_off],
+                           s->init_num, &written);
     if (ret < 0)
         return -1;
     if (type == SSL3_RT_HANDSHAKE)
@@ -188,19 +168,9 @@ int tls_setup_handshake(SSL *s)
 static int get_cert_verify_tbs_data(SSL *s, unsigned char *tls13tbs,
                                     void **hdata, size_t *hdatalen)
 {
-#ifdef CHARSET_EBCDIC
-    static const char servercontext[] = { 0x54, 0x4c, 0x53, 0x20, 0x31, 0x2e,
-     0x33, 0x2c, 0x20, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x20, 0x43, 0x65,
-     0x72, 0x74, 0x69, 0x66, 0x69, 0x63, 0x61, 0x74, 0x65, 0x56, 0x65, 0x72,
-     0x69, 0x66, 0x79, 0x00 };
-    static const char clientcontext[] = { 0x54, 0x4c, 0x53, 0x20, 0x31, 0x2e,
-     0x33, 0x2c, 0x20, 0x63, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x20, 0x43, 0x65,
-     0x72, 0x74, 0x69, 0x66, 0x69, 0x63, 0x61, 0x74, 0x65, 0x56, 0x65, 0x72,
-     0x69, 0x66, 0x79, 0x00 };
-#else
-    static const char servercontext[] = "TLS 1.3, server CertificateVerify";
-    static const char clientcontext[] = "TLS 1.3, client CertificateVerify";
-#endif
+    static const char *servercontext = "TLS 1.3, server CertificateVerify";
+    static const char *clientcontext = "TLS 1.3, client CertificateVerify";
+
     if (SSL_IS_TLS13(s)) {
         size_t hashlen;
 
@@ -630,14 +600,6 @@ int tls_construct_finished(SSL *s, WPACKET *pkt)
 
 int tls_construct_key_update(SSL *s, WPACKET *pkt)
 {
-#ifndef OPENSSL_NO_QUIC
-    if (SSL_is_quic(s)) {
-        /* TLS KeyUpdate is not used for QUIC, so this is an error. */
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_KEY_UPDATE,
-                 ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-#endif
     if (!WPACKET_put_bytes_u8(pkt, s->key_update)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_KEY_UPDATE,
                  ERR_R_INTERNAL_ERROR);
@@ -662,14 +624,6 @@ MSG_PROCESS_RETURN tls_process_key_update(SSL *s, PACKET *pkt)
         return MSG_PROCESS_ERROR;
     }
 
-#ifndef OPENSSL_NO_QUIC
-    if (SSL_is_quic(s)) {
-        SSLfatal(s, SSL_AD_UNEXPECTED_MESSAGE, SSL_F_TLS_PROCESS_KEY_UPDATE,
-                 SSL_R_UNEXPECTED_MESSAGE);
-        return MSG_PROCESS_ERROR;
-    }
-#endif
-
     if (!PACKET_get_1(pkt, &updatetype)
             || PACKET_remaining(pkt) != 0) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PROCESS_KEY_UPDATE,
@@ -691,9 +645,12 @@ MSG_PROCESS_RETURN tls_process_key_update(SSL *s, PACKET *pkt)
     /*
      * If we get a request for us to update our sending keys too then, we need
      * to additionally send a KeyUpdate message. However that message should
-     * not also request an update (otherwise we get into an infinite loop).
+     * not also request an update (otherwise we get into an infinite loop). We
+     * ignore a request for us to update our sending keys too if we already
+     * sent close_notify.
      */
-    if (updatetype == SSL_KEY_UPDATE_REQUESTED)
+    if (updatetype == SSL_KEY_UPDATE_REQUESTED
+            && (s->shutdown & SSL_SENT_SHUTDOWN) == 0)
         s->key_update = SSL_KEY_UPDATE_NOT_REQUESTED;
 
     if (!tls13_update_key(s, 0)) {
@@ -880,11 +837,9 @@ MSG_PROCESS_RETURN tls_process_finished(SSL *s, PACKET *pkt)
                 return MSG_PROCESS_ERROR;
             }
         } else {
-            /* TLS 1.3 gets the secret size from the handshake md */
-            size_t dummy;
             if (!s->method->ssl3_enc->generate_master_secret(s,
                     s->master_secret, s->handshake_secret, 0,
-                    &dummy)) {
+                    &s->session->master_key_length)) {
                 /* SSLfatal() already called */
                 return MSG_PROCESS_ERROR;
             }
@@ -1071,25 +1026,14 @@ WORK_STATE tls_finish_handshake(SSL *s, WORK_STATE wst, int clearbufs, int stop)
     int cleanuphand = s->statem.cleanuphand;
 
     if (clearbufs) {
-        if (!SSL_IS_DTLS(s)
-#ifndef OPENSSL_NO_SCTP
+        if (!SSL_IS_DTLS(s)) {
             /*
-             * RFC6083: SCTP provides a reliable and in-sequence transport service for DTLS
-             * messages that require it. Therefore, DTLS procedures for retransmissions
-             * MUST NOT be used.
-             * Hence the init_buf can be cleared when DTLS over SCTP as transport is used.
-             */
-            || BIO_dgram_is_sctp(SSL_get_wbio(s))
-#endif
-            ) {
-            /*
-             * We don't do this in DTLS over UDP because we may still need the init_buf
+             * We don't do this in DTLS because we may still need the init_buf
              * in case there are any unexpected retransmits
              */
             BUF_MEM_free(s->init_buf);
             s->init_buf = NULL;
         }
-
         if (!ssl_free_wbio_buffer(s)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_FINISH_HANDSHAKE,
                      ERR_R_INTERNAL_ERROR);
@@ -1377,7 +1321,6 @@ int tls_get_message_body(SSL *s, size_t *len)
 static const X509ERR2ALERT x509table[] = {
     {X509_V_ERR_APPLICATION_VERIFICATION, SSL_AD_HANDSHAKE_FAILURE},
     {X509_V_ERR_CA_KEY_TOO_SMALL, SSL_AD_BAD_CERTIFICATE},
-    {X509_V_ERR_EC_KEY_EXPLICIT_PARAMS, SSL_AD_BAD_CERTIFICATE},
     {X509_V_ERR_CA_MD_TOO_WEAK, SSL_AD_BAD_CERTIFICATE},
     {X509_V_ERR_CERT_CHAIN_TOO_LONG, SSL_AD_UNKNOWN_CA},
     {X509_V_ERR_CERT_HAS_EXPIRED, SSL_AD_CERTIFICATE_EXPIRED},
@@ -1693,21 +1636,10 @@ int ssl_check_version_downgrade(SSL *s)
  */
 int ssl_set_version_bound(int method_version, int version, int *bound)
 {
-    int valid_tls;
-    int valid_dtls;
-
     if (version == 0) {
         *bound = version;
         return 1;
     }
-
-    valid_tls = version >= SSL3_VERSION && version <= TLS_MAX_VERSION;
-    valid_dtls =
-        DTLS_VERSION_LE(version, DTLS_MAX_VERSION) &&
-        DTLS_VERSION_GE(version, DTLS1_BAD_VER);
-
-    if (!valid_tls && !valid_dtls)
-        return 0;
 
     /*-
      * Restrict TLS methods to TLS protocol versions.
@@ -1719,24 +1651,31 @@ int ssl_set_version_bound(int method_version, int version, int *bound)
      * configurations.  If the MIN (supported) version ever rises, the user's
      * "floor" remains valid even if no longer available.  We don't expect the
      * MAX ceiling to ever get lower, so making that variable makes sense.
-     *
-     * We ignore attempts to set bounds on version-inflexible methods,
-     * returning success.
      */
     switch (method_version) {
     default:
-        break;
+        /*
+         * XXX For fixed version methods, should we always fail and not set any
+         * bounds, always succeed and not set any bounds, or set the bounds and
+         * arrange to fail later if they are not met?  At present fixed-version
+         * methods are not subject to controls that disable individual protocol
+         * versions.
+         */
+        return 0;
 
     case TLS_ANY_VERSION:
-        if (valid_tls)
-            *bound = version;
+        if (version < SSL3_VERSION || version > TLS_MAX_VERSION)
+            return 0;
         break;
 
     case DTLS_ANY_VERSION:
-        if (valid_dtls)
-            *bound = version;
+        if (DTLS_VERSION_GT(version, DTLS_MAX_VERSION) ||
+            DTLS_VERSION_LT(version, DTLS1_BAD_VER))
+            return 0;
         break;
     }
+
+    *bound = version;
     return 1;
 }
 

@@ -35,10 +35,6 @@
 #include "src/base/qnx-math.h"
 #endif
 
-#ifdef V8_USE_ADDRESS_SANITIZER
-#include <sanitizer/asan_interface.h>
-#endif  // V8_USE_ADDRESS_SANITIZER
-
 namespace v8 {
 
 namespace base {
@@ -74,9 +70,6 @@ inline intptr_t InternalGetExistingThreadLocal(intptr_t index) {
 
 #elif defined(__APPLE__) && (V8_HOST_ARCH_IA32 || V8_HOST_ARCH_X64)
 
-// tvOS simulator does not use intptr_t as TLS key.
-#if !defined(V8_OS_STARBOARD) || !defined(TARGET_OS_SIMULATOR)
-
 #define V8_FAST_TLS_SUPPORTED 1
 
 extern V8_BASE_EXPORT intptr_t kMacTlsBaseOffset;
@@ -96,8 +89,6 @@ inline intptr_t InternalGetExistingThreadLocal(intptr_t index) {
 #endif
   return result;
 }
-
-#endif  // !defined(V8_OS_STARBOARD) || !defined(TARGET_OS_SIMULATOR)
 
 #endif
 
@@ -172,10 +163,7 @@ class V8_BASE_EXPORT OS {
     kReadWrite,
     // TODO(hpayer): Remove this flag. Memory should never be rwx.
     kReadWriteExecute,
-    kReadExecute,
-    // TODO(jkummerow): Remove this when Wasm has a platform-independent
-    // w^x implementation.
-    kNoAccessWillJitLater
+    kReadExecute
   };
 
   static bool HasLazyCommits();
@@ -219,6 +207,7 @@ class V8_BASE_EXPORT OS {
   static PRINTF_FORMAT(3, 0) int VSNPrintF(char* str, int length,
                                            const char* format, va_list args);
 
+  static char* StrChr(char* str, int c);
   static void StrNCpy(char* dest, int length, const char* src, size_t n);
 
   // Support for the profiler.  Can do nothing, in which case ticks
@@ -282,13 +271,6 @@ class V8_BASE_EXPORT OS {
                                               size_t alignment,
                                               MemoryPermission access);
 
-  V8_WARN_UNUSED_RESULT static void* AllocateShared(size_t size,
-                                                    MemoryPermission access);
-
-  V8_WARN_UNUSED_RESULT static void* RemapShared(void* old_address,
-                                                 void* new_address,
-                                                 size_t size);
-
   V8_WARN_UNUSED_RESULT static bool Free(void* address, const size_t size);
 
   V8_WARN_UNUSED_RESULT static bool Release(void* address, size_t size);
@@ -331,11 +313,7 @@ inline void EnsureConsoleOutput() {
 class V8_BASE_EXPORT Thread {
  public:
   // Opaque data type for thread-local storage keys.
-#if V8_OS_STARBOARD
-  using LocalStorageKey = SbThreadLocalKey;
-#else
   using LocalStorageKey = int32_t;
-#endif
 
   class Options {
    public:
@@ -356,16 +334,15 @@ class V8_BASE_EXPORT Thread {
   virtual ~Thread();
 
   // Start new thread by calling the Run() method on the new thread.
-  V8_WARN_UNUSED_RESULT bool Start();
+  void Start();
 
   // Start new thread and wait until Run() method is called on the new thread.
-  bool StartSynchronously() {
+  void StartSynchronously() {
     start_semaphore_ = new Semaphore(0);
-    if (!Start()) return false;
+    Start();
     start_semaphore_->Wait();
     delete start_semaphore_;
     start_semaphore_ = nullptr;
-    return true;
   }
 
   // Wait until thread terminates.
@@ -428,38 +405,6 @@ class V8_BASE_EXPORT Thread {
   Semaphore* start_semaphore_;
 
   DISALLOW_COPY_AND_ASSIGN(Thread);
-};
-
-// TODO(v8:10354): Make use of the stack utilities here in V8.
-class V8_BASE_EXPORT Stack {
- public:
-  // Gets the start of the stack of the current thread.
-  static void* GetStackStart();
-
-  // Returns the current stack top. Works correctly with ASAN and SafeStack.
-  // GetCurrentStackPosition() should not be inlined, because it works on stack
-  // frames if it were inlined into a function with a huge stack frame it would
-  // return an address significantly above the actual current stack position.
-  static V8_NOINLINE void* GetCurrentStackPosition();
-
-  // Translates an ASAN-based slot to a real stack slot if necessary.
-  static void* GetStackSlot(void* slot) {
-#ifdef V8_USE_ADDRESS_SANITIZER
-    void* fake_stack = __asan_get_current_fake_stack();
-    if (fake_stack) {
-      void* fake_frame_start;
-      void* real_frame = __asan_addr_is_in_fake_stack(
-          fake_stack, slot, &fake_frame_start, nullptr);
-      if (real_frame) {
-        return reinterpret_cast<void*>(
-            reinterpret_cast<uintptr_t>(real_frame) +
-            (reinterpret_cast<uintptr_t>(slot) -
-             reinterpret_cast<uintptr_t>(fake_frame_start)));
-      }
-    }
-#endif  // V8_USE_ADDRESS_SANITIZER
-    return slot;
-  }
 };
 
 }  // namespace base

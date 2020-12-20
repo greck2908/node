@@ -4,9 +4,7 @@ const common = require('../common');
 if (!common.hasCrypto)
   common.skip('missing crypto');
 const fixtures = require('../common/fixtures');
-const assert = require('assert');
 const http2 = require('http2');
-const { inspect } = require('util');
 
 const optionsWithTypeError = {
   offset: 'number',
@@ -37,24 +35,24 @@ server.on('stream', common.mustCall((stream) => {
         return;
       }
 
-      assert.throws(
+      common.expectsError(
         () => stream.respondWithFile(fname, {
           'content-type': 'text/plain'
         }, {
           [option]: types[type]
         }),
         {
-          name: 'TypeError',
-          code: 'ERR_INVALID_ARG_VALUE',
-          message: `The property 'options.${option}' is invalid. ` +
-            `Received ${inspect(types[type])}`
+          type: TypeError,
+          code: 'ERR_INVALID_OPT_VALUE',
+          message: `The value "${String(types[type])}" is invalid ` +
+                   `for option "${option}"`
         }
       );
     });
   });
 
   // Should throw if :status 204, 205 or 304
-  [204, 205, 304].forEach((status) => assert.throws(
+  [204, 205, 304].forEach((status) => common.expectsError(
     () => stream.respondWithFile(fname, {
       'content-type': 'text/plain',
       ':status': status,
@@ -67,7 +65,7 @@ server.on('stream', common.mustCall((stream) => {
 
   // Should throw if headers already sent
   stream.respond({ ':status': 200 });
-  assert.throws(
+  common.expectsError(
     () => stream.respondWithFile(fname, {
       'content-type': 'text/plain'
     }),
@@ -79,7 +77,7 @@ server.on('stream', common.mustCall((stream) => {
 
   // Should throw if stream already destroyed
   stream.destroy();
-  assert.throws(
+  common.expectsError(
     () => stream.respondWithFile(fname, {
       'content-type': 'text/plain'
     }),

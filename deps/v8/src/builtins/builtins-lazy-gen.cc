@@ -6,8 +6,8 @@
 
 #include "src/builtins/builtins-utils-gen.h"
 #include "src/builtins/builtins.h"
-#include "src/common/globals.h"
-#include "src/objects/feedback-vector.h"
+#include "src/feedback-vector.h"
+#include "src/globals.h"
 #include "src/objects/shared-function-info.h"
 
 namespace v8 {
@@ -44,7 +44,7 @@ void LazyBuiltinsAssembler::MaybeTailCallOptimizedCodeSlot(
   Label fallthrough(this);
 
   TNode<MaybeObject> maybe_optimized_code_entry = LoadMaybeWeakObjectField(
-      feedback_vector, FeedbackVector::kOptimizedCodeWeakOrSmiOffset);
+      feedback_vector, FeedbackVector::kOptimizedCodeOffset);
 
   // Check if the code entry is a Smi. If yes, we interpret it as an
   // optimisation marker. Otherwise, interpret it as a weak reference to a code
@@ -146,8 +146,8 @@ void LazyBuiltinsAssembler::CompileLazy(TNode<JSFunction> function) {
 
   BIND(&use_sfi_code);
   // If not, install the SFI's code entry and jump to that.
-  CSA_ASSERT(this, TaggedNotEqual(sfi_code, HeapConstant(BUILTIN_CODE(
-                                                isolate(), CompileLazy))));
+  CSA_ASSERT(this, WordNotEqual(sfi_code, HeapConstant(BUILTIN_CODE(
+                                              isolate(), CompileLazy))));
   StoreObjectField(function, JSFunction::kCodeOffset, sfi_code);
   GenerateTailCallToJSCode(sfi_code, function);
 

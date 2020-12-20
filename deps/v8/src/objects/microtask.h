@@ -5,7 +5,7 @@
 #ifndef V8_OBJECTS_MICROTASK_H_
 #define V8_OBJECTS_MICROTASK_H_
 
-#include "src/objects/objects.h"
+#include "src/objects.h"
 #include "src/objects/struct.h"
 
 // Has to be the last include (doesn't have include guards):
@@ -17,35 +17,52 @@ namespace internal {
 // Abstract base class for all microtasks that can be scheduled on the
 // microtask queue. This class merely serves the purpose of a marker
 // interface.
-class Microtask : public TorqueGeneratedMicrotask<Microtask, Struct> {
+class Microtask : public Struct {
  public:
-  TQ_OBJECT_CONSTRUCTORS(Microtask)
+  // Dispatched behavior.
+  DECL_CAST(Microtask)
+  DECL_VERIFIER(Microtask)
+
+  OBJECT_CONSTRUCTORS(Microtask, Struct);
 };
 
 // A CallbackTask is a special Microtask that allows us to schedule
 // C++ microtask callbacks on the microtask queue. This is heavily
 // used by Blink for example.
-class CallbackTask
-    : public TorqueGeneratedCallbackTask<CallbackTask, Microtask> {
+class CallbackTask : public Microtask {
  public:
-  // Dispatched behavior.
-  DECL_PRINTER(CallbackTask)
+  DECL_ACCESSORS(callback, Foreign)
+  DECL_ACCESSORS(data, Foreign)
 
-  TQ_OBJECT_CONSTRUCTORS(CallbackTask)
+  DEFINE_FIELD_OFFSET_CONSTANTS(Microtask::kHeaderSize,
+                                TORQUE_GENERATED_CALLBACK_TASK_FIELDS)
+
+  // Dispatched behavior.
+  DECL_CAST(CallbackTask)
+  DECL_PRINTER(CallbackTask)
+  DECL_VERIFIER(CallbackTask)
+
+  OBJECT_CONSTRUCTORS(CallbackTask, Microtask);
 };
 
 // A CallableTask is a special (internal) Microtask that allows us to
 // schedule arbitrary callables on the microtask queue. We use this
 // for various tests of the microtask queue.
-class CallableTask
-    : public TorqueGeneratedCallableTask<CallableTask, Microtask> {
+class CallableTask : public Microtask {
  public:
+  DECL_ACCESSORS(callable, JSReceiver)
+  DECL_ACCESSORS(context, Context)
+
+  DEFINE_FIELD_OFFSET_CONSTANTS(Microtask::kHeaderSize,
+                                TORQUE_GENERATED_CALLABLE_TASK_FIELDS)
+
   // Dispatched behavior.
+  DECL_CAST(CallableTask)
   DECL_PRINTER(CallableTask)
   DECL_VERIFIER(CallableTask)
   void BriefPrintDetails(std::ostream& os);
 
-  TQ_OBJECT_CONSTRUCTORS(CallableTask)
+  OBJECT_CONSTRUCTORS(CallableTask, Microtask);
 };
 
 }  // namespace internal

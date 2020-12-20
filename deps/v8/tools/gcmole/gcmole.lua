@@ -40,11 +40,9 @@ local FLAGS = {
    -- Print commands to console before executing them.
    verbose = false;
 
-   -- Perform dead variable analysis.
-   dead_vars = true;
-
-   -- Enable verbose tracing from the plugin itself.
-   verbose_trace = false;
+   -- Perform dead variable analysis (generates many false positives).
+   -- TODO add some sort of whiteliste to filter out false positives.
+   dead_vars = false;
 
    -- When building gcsuspects whitelist certain functions as if they
    -- can be causing GC. Currently used to reduce number of false
@@ -104,18 +102,17 @@ local function MakeClangCommandLine(
      end
      plugin_args = " " .. table.concat(plugin_args, " ")
    end
-   return CLANG_BIN .. "/clang++ -std=c++14 -c"
+   return CLANG_BIN .. "/clang++ -std=c++11 -c "
       .. " -Xclang -load -Xclang " .. CLANG_PLUGINS .. "/libgcmole.so"
       .. " -Xclang -plugin -Xclang "  .. plugin
       .. (plugin_args or "")
       .. " -Xclang -triple -Xclang " .. triple
-      .. " -fno-exceptions"
       .. " -D" .. arch_define
       .. " -DENABLE_DEBUGGER_SUPPORT"
       .. " -DV8_INTL_SUPPORT"
       .. " -I./"
       .. " -Iinclude/"
-      .. " -Iout/build/gen"
+      .. " -Iout/Release/gen"
       .. " -Ithird_party/icu/source/common"
       .. " -Ithird_party/icu/source/i18n"
       .. " " .. arch_options
@@ -186,19 +183,12 @@ end
 
 -------------------------------------------------------------------------------
 
-local function ParseGNFile(for_test)
+local function ParseGNFile()
    local result = {}
-   local gn_files
-   if for_test then
-      gn_files = {
-         { "tools/gcmole/GCMOLE.gn",             '"([^"]-%.cc)"',      ""         }
-      }
-   else
-      gn_files = {
-         { "BUILD.gn",             '"([^"]-%.cc)"',      ""         },
-         { "test/cctest/BUILD.gn", '"(test-[^"]-%.cc)"', "test/cctest/" }
-      }
-   end
+   local gn_files = {
+       { "BUILD.gn",             '"([^"]-%.cc)"',      ""         },
+       { "test/cctest/BUILD.gn", '"(test-[^"]-%.cc)"', "test/cctest/" }
+   }
 
    for i = 1, #gn_files do
       local filename = gn_files[i][1]
@@ -241,18 +231,10 @@ local function BuildFileList(sources, props)
 end
 
 
-local gn_sources = ParseGNFile(false)
-local gn_test_sources = ParseGNFile(true)
+local gn_sources = ParseGNFile()
 
 local function FilesForArch(arch)
    return BuildFileList(gn_sources, { os = 'linux',
-                                      arch = arch,
-                                      mode = 'debug',
-                                      simulator = ''})
-end
-
-local function FilesForTest(arch)
-   return BuildFileList(gn_test_sources, { os = 'linux',
                                       arch = arch,
                                       mode = 'debug',
                                       simulator = ''})
@@ -291,37 +273,28 @@ local ARCHITECTURES = {
 
 local gc, gc_caused, funcs
 
--- Note that the gcsuspects file lists functions in the form:
---  mangled_name,unmangled_function_name
---
--- This means that we can match just the function name by matching only
--- after a comma.
 local WHITELIST = {
    -- The following functions call CEntryStub which is always present.
-   "MacroAssembler.*,CallRuntime",
+   "MacroAssembler.*CallRuntime",
    "CompileCallLoadPropertyWithInterceptor",
-   "CallIC.*,GenerateMiss",
+   "CallIC.*GenerateMiss",
 
    -- DirectCEntryStub is a special stub used on ARM.
    -- It is pinned and always present.
-   "DirectCEntryStub.*,GenerateCall",
+   "DirectCEntryStub.*GenerateCall",
 
    -- TODO GCMole currently is sensitive enough to understand that certain
    --      functions only cause GC and return Failure simulataneously.
    --      Callsites of such functions are safe as long as they are properly
    --      check return value and propagate the Failure to the caller.
    --      It should be possible to extend GCMole to understand this.
-   "Heap.*,TryEvacuateObject",
+   "Heap.*AllocateFunctionPrototype",
 
    -- Ignore all StateTag methods.
    "StateTag",
 
    -- Ignore printing of elements transition.
-   "PrintElementsTransition",
-
-   -- CodeCreateEvent receives AbstractCode (a raw ptr) as an argument.
-   "CodeCreateEvent",
-   "WriteField",
+   "PrintElementsTransition"
 };
 
 local function AddCause(name, cause)
@@ -340,7 +313,7 @@ local function resolve(name)
       f = {}
       funcs[name] = f
 
-      if name:match ",.*Collect.*Garbage" then
+      if name:match "Collect.*Garbage" then
          gc[name] = true
          AddCause(name, "<GC>")
       end
@@ -420,13 +393,8 @@ end
 --------------------------------------------------------------------------------
 -- Analysis
 
-local function CheckCorrectnessForArch(arch, for_test)
-   local files
-   if for_test then
-      files = FilesForTest(arch)
-   else
-      files = FilesForArch(arch)
-   end
+local function CheckCorrectnessForArch(arch)
+   local files = FilesForArch(arch)
    local cfg = ARCHITECTURES[arch]
 
    if not FLAGS.reuse_gcsuspects then
@@ -435,7 +403,6 @@ local function CheckCorrectnessForArch(arch, for_test)
 
    local processed_files = 0
    local errors_found = false
-   local output = ""
    local function SearchForErrors(filename, lines)
       processed_files = processed_files + 1
       for l in lines do
@@ -443,20 +410,15 @@ local function CheckCorrectnessForArch(arch, for_test)
             l:match "^[^:]+:%d+:%d+:" or
             l:match "error" or
             l:match "warning"
-         if for_test then
-            output = output.."\n"..l
-         else
-            print(l)
-         end
+         print(l)
       end
    end
 
    log("** Searching for evaluation order problems%s for %s",
        FLAGS.dead_vars and " and dead variables" or "",
        arch)
-   local plugin_args = {}
-   if FLAGS.dead_vars then table.insert(plugin_args, "--dead-vars") end
-   if FLAGS.verbose_trace then table.insert(plugin_args, '--verbose') end
+   local plugin_args
+   if FLAGS.dead_vars then plugin_args = { "--dead-vars" } end
    InvokeClangPluginForEachFile(files,
                                 cfg:extend { plugin = "find-problems",
                                              plugin_args = plugin_args },
@@ -465,68 +427,26 @@ local function CheckCorrectnessForArch(arch, for_test)
        processed_files,
        errors_found and "Errors found" or "No errors found")
 
-   return errors_found, output
+   return errors_found
 end
 
-local function SafeCheckCorrectnessForArch(arch, for_test)
-   local status, errors, output = pcall(CheckCorrectnessForArch, arch, for_test)
+local function SafeCheckCorrectnessForArch(arch)
+   local status, errors = pcall(CheckCorrectnessForArch, arch)
    if not status then
       print(string.format("There was an error: %s", errors))
       errors = true
    end
-   return errors, output
+   return errors
 end
 
--- Source: https://stackoverflow.com/a/41515925/1540248
-local function StringDifference(str1,str2)
-   for i = 1,#str1 do -- Loop over strings
-         -- If that character is not equal to its counterpart
-         if str1:sub(i,i) ~= str2:sub(i,i) then
-            return i --Return that index
-         end
-   end
-   return #str1+1 -- Return the index after where the shorter one ends as fallback.
-end
-
-local function TestRun()
-   local errors, output = SafeCheckCorrectnessForArch('x64', true)
-   if not errors then
-      log("** Test file should produce errors, but none were found. Output:")
-      log(output)
-      return false
-   end
-
-   local filename = "tools/gcmole/test-expectations.txt"
-   local exp_file = assert(io.open(filename), "failed to open test expectations file")
-   local expectations = exp_file:read('*all')
-
-   if output ~= expectations then
-      log("** Output mismatch from running tests. Please run them manually.")
-      local idx = StringDifference(output, expectations)
-
-      log("Difference at byte "..idx)
-      log("Expected: "..expectations:sub(idx-10,idx+10))
-      log("Actual: "..output:sub(idx-10,idx+10))
-
-      log("--- Full output ---")
-      log(output)
-      log("------")
-
-      return false
-   end
-
-   log("** Tests ran successfully")
-   return true
-end
-
-local errors = not TestRun()
+local errors = false
 
 for _, arch in ipairs(ARCHS) do
    if not ARCHITECTURES[arch] then
-      error("Unknown arch: " .. arch)
+      error ("Unknown arch: " .. arch)
    end
 
-   errors = SafeCheckCorrectnessForArch(arch, false) or errors
+   errors = SafeCheckCorrectnessForArch(arch, report) or errors
 end
 
 os.exit(errors and 1 or 0)

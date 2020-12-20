@@ -25,6 +25,7 @@ function testFunction() {
     debugger;
   }
 
+  %OptimizeFunctionOnNextCall(generateAsmJs);
   var fun = generateAsmJs(this, {'call_debugger': call_debugger}, undefined);
   fun();
 }
@@ -104,13 +105,6 @@ function handleScriptParsed(messageObject)
 
   var startLine = messageObject.params.startLine + 3;
   var endLine = messageObject.params.endLine;
-  if (startLine > endLine) {
-    InspectorTest.log(
-      `Terminating early: start line ${startLine} is after end line ${endLine}.`
-    );
-    return;
-  }
-
   InspectorTest.log('First script; assuming testFunction.');
   InspectorTest.log(
       'Flooding script with breakpoints for the lines ' + startLine + ' to ' +

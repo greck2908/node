@@ -1,7 +1,6 @@
 'use strict';
 
 const common = require('../common');
-const assert = require('assert');
 const { Readable } = require('stream');
 
 let ticks = 18;
@@ -38,21 +37,4 @@ function readAndPause() {
   }, 1); // Only call ondata once
 
   rs.on('data', ondata);
-}
-
-{
-  const readable = new Readable({
-    read() {}
-  });
-
-  function read() {}
-
-  readable.setEncoding('utf8');
-  readable.on('readable', read);
-  readable.removeListener('readable', read);
-  readable.pause();
-
-  process.nextTick(function() {
-    assert(readable.isPaused());
-  });
 }

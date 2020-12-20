@@ -2,11 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <limits>
+#include "test/unittests/compiler/backend/instruction-selector-unittest.h"
 
 #include "src/compiler/node-matchers.h"
-#include "src/objects/objects-inl.h"
-#include "test/unittests/compiler/backend/instruction-selector-unittest.h"
+#include "src/objects-inl.h"
 
 namespace v8 {
 namespace internal {
@@ -92,8 +91,8 @@ static const LoadWithToInt64Extension kLoadWithToInt64Extensions[] = {
 
 }  // namespace
 
-using InstructionSelectorChangeInt32ToInt64Test =
-    InstructionSelectorTestWithParam<LoadWithToInt64Extension>;
+typedef InstructionSelectorTestWithParam<LoadWithToInt64Extension>
+    InstructionSelectorChangeInt32ToInt64Test;
 
 TEST_P(InstructionSelectorChangeInt32ToInt64Test, ChangeInt32ToInt64WithLoad) {
   const LoadWithToInt64Extension extension = GetParam();
@@ -140,8 +139,10 @@ static const MemoryAccess kMemoryAccesses[] = {
 
 }  // namespace
 
-using InstructionSelectorMemoryAccessTest =
-    InstructionSelectorTestWithParam<MemoryAccess>;
+
+typedef InstructionSelectorTestWithParam<MemoryAccess>
+    InstructionSelectorMemoryAccessTest;
+
 
 TEST_P(InstructionSelectorMemoryAccessTest, LoadWithParameters) {
   const MemoryAccess memacc = GetParam();
@@ -180,7 +181,8 @@ INSTANTIATE_TEST_SUITE_P(InstructionSelectorTest,
 
 namespace {
 
-using Constructor = Node* (RawMachineAssembler::*)(Node*, Node*);
+typedef Node* (RawMachineAssembler::*Constructor)(Node*, Node*);
+
 
 struct BinaryOperation {
   Constructor constructor;
@@ -217,8 +219,10 @@ const BinaryOperation kWord32BinaryOperations[] = {
 
 }  // namespace
 
-using InstructionSelectorChangeUint32ToUint64Test =
-    InstructionSelectorTestWithParam<BinaryOperation>;
+
+typedef InstructionSelectorTestWithParam<BinaryOperation>
+    InstructionSelectorChangeUint32ToUint64Test;
+
 
 TEST_P(InstructionSelectorChangeUint32ToUint64Test, ChangeUint32ToUint64) {
   const BinaryOperation& bop = GetParam();
@@ -248,7 +252,7 @@ struct MachInst {
   MachineType machine_type;
 };
 
-using MachInst2 = MachInst<Node* (RawMachineAssembler::*)(Node*, Node*)>;
+typedef MachInst<Node* (RawMachineAssembler::*)(Node*, Node*)> MachInst2;
 
 // X64 instructions that clear the top 32 bits of the destination.
 const MachInst2 kCanElideChangeUint32ToUint64[] = {
@@ -296,8 +300,8 @@ const MachInst2 kCanElideChangeUint32ToUint64[] = {
 
 }  // namespace
 
-using InstructionSelectorElidedChangeUint32ToUint64Test =
-    InstructionSelectorTestWithParam<MachInst2>;
+typedef InstructionSelectorTestWithParam<MachInst2>
+    InstructionSelectorElidedChangeUint32ToUint64Test;
 
 TEST_P(InstructionSelectorElidedChangeUint32ToUint64Test, Parameter) {
   const MachInst2 binop = GetParam();
@@ -977,37 +981,6 @@ TEST_F(InstructionSelectorTest, Int32AddScaled2Other) {
   EXPECT_EQ(s.ToVreg(a1), s.ToVreg(s[1]->OutputAt(0)));
 }
 
-TEST_F(InstructionSelectorTest, Int32AddMinNegativeDisplacement) {
-  // This test case is simplified from a Wasm fuzz test in
-  // https://crbug.com/1091892. The key here is that we match on a
-  // sequence like: Int32Add(Int32Sub(-524288, -2147483648), -26048), which
-  // matches on an EmitLea, with -2147483648 as the displacement. Since we
-  // have a Int32Sub node, it sets kNegativeDisplacement, and later we try to
-  // negate -2147483648, which overflows.
-  StreamBuilder m(this, MachineType::Int32());
-  Node* const c0 = m.Int32Constant(-524288);
-  Node* const c1 = m.Int32Constant(std::numeric_limits<int32_t>::min());
-  Node* const c2 = m.Int32Constant(-26048);
-  Node* const a0 = m.Int32Sub(c0, c1);
-  Node* const a1 = m.Int32Add(a0, c2);
-  m.Return(a1);
-  Stream s = m.Build();
-  ASSERT_EQ(2U, s.size());
-
-  EXPECT_EQ(kX64Sub32, s[0]->arch_opcode());
-  ASSERT_EQ(2U, s[0]->InputCount());
-  EXPECT_EQ(kMode_None, s[0]->addressing_mode());
-  EXPECT_EQ(s.ToVreg(c0), s.ToVreg(s[0]->InputAt(0)));
-  EXPECT_EQ(s.ToVreg(c1), s.ToVreg(s[0]->InputAt(1)));
-  EXPECT_EQ(s.ToVreg(a0), s.ToVreg(s[0]->OutputAt(0)));
-
-  EXPECT_EQ(kX64Add32, s[1]->arch_opcode());
-  ASSERT_EQ(2U, s[1]->InputCount());
-  EXPECT_EQ(kMode_None, s[1]->addressing_mode());
-  EXPECT_EQ(s.ToVreg(a0), s.ToVreg(s[1]->InputAt(0)));
-  EXPECT_TRUE(s[1]->InputAt(1)->IsImmediate());
-  EXPECT_EQ(s.ToVreg(a1), s.ToVreg(s[1]->OutputAt(0)));
-}
 
 // -----------------------------------------------------------------------------
 // Multiplication.
@@ -1748,6 +1721,58 @@ TEST_F(InstructionSelectorTest, LoadAndWord64ShiftRight32) {
     ASSERT_EQ(1U, s[0]->OutputCount());
     EXPECT_EQ(s.ToVreg(shift), s.ToVreg(s[0]->Output()));
   }
+}
+
+TEST_F(InstructionSelectorTest, StackCheck0) {
+  ExternalReference js_stack_limit =
+      ExternalReference::Create(isolate()->stack_guard()->address_of_jslimit());
+  StreamBuilder m(this, MachineType::Int32());
+  Node* const sp = m.LoadStackPointer();
+  Node* const stack_limit =
+      m.Load(MachineType::Pointer(), m.ExternalConstant(js_stack_limit));
+  Node* const interrupt = m.UintPtrLessThan(sp, stack_limit);
+
+  RawMachineLabel if_true, if_false;
+  m.Branch(interrupt, &if_true, &if_false);
+
+  m.Bind(&if_true);
+  m.Return(m.Int32Constant(1));
+
+  m.Bind(&if_false);
+  m.Return(m.Int32Constant(0));
+
+  Stream s = m.Build();
+
+  ASSERT_EQ(1U, s.size());
+  EXPECT_EQ(kX64Cmp, s[0]->arch_opcode());
+  EXPECT_EQ(4U, s[0]->InputCount());
+  EXPECT_EQ(0U, s[0]->OutputCount());
+}
+
+TEST_F(InstructionSelectorTest, StackCheck1) {
+  ExternalReference js_stack_limit =
+      ExternalReference::Create(isolate()->stack_guard()->address_of_jslimit());
+  StreamBuilder m(this, MachineType::Int32());
+  Node* const sp = m.LoadStackPointer();
+  Node* const stack_limit =
+      m.Load(MachineType::Pointer(), m.ExternalConstant(js_stack_limit));
+  Node* const sp_within_limit = m.UintPtrLessThan(stack_limit, sp);
+
+  RawMachineLabel if_true, if_false;
+  m.Branch(sp_within_limit, &if_true, &if_false);
+
+  m.Bind(&if_true);
+  m.Return(m.Int32Constant(1));
+
+  m.Bind(&if_false);
+  m.Return(m.Int32Constant(0));
+
+  Stream s = m.Build();
+
+  ASSERT_EQ(1U, s.size());
+  EXPECT_EQ(kX64StackCheck, s[0]->arch_opcode());
+  EXPECT_EQ(2U, s[0]->InputCount());
+  EXPECT_EQ(0U, s[0]->OutputCount());
 }
 
 }  // namespace compiler

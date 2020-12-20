@@ -14,8 +14,10 @@ const childProcess = require('child_process');
 
 let offset = 0;
 
-// This test suite checks that inspector port in cluster is incremented
-// for different execArgv combinations
+/*
+ * This test suite checks that inspector port in cluster is incremented
+ * for different execArgv combinations
+ */
 
 function testRunnerMain() {
   let defaultPortCase = spawnMaster({
@@ -203,11 +205,10 @@ function testRunnerMain() {
     });
   });
 }
-
 function masterProcessMain() {
   const workers = JSON.parse(process.env.workers);
   const clusterSettings = JSON.parse(process.env.clusterSettings) || {};
-  const badPortError = { name: 'RangeError', code: 'ERR_SOCKET_BAD_PORT' };
+  const badPortError = { type: RangeError, code: 'ERR_SOCKET_BAD_PORT' };
   let debugPort = process.debugPort;
 
   for (const worker of workers) {
@@ -238,7 +239,7 @@ function masterProcessMain() {
       clusterSettings.inspectPort = 'string';
       cluster.setupMaster(clusterSettings);
 
-      assert.throws(() => {
+      common.expectsError(() => {
         cluster.fork(params).on('exit', common.mustCall(checkExitCode));
       }, badPortError);
 
@@ -247,7 +248,7 @@ function masterProcessMain() {
       clusterSettings.inspectPort = null;
       cluster.setupMaster(clusterSettings);
 
-      assert.throws(() => {
+      common.expectsError(() => {
         cluster.fork(params).on('exit', common.mustCall(checkExitCode));
       }, badPortError);
 
@@ -256,7 +257,7 @@ function masterProcessMain() {
       clusterSettings.inspectPort = 1293812;
       cluster.setupMaster(clusterSettings);
 
-      assert.throws(() => {
+      common.expectsError(() => {
         cluster.fork(params).on('exit', common.mustCall(checkExitCode));
       }, badPortError);
 
@@ -265,7 +266,7 @@ function masterProcessMain() {
       clusterSettings.inspectPort = -9776;
       cluster.setupMaster(clusterSettings);
 
-      assert.throws(() => {
+      common.expectsError(() => {
         cluster.fork(params).on('exit', common.mustCall(checkExitCode));
       }, badPortError);
 
@@ -278,7 +279,7 @@ function masterProcessMain() {
 
       cluster.setupMaster(clusterSettings);
 
-      assert.throws(() => {
+      common.expectsError(() => {
         cluster.fork(params).on('exit', common.mustCall(checkExitCode));
       }, badPortError);
 
@@ -291,7 +292,7 @@ function masterProcessMain() {
 
       cluster.setupMaster(clusterSettings);
 
-      assert.throws(() => {
+      common.expectsError(() => {
         cluster.fork(params).on('exit', common.mustCall(checkExitCode));
       }, badPortError);
 
@@ -327,11 +328,11 @@ function workerProcessMain() {
 function spawnMaster({ execArgv, workers, clusterSettings = {} }) {
   return new Promise((resolve) => {
     childProcess.fork(__filename, {
-      env: { ...process.env,
-             workers: JSON.stringify(workers),
-             clusterSettings: JSON.stringify(clusterSettings),
-             testProcess: true
-      },
+      env: Object.assign({}, process.env, {
+        workers: JSON.stringify(workers),
+        clusterSettings: JSON.stringify(clusterSettings),
+        testProcess: true
+      }),
       execArgv: execArgv.concat(['--expose-internals'])
     }).on('exit', common.mustCall((code, signal) => {
       checkExitCode(code, signal);

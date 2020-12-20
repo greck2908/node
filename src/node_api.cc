@@ -1,15 +1,12 @@
-#include "async_wrap-inl.h"
 #include "env-inl.h"
 #define NAPI_EXPERIMENTAL
 #include "js_native_api_v8.h"
-#include "memory_tracker-inl.h"
 #include "node_api.h"
 #include "node_binding.h"
 #include "node_buffer.h"
 #include "node_errors.h"
 #include "node_internals.h"
 #include "threadpoolwork-inl.h"
-#include "tracing/traced_value.h"
 #include "util-inl.h"
 
 #include <memory>
@@ -27,25 +24,6 @@ struct node_napi_env__ : public napi_env__ {
   bool can_call_into_js() const override {
     return node_env()->can_call_into_js();
   }
-
-  v8::Maybe<bool> mark_arraybuffer_as_untransferable(
-      v8::Local<v8::ArrayBuffer> ab) const override {
-    return ab->SetPrivate(
-        context(),
-        node_env()->untransferable_object_private_symbol(),
-        v8::True(isolate));
-  }
-
-  void CallFinalizer(napi_finalize cb, void* data, void* hint) override {
-    napi_env env = static_cast<napi_env>(this);
-    node_env()->SetImmediate([=](node::Environment* node_env) {
-      v8::HandleScope handle_scope(env->isolate);
-      v8::Context::Scope context_scope(env->context());
-      env->CallIntoModule([&](napi_env env) {
-        cb(env, data, hint);
-      });
-    });
-  }
 };
 
 typedef node_napi_env__* node_napi_env;
@@ -58,53 +36,79 @@ class BufferFinalizer : private Finalizer {
  public:
   // node::Buffer::FreeCallback
   static void FinalizeBufferCallback(char* data, void* hint) {
-    std::unique_ptr<BufferFinalizer, Deleter> finalizer{
-        static_cast<BufferFinalizer*>(hint)};
+    BufferFinalizer* finalizer = static_cast<BufferFinalizer*>(hint);
     finalizer->_finalize_data = data;
+    static_cast<node_napi_env>(finalizer->_env)->node_env()
+        ->SetImmediate([](node::Environment* env, void* hint) {
+      BufferFinalizer* finalizer = static_cast<BufferFinalizer*>(hint);
 
-    node::Environment* node_env =
-        static_cast<node_napi_env>(finalizer->_env)->node_env();
-    node_env->SetImmediate(
-        [finalizer = std::move(finalizer)](node::Environment* env) {
-      if (finalizer->_finalize_callback == nullptr) return;
+      if (finalizer->_finalize_callback != nullptr) {
+        v8::HandleScope handle_scope(finalizer->_env->isolate);
+        v8::Context::Scope context_scope(finalizer->_env->context());
 
-      v8::HandleScope handle_scope(finalizer->_env->isolate);
-      v8::Context::Scope context_scope(finalizer->_env->context());
+        NapiCallIntoModuleThrow(finalizer->_env, [&]() {
+          finalizer->_finalize_callback(
+              finalizer->_env,
+              finalizer->_finalize_data,
+              finalizer->_finalize_hint);
+        });
+      }
 
-      finalizer->_env->CallIntoModule([&](napi_env env) {
-        finalizer->_finalize_callback(
-            env,
-            finalizer->_finalize_data,
-            finalizer->_finalize_hint);
-      });
-    });
+      Delete(finalizer);
+    }, hint);
   }
-
-  struct Deleter {
-    void operator()(BufferFinalizer* finalizer) {
-      Finalizer::Delete(finalizer);
-    }
-  };
 };
 
-static inline napi_env NewEnv(v8::Local<v8::Context> context) {
+static inline napi_env GetEnv(v8::Local<v8::Context> context) {
   node_napi_env result;
 
-  result = new node_napi_env__(context);
-  // TODO(addaleax): There was previously code that tried to delete the
-  // napi_env when its v8::Context was garbage collected;
-  // However, as long as N-API addons using this napi_env are in place,
-  // the Context needs to be accessible and alive.
-  // Ideally, we'd want an on-addon-unload hook that takes care of this
-  // once all N-API addons using this napi_env are unloaded.
-  // For now, a per-Environment cleanup hook is the best we can do.
-  result->node_env()->AddCleanupHook(
-      [](void* arg) {
-        static_cast<napi_env>(arg)->Unref();
-      },
-      static_cast<void*>(result));
+  auto isolate = context->GetIsolate();
+  auto global = context->Global();
+
+  // In the case of the string for which we grab the private and the value of
+  // the private on the global object we can call .ToLocalChecked() directly
+  // because we need to stop hard if either of them is empty.
+  //
+  // Re https://github.com/nodejs/node/pull/14217#discussion_r128775149
+  auto value = global->GetPrivate(context, NAPI_PRIVATE_KEY(context, env))
+      .ToLocalChecked();
+
+  if (value->IsExternal()) {
+    result = static_cast<node_napi_env>(value.As<v8::External>()->Value());
+  } else {
+    result = new node_napi_env__(context);
+    auto external = v8::External::New(isolate, result);
+
+    // We must also stop hard if the result of assigning the env to the global
+    // is either nothing or false.
+    CHECK(global->SetPrivate(context, NAPI_PRIVATE_KEY(context, env), external)
+        .FromJust());
+
+    // TODO(addaleax): There was previously code that tried to delete the
+    // napi_env when its v8::Context was garbage collected;
+    // However, as long as N-API addons using this napi_env are in place,
+    // the Context needs to be accessible and alive.
+    // Ideally, we'd want an on-addon-unload hook that takes care of this
+    // once all N-API addons using this napi_env are unloaded.
+    // For now, a per-Environment cleanup hook is the best we can do.
+    result->node_env()->AddCleanupHook(
+        [](void* arg) {
+          static_cast<napi_env>(arg)->Unref();
+        },
+        static_cast<void*>(result));
+  }
 
   return result;
+}
+
+static inline napi_callback_scope
+JsCallbackScopeFromV8CallbackScope(node::CallbackScope* s) {
+  return reinterpret_cast<napi_callback_scope>(s);
+}
+
+static inline node::CallbackScope*
+V8CallbackScopeFromJsCallbackScope(napi_callback_scope s) {
+  return reinterpret_cast<node::CallbackScope*>(s);
 }
 
 static inline void trigger_fatal_exception(
@@ -231,8 +235,8 @@ class ThreadSafeFunction : public node::AsyncResource {
       if (max_queue_size > 0) {
         cond = std::make_unique<node::ConditionVariable>();
       }
-      if (max_queue_size == 0 || cond) {
-        CHECK_EQ(0, uv_idle_init(loop, &idle));
+      if ((max_queue_size == 0 || cond) &&
+          uv_idle_init(loop, &idle) == 0) {
         return napi_ok;
       }
 
@@ -272,6 +276,7 @@ class ThreadSafeFunction : public node::AsyncResource {
   void DispatchOne() {
     void* data = nullptr;
     bool popped_value = false;
+    bool idle_stop_failed = false;
 
     {
       node::Mutex::ScopedLock lock(this->mutex);
@@ -297,24 +302,43 @@ class ThreadSafeFunction : public node::AsyncResource {
             }
             CloseHandlesAndMaybeDelete();
           } else {
-            CHECK_EQ(0, uv_idle_stop(&idle));
+            if (uv_idle_stop(&idle) != 0) {
+              idle_stop_failed = true;
+            }
           }
         }
       }
     }
 
-    if (popped_value) {
+    if (popped_value || idle_stop_failed) {
       v8::HandleScope scope(env->isolate);
       CallbackScope cb_scope(this);
-      napi_value js_callback = nullptr;
-      if (!ref.IsEmpty()) {
-        v8::Local<v8::Function> js_cb =
-          v8::Local<v8::Function>::New(env->isolate, ref);
-        js_callback = v8impl::JsValueFromV8LocalValue(js_cb);
+
+      if (idle_stop_failed) {
+        CHECK(napi_throw_error(env,
+                               "ERR_NAPI_TSFN_STOP_IDLE_LOOP",
+                               "Failed to stop the idle loop") == napi_ok);
+      } else {
+        napi_value js_callback = nullptr;
+        if (!ref.IsEmpty()) {
+          v8::Local<v8::Function> js_cb =
+            v8::Local<v8::Function>::New(env->isolate, ref);
+          js_callback = v8impl::JsValueFromV8LocalValue(js_cb);
+        }
+        NapiCallIntoModuleThrow(env, [&]() {
+          call_js_cb(env, js_callback, context, data);
+        });
       }
-      env->CallIntoModule([&](napi_env env) {
-        call_js_cb(env, js_callback, context, data);
-      });
+    }
+  }
+
+  void MaybeStartIdle() {
+    if (uv_idle_start(&idle, IdleCb) != 0) {
+      v8::HandleScope scope(env->isolate);
+      CallbackScope cb_scope(this);
+      CHECK(napi_throw_error(env,
+                             "ERR_NAPI_TSFN_START_IDLE_LOOP",
+                             "Failed to start the idle loop") == napi_ok);
     }
   }
 
@@ -322,7 +346,7 @@ class ThreadSafeFunction : public node::AsyncResource {
     v8::HandleScope scope(env->isolate);
     if (finalize_cb) {
       CallbackScope cb_scope(this);
-      env->CallIntoModule([&](napi_env env) {
+      NapiCallIntoModuleThrow(env, [&]() {
         finalize_cb(env, finalize_data, context);
       });
     }
@@ -396,7 +420,7 @@ class ThreadSafeFunction : public node::AsyncResource {
   static void AsyncCb(uv_async_t* async) {
     ThreadSafeFunction* ts_fn =
         node::ContainerOf(&ThreadSafeFunction::async, async);
-    CHECK_EQ(0, uv_idle_start(&ts_fn->idle, IdleCb));
+    ts_fn->MaybeStartIdle();
   }
 
   static void Cleanup(void* data) {
@@ -428,111 +452,6 @@ class ThreadSafeFunction : public node::AsyncResource {
   bool handles_closing;
 };
 
-/**
- * Compared to node::AsyncResource, the resource object in AsyncContext is
- * gc-able. AsyncContext holds a weak reference to the resource object.
- * AsyncContext::MakeCallback doesn't implicitly set the receiver of the
- * callback to the resource object.
- */
-class AsyncContext {
- public:
-  AsyncContext(node_napi_env env,
-               v8::Local<v8::Object> resource_object,
-               const v8::Local<v8::String> resource_name,
-               bool externally_managed_resource)
-      : env_(env) {
-    async_id_ = node_env()->new_async_id();
-    trigger_async_id_ = node_env()->get_default_trigger_async_id();
-    resource_.Reset(node_env()->isolate(), resource_object);
-    lost_reference_ = false;
-    if (externally_managed_resource) {
-      resource_.SetWeak(
-          this, AsyncContext::WeakCallback, v8::WeakCallbackType::kParameter);
-    }
-
-    node::AsyncWrap::EmitAsyncInit(node_env(),
-                                   resource_object,
-                                   resource_name,
-                                   async_id_,
-                                   trigger_async_id_);
-  }
-
-  ~AsyncContext() {
-    resource_.Reset();
-    lost_reference_ = true;
-    node::AsyncWrap::EmitDestroy(node_env(), async_id_);
-  }
-
-  inline v8::MaybeLocal<v8::Value> MakeCallback(
-      v8::Local<v8::Object> recv,
-      const v8::Local<v8::Function> callback,
-      int argc,
-      v8::Local<v8::Value> argv[]) {
-    EnsureReference();
-    return node::InternalMakeCallback(node_env(),
-                                      resource(),
-                                      recv,
-                                      callback,
-                                      argc,
-                                      argv,
-                                      {async_id_, trigger_async_id_});
-  }
-
-  inline napi_callback_scope OpenCallbackScope() {
-    EnsureReference();
-    napi_callback_scope it =
-        reinterpret_cast<napi_callback_scope>(new CallbackScope(this));
-    env_->open_callback_scopes++;
-    return it;
-  }
-
-  inline void EnsureReference() {
-    if (lost_reference_) {
-      const v8::HandleScope handle_scope(node_env()->isolate());
-      resource_.Reset(node_env()->isolate(),
-                      v8::Object::New(node_env()->isolate()));
-      lost_reference_ = false;
-    }
-  }
-
-  inline node::Environment* node_env() { return env_->node_env(); }
-  inline v8::Local<v8::Object> resource() {
-    return resource_.Get(node_env()->isolate());
-  }
-  inline node::async_context async_context() {
-    return {async_id_, trigger_async_id_};
-  }
-
-  static inline void CloseCallbackScope(node_napi_env env,
-                                        napi_callback_scope s) {
-    CallbackScope* callback_scope = reinterpret_cast<CallbackScope*>(s);
-    delete callback_scope;
-    env->open_callback_scopes--;
-  }
-
-  static void WeakCallback(const v8::WeakCallbackInfo<AsyncContext>& data) {
-    AsyncContext* async_context = data.GetParameter();
-    async_context->resource_.Reset();
-    async_context->lost_reference_ = true;
-  }
-
- private:
-  class CallbackScope : public node::CallbackScope {
-   public:
-    explicit CallbackScope(AsyncContext* async_context)
-        : node::CallbackScope(async_context->node_env()->isolate(),
-                              async_context->resource_.Get(
-                                  async_context->node_env()->isolate()),
-                              async_context->async_context()) {}
-  };
-
-  node_napi_env env_;
-  double async_id_;
-  double trigger_async_id_;
-  v8::Global<v8::Object> resource_;
-  bool lost_reference_;
-};
-
 }  // end of anonymous namespace
 
 }  // end of namespace v8impl
@@ -545,7 +464,7 @@ static void napi_module_register_cb(v8::Local<v8::Object> exports,
                                     v8::Local<v8::Context> context,
                                     void* priv) {
   napi_module_register_by_symbol(exports, module, context,
-      static_cast<const napi_module*>(priv)->nm_register_func);
+      static_cast<napi_module*>(priv)->nm_register_func);
 }
 
 void napi_module_register_by_symbol(v8::Local<v8::Object> exports,
@@ -560,11 +479,12 @@ void napi_module_register_by_symbol(v8::Local<v8::Object> exports,
     return;
   }
 
-  // Create a new napi_env for this specific module.
-  napi_env env = v8impl::NewEnv(context);
+  // Create a new napi_env for this module or reference one if a pre-existing
+  // one is found.
+  napi_env env = v8impl::GetEnv(context);
 
   napi_value _exports;
-  env->CallIntoModule([&](napi_env env) {
+  NapiCallIntoModuleThrow(env, [&]() {
     _exports = init(env, v8impl::JsValueFromV8LocalValue(exports));
   });
 
@@ -578,9 +498,9 @@ void napi_module_register_by_symbol(v8::Local<v8::Object> exports,
   }
 }
 
-namespace node {
-node_module napi_module_to_node_module(const napi_module* mod) {
-  return {
+// Registers a NAPI module.
+void napi_module_register(napi_module* mod) {
+  node::node_module* nm = new node::node_module {
     -1,
     mod->nm_flags | NM_F_DELETEME,
     nullptr,
@@ -588,16 +508,9 @@ node_module napi_module_to_node_module(const napi_module* mod) {
     nullptr,
     napi_module_register_cb,
     mod->nm_modname,
-    const_cast<napi_module*>(mod),  // priv
+    mod,  // priv
     nullptr,
   };
-}
-}  // namespace node
-
-// Registers a NAPI module.
-void napi_module_register(napi_module* mod) {
-  node::node_module* nm = new node::node_module(
-      node::napi_module_to_node_module(mod));
   node::node_module_register(nm);
 }
 
@@ -619,71 +532,6 @@ napi_status napi_remove_env_cleanup_hook(napi_env env,
   CHECK_ARG(env, fun);
 
   node::RemoveEnvironmentCleanupHook(env->isolate, fun, arg);
-
-  return napi_ok;
-}
-
-struct napi_async_cleanup_hook_handle__ {
-  napi_async_cleanup_hook_handle__(napi_env env,
-                                   napi_async_cleanup_hook user_hook,
-                                   void* user_data):
-      env_(env),
-      user_hook_(user_hook),
-      user_data_(user_data) {
-    handle_ = node::AddEnvironmentCleanupHook(env->isolate, Hook, this);
-    env->Ref();
-  }
-
-  ~napi_async_cleanup_hook_handle__() {
-    node::RemoveEnvironmentCleanupHook(std::move(handle_));
-    if (done_cb_ != nullptr)
-      done_cb_(done_data_);
-
-    // Release the `env` handle asynchronously since it would be surprising if
-    // a call to a N-API function would destroy `env` synchronously.
-    static_cast<node_napi_env>(env_)->node_env()
-        ->SetImmediate([env = env_](node::Environment*) { env->Unref(); });
-  }
-
-  static void Hook(void* data, void (*done_cb)(void*), void* done_data) {
-    auto handle = static_cast<napi_async_cleanup_hook_handle__*>(data);
-    handle->done_cb_ = done_cb;
-    handle->done_data_ = done_data;
-    handle->user_hook_(handle, handle->user_data_);
-  }
-
-  node::AsyncCleanupHookHandle handle_;
-  napi_env env_ = nullptr;
-  napi_async_cleanup_hook user_hook_ = nullptr;
-  void* user_data_ = nullptr;
-  void (*done_cb_)(void*) = nullptr;
-  void* done_data_ = nullptr;
-};
-
-napi_status napi_add_async_cleanup_hook(
-    napi_env env,
-    napi_async_cleanup_hook hook,
-    void* arg,
-    napi_async_cleanup_hook_handle* remove_handle) {
-  CHECK_ENV(env);
-  CHECK_ARG(env, hook);
-
-  napi_async_cleanup_hook_handle__* handle =
-    new napi_async_cleanup_hook_handle__(env, hook, arg);
-
-  if (remove_handle != nullptr)
-    *remove_handle = handle;
-
-  return napi_clear_last_error(env);
-}
-
-napi_status napi_remove_async_cleanup_hook(
-    napi_async_cleanup_hook_handle remove_handle) {
-
-  if (remove_handle == nullptr)
-    return napi_invalid_arg;
-
-  delete remove_handle;
 
   return napi_ok;
 }
@@ -725,7 +573,7 @@ NAPI_NO_RETURN void napi_fatal_error(const char* location,
 }
 
 napi_status napi_open_callback_scope(napi_env env,
-                                     napi_value /** ignored */,
+                                     napi_value resource_object,
                                      napi_async_context async_context_handle,
                                      napi_callback_scope* result) {
   // Omit NAPI_PREAMBLE and GET_RETURN_STATUS because V8 calls here cannot throw
@@ -733,11 +581,20 @@ napi_status napi_open_callback_scope(napi_env env,
   CHECK_ENV(env);
   CHECK_ARG(env, result);
 
-  v8impl::AsyncContext* node_async_context =
-      reinterpret_cast<v8impl::AsyncContext*>(async_context_handle);
+  v8::Local<v8::Context> context = env->context();
 
-  *result = node_async_context->OpenCallbackScope();
+  node::async_context* node_async_context =
+      reinterpret_cast<node::async_context*>(async_context_handle);
 
+  v8::Local<v8::Object> resource;
+  CHECK_TO_OBJECT(env, context, resource, resource_object);
+
+  *result = v8impl::JsCallbackScopeFromV8CallbackScope(
+      new node::CallbackScope(env->isolate,
+                              resource,
+                              *node_async_context));
+
+  env->open_callback_scopes++;
   return napi_clear_last_error(env);
 }
 
@@ -750,9 +607,8 @@ napi_status napi_close_callback_scope(napi_env env, napi_callback_scope scope) {
     return napi_callback_scope_mismatch;
   }
 
-  v8impl::AsyncContext::CloseCallbackScope(reinterpret_cast<node_napi_env>(env),
-                                           scope);
-
+  env->open_callback_scopes--;
+  delete v8impl::V8CallbackScopeFromJsCallbackScope(scope);
   return napi_clear_last_error(env);
 }
 
@@ -768,24 +624,20 @@ napi_status napi_async_init(napi_env env,
   v8::Local<v8::Context> context = env->context();
 
   v8::Local<v8::Object> v8_resource;
-  bool externally_managed_resource;
   if (async_resource != nullptr) {
     CHECK_TO_OBJECT(env, context, v8_resource, async_resource);
-    externally_managed_resource = true;
   } else {
     v8_resource = v8::Object::New(isolate);
-    externally_managed_resource = false;
   }
 
   v8::Local<v8::String> v8_resource_name;
   CHECK_TO_STRING(env, context, v8_resource_name, async_resource_name);
 
-  auto async_context =
-      new v8impl::AsyncContext(reinterpret_cast<node_napi_env>(env),
-                               v8_resource,
-                               v8_resource_name,
-                               externally_managed_resource);
+  // TODO(jasongin): Consider avoiding allocation here by using
+  // a tagged pointer with 2×31 bit fields instead.
+  node::async_context* async_context = new node::async_context();
 
+  *async_context = node::EmitAsyncInit(isolate, v8_resource, v8_resource_name);
   *result = reinterpret_cast<napi_async_context>(async_context);
 
   return napi_clear_last_error(env);
@@ -796,8 +648,11 @@ napi_status napi_async_destroy(napi_env env,
   CHECK_ENV(env);
   CHECK_ARG(env, async_context);
 
-  v8impl::AsyncContext* node_async_context =
-      reinterpret_cast<v8impl::AsyncContext*>(async_context);
+  node::async_context* node_async_context =
+      reinterpret_cast<node::async_context*>(async_context);
+  node::EmitAsyncDestroy(
+      reinterpret_cast<node_napi_env>(env)->node_env(),
+      *node_async_context);
 
   delete node_async_context;
 
@@ -825,25 +680,17 @@ napi_status napi_make_callback(napi_env env,
   v8::Local<v8::Function> v8func;
   CHECK_TO_FUNCTION(env, v8func, func);
 
-  v8::MaybeLocal<v8::Value> callback_result;
-
-  if (async_context == nullptr) {
-    callback_result = node::MakeCallback(
-        env->isolate,
-        v8recv,
-        v8func,
-        argc,
-        reinterpret_cast<v8::Local<v8::Value>*>(const_cast<napi_value*>(argv)),
-        {0, 0});
-  } else {
-    auto node_async_context =
-        reinterpret_cast<v8impl::AsyncContext*>(async_context);
-    callback_result = node_async_context->MakeCallback(
-        v8recv,
-        v8func,
-        argc,
-        reinterpret_cast<v8::Local<v8::Value>*>(const_cast<napi_value*>(argv)));
+  node::async_context* node_async_context =
+    reinterpret_cast<node::async_context*>(async_context);
+  if (node_async_context == nullptr) {
+    static node::async_context empty_context = { 0, 0 };
+    node_async_context = &empty_context;
   }
+
+  v8::MaybeLocal<v8::Value> callback_result = node::MakeCallback(
+      env->isolate, v8recv, v8func, argc,
+      reinterpret_cast<v8::Local<v8::Value>*>(const_cast<napi_value*>(argv)),
+      *node_async_context);
 
   if (try_catch.HasCaught()) {
     return napi_set_last_error(env, napi_pending_exception);
@@ -893,8 +740,7 @@ napi_status napi_create_external_buffer(napi_env env,
 
   // The finalizer object will delete itself after invoking the callback.
   v8impl::Finalizer* finalizer = v8impl::Finalizer::New(
-      env, finalize_cb, nullptr, finalize_hint,
-      v8impl::Finalizer::kKeepEnvReference);
+    env, finalize_cb, nullptr, finalize_hint);
 
   auto maybe = node::Buffer::New(isolate,
                                 static_cast<char*>(data),
@@ -1043,9 +889,15 @@ class Work : public node::AsyncResource, public node::ThreadPoolWork {
 
     CallbackScope callback_scope(this);
 
-    _env->CallIntoModule([&](napi_env env) {
-      _complete(env, ConvertUVErrorCode(status), _data);
-    }, [](napi_env env, v8::Local<v8::Value> local_err) {
+    // We have to back up the env here because the `NAPI_CALL_INTO_MODULE` macro
+    // makes use of it after the call into the module completes, but the module
+    // may have deallocated **this**, and along with it the place where _env is
+    // stored.
+    napi_env env = _env;
+
+    NapiCallIntoModule(env, [&]() {
+      _complete(_env, ConvertUVErrorCode(status), _data);
+    }, [env](v8::Local<v8::Value> local_err) {
       // If there was an unhandled exception in the complete callback,
       // report it as a fatal exception. (There is no JavaScript on the
       // callstack that can possibly handle it.)
@@ -1130,8 +982,11 @@ napi_status napi_queue_async_work(napi_env env, napi_async_work work) {
   CHECK_ENV(env);
   CHECK_ARG(env, work);
 
+  napi_status status;
   uv_loop_t* event_loop = nullptr;
-  STATUS_CALL(napi_get_uv_event_loop(env, &event_loop));
+  status = napi_get_uv_event_loop(env, &event_loop);
+  if (status != napi_ok)
+    return napi_set_last_error(env, status);
 
   uvimpl::Work* w = reinterpret_cast<uvimpl::Work*>(work);
 

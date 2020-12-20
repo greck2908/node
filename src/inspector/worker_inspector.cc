@@ -72,12 +72,6 @@ void ParentInspectorHandle::WorkerStarted(
   parent_thread_->Post(std::move(request));
 }
 
-std::unique_ptr<inspector::InspectorSession> ParentInspectorHandle::Connect(
-    std::unique_ptr<inspector::InspectorSessionDelegate> delegate,
-    bool prevent_shutdown) {
-  return parent_thread_->Connect(std::move(delegate), prevent_shutdown);
-}
-
 void WorkerManager::WorkerFinished(int session_id) {
   children_.erase(session_id);
 }

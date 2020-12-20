@@ -1,26 +1,25 @@
 'use strict';
-require('../common');
-const assert = require('assert');
+const common = require('../common');
 const fs = require('fs');
 
 [Infinity, -Infinity, NaN].forEach((input) => {
-  assert.throws(
+  common.expectsError(
     () => {
       fs._toUnixTimestamp(input);
     },
     {
       code: 'ERR_INVALID_ARG_TYPE',
-      name: 'TypeError'
+      type: TypeError
     });
 });
 
-assert.throws(
+common.expectsError(
   () => {
     fs._toUnixTimestamp({});
   },
   {
     code: 'ERR_INVALID_ARG_TYPE',
-    name: 'TypeError'
+    type: TypeError
   });
 
 const okInputs = [1, -1, '1', '-1', Date.now()];

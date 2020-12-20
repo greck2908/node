@@ -13,15 +13,22 @@
 #include "unifiedcache.h"
 
 #include <algorithm>      // For std::max()
-#include <mutex>
 
+#include "mutex.h"
 #include "uassert.h"
 #include "uhash.h"
 #include "ucln_cmn.h"
+#include "umutex.h"
 
 static icu::UnifiedCache *gCache = NULL;
-static std::mutex *gCacheMutex = nullptr;
-static std::condition_variable *gInProgressValueAddedCond;
+static icu::UMutex *gCacheMutex() {
+    static icu::UMutex m = U_MUTEX_INITIALIZER;
+    return &m;
+}
+static icu::UConditionVar *gInProgressValueAddedCond() {
+    static icu::UConditionVar cv = U_CONDITION_INITIALIZER;
+    return &cv;
+}
 static icu::UInitOnce gCacheInitOnce = U_INITONCE_INITIALIZER;
 
 static const int32_t MAX_EVICT_ITERATIONS = 10;
@@ -32,12 +39,10 @@ static const int32_t DEFAULT_PERCENTAGE_OF_IN_USE = 100;
 U_CDECL_BEGIN
 static UBool U_CALLCONV unifiedcache_cleanup() {
     gCacheInitOnce.reset();
-    delete gCache;
-    gCache = nullptr;
-    gCacheMutex->~mutex();
-    gCacheMutex = nullptr;
-    gInProgressValueAddedCond->~condition_variable();
-    gInProgressValueAddedCond = nullptr;
+    if (gCache) {
+        delete gCache;
+        gCache = NULL;
+    }
     return TRUE;
 }
 U_CDECL_END
@@ -72,8 +77,6 @@ static void U_CALLCONV cacheInit(UErrorCode &status) {
     ucln_common_registerCleanup(
             UCLN_COMMON_UNIFIED_CACHE, unifiedcache_cleanup);
 
-    gCacheMutex = STATIC_NEW(std::mutex);
-    gInProgressValueAddedCond = STATIC_NEW(std::condition_variable);
     gCache = new UnifiedCache(status);
     if (gCache == NULL) {
         status = U_MEMORY_ALLOCATION_ERROR;
@@ -135,28 +138,28 @@ void UnifiedCache::setEvictionPolicy(
         status = U_ILLEGAL_ARGUMENT_ERROR;
         return;
     }
-    std::lock_guard<std::mutex> lock(*gCacheMutex);
+    Mutex lock(gCacheMutex());
     fMaxUnused = count;
     fMaxPercentageOfInUse = percentageOfInUseItems;
 }
 
 int32_t UnifiedCache::unusedCount() const {
-    std::lock_guard<std::mutex> lock(*gCacheMutex);
+    Mutex lock(gCacheMutex());
     return uhash_count(fHashtable) - fNumValuesInUse;
 }
 
 int64_t UnifiedCache::autoEvictedCount() const {
-    std::lock_guard<std::mutex> lock(*gCacheMutex);
+    Mutex lock(gCacheMutex());
     return fAutoEvictedCount;
 }
 
 int32_t UnifiedCache::keyCount() const {
-    std::lock_guard<std::mutex> lock(*gCacheMutex);
+    Mutex lock(gCacheMutex());
     return uhash_count(fHashtable);
 }
 
 void UnifiedCache::flush() const {
-    std::lock_guard<std::mutex> lock(*gCacheMutex);
+    Mutex lock(gCacheMutex());
 
     // Use a loop in case cache items that are flushed held hard references to
     // other cache items making those additional cache items eligible for
@@ -165,7 +168,7 @@ void UnifiedCache::flush() const {
 }
 
 void UnifiedCache::handleUnreferencedObject() const {
-    std::lock_guard<std::mutex> lock(*gCacheMutex);
+    Mutex lock(gCacheMutex());
     --fNumValuesInUse;
     _runEvictionSlice();
 }
@@ -184,7 +187,7 @@ void UnifiedCache::dump() {
 }
 
 void UnifiedCache::dumpContents() const {
-    std::lock_guard<std::mutex> lock(*gCacheMutex);
+    Mutex lock(gCacheMutex());
     _dumpContents();
 }
 
@@ -224,7 +227,7 @@ UnifiedCache::~UnifiedCache() {
         // Now all that should be left in the cache are entries that refer to
         // each other and entries with hard references from outside the cache.
         // Nothing we can do about these so proceed to wipe out the cache.
-        std::lock_guard<std::mutex> lock(*gCacheMutex);
+        Mutex lock(gCacheMutex());
         _flush(TRUE);
     }
     uhash_close(fHashtable);
@@ -311,7 +314,7 @@ void UnifiedCache::_putNew(
     }
     keyToAdopt->fCreationStatus = creationStatus;
     if (value->softRefCount == 0) {
-        _registerPrimary(keyToAdopt, value);
+        _registerMaster(keyToAdopt, value);
     }
     void *oldValue = uhash_put(fHashtable, keyToAdopt, (void *) value, &status);
     U_ASSERT(oldValue == nullptr);
@@ -325,7 +328,7 @@ void UnifiedCache::_putIfAbsentAndGet(
         const CacheKeyBase &key,
         const SharedObject *&value,
         UErrorCode &status) const {
-    std::lock_guard<std::mutex> lock(*gCacheMutex);
+    Mutex lock(gCacheMutex());
     const UHashElement *element = uhash_find(fHashtable, &key);
     if (element != NULL && !_inProgress(element)) {
         _fetch(element, value, status);
@@ -338,7 +341,7 @@ void UnifiedCache::_putIfAbsentAndGet(
     } else {
         _put(element, value, status);
     }
-    // Run an eviction slice. This will run even if we added a primary entry
+    // Run an eviction slice. This will run even if we added a master entry
     // which doesn't increase the unused count, but that is still o.k
     _runEvictionSlice();
 }
@@ -350,15 +353,15 @@ UBool UnifiedCache::_poll(
         UErrorCode &status) const {
     U_ASSERT(value == NULL);
     U_ASSERT(status == U_ZERO_ERROR);
-    std::unique_lock<std::mutex> lock(*gCacheMutex);
+    Mutex lock(gCacheMutex());
     const UHashElement *element = uhash_find(fHashtable, &key);
 
     // If the hash table contains an inProgress placeholder entry for this key,
     // this means that another thread is currently constructing the value object.
     // Loop, waiting for that construction to complete.
      while (element != NULL && _inProgress(element)) {
-         gInProgressValueAddedCond->wait(lock);
-         element = uhash_find(fHashtable, &key);
+        umtx_condWait(gInProgressValueAddedCond(), gCacheMutex());
+        element = uhash_find(fHashtable, &key);
     }
 
     // If the hash table contains an entry for the key,
@@ -403,9 +406,9 @@ void UnifiedCache::_get(
     }
 }
 
-void UnifiedCache::_registerPrimary(
+void UnifiedCache::_registerMaster(
             const CacheKeyBase *theKey, const SharedObject *value) const {
-    theKey->fIsPrimary = true;
+    theKey->fIsMaster = true;
     value->cachePtr = this;
     ++fNumValuesTotal;
     ++fNumValuesInUse;
@@ -420,7 +423,7 @@ void UnifiedCache::_put(
     const SharedObject *oldValue = (const SharedObject *) element->value.pointer;
     theKey->fCreationStatus = status;
     if (value->softRefCount == 0) {
-        _registerPrimary(theKey, value);
+        _registerMaster(theKey, value);
     }
     value->softRefCount++;
     UHashElement *ptr = const_cast<UHashElement *>(element);
@@ -430,7 +433,7 @@ void UnifiedCache::_put(
 
     // Tell waiting threads that we replace in-progress status with
     // an error.
-    gInProgressValueAddedCond->notify_all();
+    umtx_condBroadcast(gInProgressValueAddedCond());
 }
 
 void UnifiedCache::_fetch(
@@ -474,9 +477,9 @@ UBool UnifiedCache::_isEvictable(const UHashElement *element) const
         return FALSE;
     }
 
-    // We can evict entries that are either not a primary or have just
+    // We can evict entries that are either not a master or have just
     // one reference (The one reference being from the cache itself).
-    return (!theKey->fIsPrimary || (theValue->softRefCount == 1 && theValue->noHardReferences()));
+    return (!theKey->fIsMaster || (theValue->softRefCount == 1 && theValue->noHardReferences()));
 }
 
 void UnifiedCache::removeSoftRef(const SharedObject *value) const {

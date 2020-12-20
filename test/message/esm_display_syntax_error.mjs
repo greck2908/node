@@ -1,4 +1,3 @@
-// Flags: --no-harmony-top-level-await
-
+// Flags:  --experimental-modules
 'use strict';
 await async () => 0;

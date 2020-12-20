@@ -13,11 +13,13 @@ namespace compiler {
 
 class JSInliningHeuristic final : public AdvancedReducer {
  public:
-  JSInliningHeuristic(Editor* editor, Zone* local_zone,
+  enum Mode { kGeneralInlining, kRestrictedInlining, kStressInlining };
+  JSInliningHeuristic(Editor* editor, Mode mode, Zone* local_zone,
                       OptimizedCompilationInfo* info, JSGraph* jsgraph,
                       JSHeapBroker* broker,
                       SourcePositionTable* source_positions)
       : AdvancedReducer(editor),
+        mode_(mode),
         inliner_(editor, local_zone, info, jsgraph, broker, source_positions),
         candidates_(local_zone),
         seen_(local_zone),
@@ -32,10 +34,6 @@ class JSInliningHeuristic final : public AdvancedReducer {
   // Processes the list of candidates gathered while the reducer was running,
   // and inlines call sites that the heuristic determines to be important.
   void Finalize() final;
-
-  int total_inlined_bytecode_size() const {
-    return total_inlined_bytecode_size_;
-  }
 
  private:
   // This limit currently matches what the old compiler did. We may want to
@@ -75,8 +73,9 @@ class JSInliningHeuristic final : public AdvancedReducer {
   void CreateOrReuseDispatch(Node* node, Node* callee,
                              Candidate const& candidate, Node** if_successes,
                              Node** calls, Node** inputs, int input_count);
-  bool TryReuseDispatch(Node* node, Node* callee, Node** if_successes,
-                        Node** calls, Node** inputs, int input_count);
+  bool TryReuseDispatch(Node* node, Node* callee, Candidate const& candidate,
+                        Node** if_successes, Node** calls, Node** inputs,
+                        int input_count);
   enum StateCloneMode { kCloneState, kChangeInPlace };
   Node* DuplicateFrameStateAndRename(Node* frame_state, Node* from, Node* to,
                                      StateCloneMode mode);
@@ -92,13 +91,14 @@ class JSInliningHeuristic final : public AdvancedReducer {
   Isolate* isolate() const { return jsgraph_->isolate(); }
   SimplifiedOperatorBuilder* simplified() const;
 
+  Mode const mode_;
   JSInliner inliner_;
   Candidates candidates_;
   ZoneSet<NodeId> seen_;
   SourcePositionTable* source_positions_;
   JSGraph* const jsgraph_;
   JSHeapBroker* const broker_;
-  int total_inlined_bytecode_size_ = 0;
+  int cumulative_count_ = 0;
 };
 
 }  // namespace compiler

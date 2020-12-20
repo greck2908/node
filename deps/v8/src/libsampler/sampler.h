@@ -6,7 +6,6 @@
 #define V8_LIBSAMPLER_SAMPLER_H_
 
 #include <atomic>
-#include <memory>
 #include <unordered_map>
 
 #include "include/v8.h"
@@ -72,7 +71,7 @@ class V8_EXPORT_PRIVATE Sampler {
 
  protected:
   // Counts stack samples taken in various VM states.
-  bool is_counting_samples_ = false;
+  bool is_counting_samples_ = 0;
   unsigned js_sample_count_ = 0;
   unsigned external_sample_count_ = 0;
 
@@ -93,7 +92,7 @@ class V8_EXPORT_PRIVATE Sampler {
 
 #ifdef USE_SIGNALS
 
-using AtomicMutex = std::atomic_bool;
+typedef std::atomic_bool AtomicMutex;
 
 // A helper that uses an std::atomic_bool to create a lock that is obtained on
 // construction and released on destruction.
@@ -121,7 +120,7 @@ class V8_EXPORT_PRIVATE AtomicGuard {
 // take a sample for every Sampler on the current thread.
 class V8_EXPORT_PRIVATE SamplerManager {
  public:
-  using SamplerList = std::vector<Sampler*>;
+  typedef std::vector<Sampler*> SamplerList;
 
   // Add |sampler| to the map if it is not already present.
   void AddSampler(Sampler* sampler);

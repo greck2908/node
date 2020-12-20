@@ -39,6 +39,7 @@ class BenchmarkProgress {
     this.completedConfig = 0;
     // Total number of configurations for the current file
     this.scheduledConfig = 0;
+    this.interval;  // Updates the elapsed time.
   }
 
   startQueue(index) {

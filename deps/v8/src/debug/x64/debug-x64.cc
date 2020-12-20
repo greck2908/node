@@ -6,11 +6,11 @@
 
 #include "src/debug/debug.h"
 
-#include "src/codegen/assembler.h"
-#include "src/codegen/macro-assembler.h"
+#include "src/assembler.h"
 #include "src/debug/liveedit.h"
-#include "src/execution/frames-inl.h"
-#include "src/objects/objects-inl.h"
+#include "src/frames-inl.h"
+#include "src/macro-assembler.h"
+#include "src/objects-inl.h"
 
 namespace v8 {
 namespace internal {
@@ -36,7 +36,7 @@ void DebugCodegen::GenerateFrameDropperTrampoline(MacroAssembler* masm) {
   // - Restart the frame by calling the function.
 
   __ movq(rbp, rbx);
-  __ movq(rdi, Operand(rbp, StandardFrameConstants::kFunctionOffset));
+  __ movq(rdi, Operand(rbp, JavaScriptFrameConstants::kFunctionOffset));
   __ leave();
 
   __ LoadTaggedPointerField(
@@ -44,7 +44,8 @@ void DebugCodegen::GenerateFrameDropperTrampoline(MacroAssembler* masm) {
   __ movzxwq(
       rbx, FieldOperand(rbx, SharedFunctionInfo::kFormalParameterCountOffset));
 
-  __ InvokeFunction(rdi, no_reg, rbx, rbx, JUMP_FUNCTION);
+  ParameterCount dummy(rbx);
+  __ InvokeFunction(rdi, no_reg, dummy, dummy, JUMP_FUNCTION);
 }
 
 const bool LiveEdit::kFrameDropperSupported = true;

@@ -151,7 +151,7 @@ int32_t SelectFormat::findSubMessage(const MessagePattern& pattern, int32_t part
     return msgStart;
 }
 
-SelectFormat* SelectFormat::clone() const
+Format* SelectFormat::clone() const
 {
     return new SelectFormat(*this);
 }

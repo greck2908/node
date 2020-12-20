@@ -6,7 +6,7 @@ const repl = require('repl');
 
 let count = 0;
 
-function run({ command, expected, useColors = false }) {
+function run({ command, expected }) {
   let accum = '';
 
   const output = new ArrayStream();
@@ -17,7 +17,7 @@ function run({ command, expected, useColors = false }) {
     input: new ArrayStream(),
     output,
     terminal: false,
-    useColors
+    useColors: false
   });
 
   r.write(`${command}\n`);
@@ -30,40 +30,35 @@ function run({ command, expected, useColors = false }) {
   // Verify that the repl is still working as expected.
   accum = '';
   r.write('1 + 1\n');
-  // eslint-disable-next-line no-control-regex
-  assert.strictEqual(accum.replace(/\u001b\[[0-9]+m/g, ''), '2\n');
+  assert.strictEqual(accum, '2\n');
   r.close();
   count++;
 }
 
 const tests = [
   {
-    useColors: true,
     command: 'x',
-    expected: 'Uncaught ReferenceError: x is not defined\n'
-  },
-  {
-    useColors: true,
-    command: 'throw { foo: "test" }',
-    expected: "Uncaught { foo: \x1B[32m'test'\x1B[39m }\n"
+    expected: 'Thrown:\n' +
+              'ReferenceError: x is not defined\n'
   },
   {
     command: 'process.on("uncaughtException", () => console.log("Foobar"));\n',
-    expected: /^Uncaught:\nTypeError \[ERR_INVALID_REPL_INPUT]: Listeners for `/
+    expected: /^Thrown:\nTypeError \[ERR_INVALID_REPL_INPUT]: Listeners for `/
   },
   {
     command: 'x;\n',
-    expected: 'Uncaught ReferenceError: x is not defined\n'
+    expected: 'Thrown:\n' +
+              'ReferenceError: x is not defined\n'
   },
   {
     command: 'process.on("uncaughtException", () => console.log("Foobar"));' +
              'console.log("Baz");\n',
-    expected: /^Uncaught:\nTypeError \[ERR_INVALID_REPL_INPUT]: Listeners for `/
+    expected: /^Thrown:\nTypeError \[ERR_INVALID_REPL_INPUT]: Listeners for `/
   },
   {
     command: 'console.log("Baz");' +
              'process.on("uncaughtException", () => console.log("Foobar"));\n',
-    expected: /^Baz\nUncaught:\nTypeError \[ERR_INVALID_REPL_INPUT]:.*uncaughtException/
+    expected: /^Baz\nThrown:\nTypeError \[ERR_INVALID_REPL_INPUT]:.*uncaughtException/
   }
 ];
 

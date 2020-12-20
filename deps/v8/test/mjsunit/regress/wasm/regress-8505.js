@@ -150,18 +150,18 @@ function assertBinop(name, math_func, wasm_func) {
 }
 
 let stdlib = this;
-function Module_pow(stdlib) {
+function Module_exp(stdlib) {
   "use asm";
 
-  var Stdlib = stdlib.Math.pow;
+  var Stdlib = stdlib.Math.exp;
 
-  function pow(a, b) {
+  function NAME(a, b) {
     a = +a;
     b = +b;
     return +Stdlib(a, b);
   }
 
-  return {pow: pow};
+  return {exp: exp};
 }
 
 function wasmBinop(name, sig) {
@@ -171,8 +171,8 @@ function wasmBinop(name, sig) {
   builder.addImport('Math', name, sig_index);
   builder.addFunction('main', sig_index)
       .addBody([
-        kExprLocalGet, 0,  // --
-        kExprLocalGet, 1,  // --
+        kExprGetLocal, 0,  // --
+        kExprGetLocal, 1,  // --
         kExprCallFunction, 0
       ])  // --
       .exportAs('main');
@@ -181,8 +181,8 @@ function wasmBinop(name, sig) {
 }
 
 function asmBinop(name) {
-  let instance = Module_pow(stdlib);
-  assertTrue(%IsAsmWasmCode(Module_pow));
+  let instance = Module_exp(stdlib);
+  assertTrue(%IsAsmWasmCode(Module_exp));
 
   let asm_func = instance[name];
   if (typeof asm_func != "function") throw "asm[" + full_name + "] not found";
@@ -190,7 +190,7 @@ function asmBinop(name) {
 }
 
 (function TestF64() {
-  let name = 'pow';
+  let name = 'exp';
   let math_func = Math[name];
 
   let wasm_func = wasmBinop(name, kSig_d_dd);

@@ -2,8 +2,7 @@
 
 // This tests that AsyncResource throws an error if bad parameters are passed
 
-require('../common');
-const assert = require('assert');
+const common = require('../common');
 const async_hooks = require('async_hooks');
 const { AsyncResource } = async_hooks;
 
@@ -12,30 +11,30 @@ async_hooks.createHook({
   init() {}
 }).enable();
 
-assert.throws(() => {
+common.expectsError(() => {
   return new AsyncResource();
 }, {
   code: 'ERR_INVALID_ARG_TYPE',
-  name: 'TypeError',
+  type: TypeError,
 });
 
-assert.throws(() => {
+common.expectsError(() => {
   new AsyncResource('');
 }, {
   code: 'ERR_ASYNC_TYPE',
-  name: 'TypeError',
+  type: TypeError,
 });
 
-assert.throws(() => {
+common.expectsError(() => {
   new AsyncResource('type', -4);
 }, {
   code: 'ERR_INVALID_ASYNC_ID',
-  name: 'RangeError',
+  type: RangeError,
 });
 
-assert.throws(() => {
+common.expectsError(() => {
   new AsyncResource('type', Math.PI);
 }, {
   code: 'ERR_INVALID_ASYNC_ID',
-  name: 'RangeError',
+  type: RangeError,
 });

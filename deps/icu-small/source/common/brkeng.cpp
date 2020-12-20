@@ -129,7 +129,7 @@ ICULanguageBreakFactory::getEngineFor(UChar32 c) {
     const LanguageBreakEngine *lbe = NULL;
     UErrorCode  status = U_ZERO_ERROR;
 
-    static UMutex gBreakEngineMutex;
+    static UMutex gBreakEngineMutex = U_MUTEX_INITIALIZER;
     Mutex m(&gBreakEngineMutex);
 
     if (fEngines == NULL) {

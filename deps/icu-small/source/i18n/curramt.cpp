@@ -38,7 +38,7 @@ CurrencyAmount& CurrencyAmount::operator=(const CurrencyAmount& other) {
     return *this;
 }
 
-CurrencyAmount* CurrencyAmount::clone() const {
+UObject* CurrencyAmount::clone() const {
     return new CurrencyAmount(*this);
 }
 

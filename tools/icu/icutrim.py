@@ -13,7 +13,6 @@
 
 from __future__ import print_function
 
-import io
 import json
 import optparse
 import os
@@ -160,18 +159,21 @@ def runcmd(tool, cmd, doContinue=False):
     return rc
 
 ## STEP 0 - read in json config
-with io.open(options.filterfile, encoding='utf-8') as fi:
-    config = json.load(fi)
+fi= open(options.filterfile, "rb")
+config=json.load(fi)
+fi.close()
 
-if options.locales:
-    config["variables"] = config.get("variables", {})
-    config["variables"]["locales"] = config["variables"].get("locales", {})
-    config["variables"]["locales"]["only"] = options.locales.split(',')
+if (options.locales):
+  if not config.has_key("variables"):
+    config["variables"] = {}
+  if not config["variables"].has_key("locales"):
+    config["variables"]["locales"] = {}
+  config["variables"]["locales"]["only"] = options.locales.split(',')
 
-if options.verbose > 6:
+if (options.verbose > 6):
     print(config)
 
-if "comment" in config:
+if(config.has_key("comment")):
     print("%s: %s" % (options.filterfile, config["comment"]))
 
 ## STEP 1 - copy the data file, swapping endianness
@@ -184,47 +186,53 @@ runcmd("icupkg", "-t%s %s %s""" % (endian_letter, options.datfile, outfile))
 listfile = os.path.join(options.tmpdir,"icudata.lst")
 runcmd("icupkg", "-l %s > %s""" % (outfile, listfile))
 
-with open(listfile, 'rb') as fi:
-    items = [line.strip() for line in fi.read().decode("utf-8").splitlines()]
+fi = open(listfile, 'rb')
+items = fi.readlines()
+items = [items[i].strip() for i in range(len(items))]
+fi.close()
+
 itemset = set(items)
 
-if options.verbose > 1:
-    print("input file: %d items" % len(items))
+if (options.verbose>1):
+    print("input file: %d items" % (len(items)))
 
 # list of all trees
 trees = {}
 RES_INDX = "res_index.res"
 remove = None
 # remove - always remove these
-if "remove" in config:
+if config.has_key("remove"):
     remove = set(config["remove"])
 else:
     remove = set()
 
 # keep - always keep these
-if "keep" in config:
+if config.has_key("keep"):
     keep = set(config["keep"])
 else:
     keep = set()
 
 def queueForRemoval(tree):
     global remove
-    if tree not in config.get("trees", {}):
+    if not config.has_key("trees"):
+        # no config
+        return
+    if not config["trees"].has_key(tree):
         return
     mytree = trees[tree]
-    if options.verbose > 0:
+    if(options.verbose>0):
         print("* %s: %d items" % (tree, len(mytree["locs"])))
     # do varible substitution for this tree here
     if isinstance(config["trees"][tree], basestring):
         treeStr = config["trees"][tree]
-        if options.verbose > 5:
+        if(options.verbose>5):
             print(" Substituting $%s for tree %s" % (treeStr, tree))
-        if treeStr not in config.get("variables", {}):
+        if(not config.has_key("variables") or not config["variables"].has_key(treeStr)):
             print(" ERROR: no variable:  variables.%s for tree %s" % (treeStr, tree))
             sys.exit(1)
         config["trees"][tree] = config["variables"][treeStr]
     myconfig = config["trees"][tree]
-    if options.verbose > 4:
+    if(options.verbose>4):
         print(" Config: %s" % (myconfig))
     # Process this tree
     if(len(myconfig)==0 or len(mytree["locs"])==0):
@@ -232,7 +240,7 @@ def queueForRemoval(tree):
             print(" No processing for %s - skipping" % (tree))
     else:
         only = None
-        if "only" in myconfig:
+        if myconfig.has_key("only"):
             only = set(myconfig["only"])
             if (len(only)==0) and (mytree["treeprefix"] != ""):
                 thePool = "%spool.res" % (mytree["treeprefix"])
@@ -285,10 +293,11 @@ for i in range(len(items)):
         # read in the resource list for the tree
         treelistfile = os.path.join(options.tmpdir,"%s.lst" % tree)
         runcmd("iculslocs", "-i %s -N %s -T %s -l > %s" % (outfile, dataname, tree, treelistfile))
-        with io.open(treelistfile, 'r', encoding='utf-8') as fi:
-            treeitems = fi.readlines()
-            trees[tree]["locs"] = [line.strip() for line in treeitems]
-        if tree not in config.get("trees", {}):
+        fi = open(treelistfile, 'rb')
+        treeitems = fi.readlines()
+        trees[tree]["locs"] = [treeitems[i].strip() for i in range(len(treeitems))]
+        fi.close()
+        if(not config.has_key("trees") or not config["trees"].has_key(tree)):
             print(" Warning: filter file %s does not mention trees.%s - will be kept as-is" % (options.filterfile, tree))
         else:
             queueForRemoval(tree)
@@ -306,8 +315,10 @@ def removeList(count=0):
         oldcount = len(remove)
         hackerrfile=os.path.join(options.tmpdir, "REMOVE.err")
         removefile = os.path.join(options.tmpdir, "REMOVE.lst")
-        with open(removefile, 'wb') as fi:
-            fi.write('\n'.join(remove).encode("utf-8") + b'\n')
+        fi = open(removefile, 'wb')
+        for i in remove:
+            print(i, file=fi)
+        fi.close()
         rc = runcmd("icupkg","-r %s %s 2> %s" %  (removefile,outfile,hackerrfile),True)
         if rc != 0:
             if(options.verbose>5):
@@ -316,12 +327,12 @@ def removeList(count=0):
             erritems = fi.readlines()
             fi.close()
             #Item zone/zh_Hant_TW.res depends on missing item zone/zh_Hant.res
-            pat = re.compile(bytes(r"^Item ([^ ]+) depends on missing item ([^ ]+).*", 'utf-8'))
+            pat = re.compile("""^Item ([^ ]+) depends on missing item ([^ ]+).*""")
             for i in range(len(erritems)):
                 line = erritems[i].strip()
                 m = pat.match(line)
                 if m:
-                    toDelete = m.group(1).decode("utf-8")
+                    toDelete = m.group(1)
                     if(options.verbose > 5):
                         print("<< %s added to delete" % toDelete)
                     remove.add(toDelete)
@@ -341,7 +352,7 @@ removeList(1)
 # now, fixup res_index, one at a time
 for tree in trees:
     # skip trees that don't have res_index
-    if "hasIndex" not in trees[tree]:
+    if not trees[tree].has_key("hasIndex"):
         continue
     treebunddir = options.tmpdir
     if(trees[tree]["treeprefix"]):

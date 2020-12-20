@@ -13,9 +13,6 @@
 
 namespace node {
 
-class ExternalReferenceRegistry;
-struct EnvSerializeInfo;
-
 // TODO(joyeecheung): align this with the Worker/WorkerThreadData class.
 // We may be able to create an abstract class to reuse some of the routines.
 class NodeMainInstance {
@@ -58,19 +55,18 @@ class NodeMainInstance {
   ~NodeMainInstance();
 
   // Start running the Node.js instances, return the exit code when finished.
-  int Run(const EnvSerializeInfo* env_info);
+  int Run();
 
   IsolateData* isolate_data() { return isolate_data_.get(); }
 
-  DeleteFnPtr<Environment, FreeEnvironment> CreateMainEnvironment(
-      int* exit_code, const EnvSerializeInfo* env_info);
+  // TODO(joyeecheung): align this with the CreateEnvironment exposed in node.h
+  // and the environment creation routine in workers somehow.
+  std::unique_ptr<Environment> CreateMainEnvironment(int* exit_code);
 
   // If nullptr is returned, the binary is not built with embedded
   // snapshot.
   static const std::vector<size_t>* GetIsolateDataIndexes();
   static v8::StartupData* GetEmbeddedSnapshotBlob();
-  static const EnvSerializeInfo* GetEnvSerializeInfo();
-  static const std::vector<intptr_t>& CollectExternalReferences();
 
   static const size_t kNodeContextIndex = 0;
   NodeMainInstance(const NodeMainInstance&) = delete;
@@ -85,7 +81,6 @@ class NodeMainInstance {
                    const std::vector<std::string>& args,
                    const std::vector<std::string>& exec_args);
 
-  static std::unique_ptr<ExternalReferenceRegistry> registry_;
   std::vector<std::string> args_;
   std::vector<std::string> exec_args_;
   std::unique_ptr<ArrayBufferAllocator> array_buffer_allocator_;

@@ -50,7 +50,7 @@ TimeUnitAmount::operator==(const UObject& other) const {
     return Measure::operator==(other);
 }
 
-TimeUnitAmount*
+UObject*
 TimeUnitAmount::clone() const {
     return new TimeUnitAmount(*this);
 }

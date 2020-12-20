@@ -10,14 +10,14 @@ load('test/mjsunit/wasm/wasm-module-builder.js');
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
   builder.addFunction('id', kSig_i_i)
-         .addBody([kExprLocalGet, 0])
-         .setCompilationHint(kCompilationHintStrategyLazy,
-                             kCompilationHintTierOptimized,
-                             kCompilationHintTierBaseline)
+         .addBody([kExprGetLocal, 0])
+         .giveCompilationHint(kCompilationHintStrategyLazy,
+                              kCompilationHintTierOptimized,
+                              kCompilationHintTierBaseline)
          .exportFunc();
   assertThrows(() => builder.toModule(),
     WebAssembly.CompileError,
-    "WebAssembly.Module(): Invalid compilation hint 0x19 " +
+    "WebAssembly.Module(): Invalid compilation hint 0x2d " +
     "(forbidden downgrade) @+49");
 })();
 
@@ -25,10 +25,10 @@ load('test/mjsunit/wasm/wasm-module-builder.js');
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
   builder.addFunction('id', kSig_i_l)
-         .addBody([kExprLocalGet, 0])
-         .setCompilationHint(kCompilationHintStrategyLazy,
-                             kCompilationHintTierDefault,
-                             kCompilationHintTierDefault)
+         .addBody([kExprGetLocal, 0])
+         .giveCompilationHint(kCompilationHintStrategyLazy,
+                              kCompilationHintTierDefault,
+                              kCompilationHintTierDefault)
          .exportFunc();
   assertThrows(() => builder.toModule(),
     WebAssembly.CompileError,
@@ -46,22 +46,10 @@ load('test/mjsunit/wasm/wasm-module-builder.js');
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
   builder.addFunction('id', kSig_i_i)
-         .addBody([kExprLocalGet, 0])
-         .setCompilationHint(kCompilationHintStrategyLazy,
-                             kCompilationHintTierDefault,
-                             kCompilationHintTierDefault)
-         .exportFunc();
-  assertEquals(42, builder.instantiate().exports.id(42));
-})();
-
-(function testCompileLazyBaselineEagerTopTierModule() {
-  print(arguments.callee.name);
-  let builder = new WasmModuleBuilder();
-  builder.addFunction('id', kSig_i_i)
-         .addBody([kExprLocalGet, 0])
-         .setCompilationHint(kCompilationHintStrategyLazyBaselineEagerTopTier,
-                             kCompilationHintTierDefault,
-                             kCompilationHintTierDefault)
+         .addBody([kExprGetLocal, 0])
+         .giveCompilationHint(kCompilationHintStrategyLazy,
+                              kCompilationHintTierDefault,
+                              kCompilationHintTierDefault)
          .exportFunc();
   assertEquals(42, builder.instantiate().exports.id(42));
 })();

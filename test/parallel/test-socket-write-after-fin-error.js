@@ -26,10 +26,8 @@ const server = net.createServer(function(sock) {
   });
   sock.on('end', function() {
     gotServerEnd = true;
-    setImmediate(() => {
-      sock.write(serverData);
-      sock.end();
-    });
+    sock.write(serverData);
+    sock.end();
   });
   server.close();
 });

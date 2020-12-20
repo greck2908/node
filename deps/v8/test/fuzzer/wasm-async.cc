@@ -7,10 +7,10 @@
 #include <stdint.h>
 
 #include "include/v8.h"
-#include "src/api/api.h"
-#include "src/execution/isolate-inl.h"
+#include "src/api.h"
 #include "src/heap/factory.h"
-#include "src/objects/objects-inl.h"
+#include "src/isolate-inl.h"
+#include "src/objects-inl.h"
 #include "src/wasm/wasm-engine.h"
 #include "src/wasm/wasm-module.h"
 #include "test/common/wasm/flag-utils.h"
@@ -45,14 +45,6 @@ class AsyncFuzzerResolver : public i::wasm::CompilationResultResolver {
 };
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
-  // We explicitly enable staged WebAssembly features here to increase fuzzer
-  // coverage. For libfuzzer fuzzers it is not possible that the fuzzer enables
-  // the flag by itself.
-#define ENABLE_STAGED_FEATURES(feat, desc, val) \
-  i::FlagScope<bool> enable_##feat(&i::FLAG_experimental_wasm_##feat, true);
-  FOREACH_WASM_STAGING_FEATURE_FLAG(ENABLE_STAGED_FEATURES)
-#undef ENABLE_STAGED_FEATURES
-
   FlagScope<bool> turn_on_async_compile(
       &v8::internal::FLAG_wasm_async_compilation, true);
   FlagScope<uint32_t> max_mem_flag_scope(&v8::internal::FLAG_wasm_max_mem_pages,
@@ -76,17 +68,16 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   testing::SetupIsolateForWasmModule(i_isolate);
 
   bool done = false;
-  auto enabled_features = i::wasm::WasmFeatures::FromIsolate(i_isolate);
-  constexpr const char* kAPIMethodName = "WasmAsyncFuzzer.compile";
+  auto enabled_features = i::wasm::WasmFeaturesFromIsolate(i_isolate);
   i_isolate->wasm_engine()->AsyncCompile(
       i_isolate, enabled_features,
       std::make_shared<AsyncFuzzerResolver>(i_isolate, &done),
-      ModuleWireBytes(data, data + size), false, kAPIMethodName);
+      ModuleWireBytes(data, data + size), false);
 
   // Wait for the promise to resolve.
   while (!done) {
     support->PumpMessageLoop(platform::MessageLoopBehavior::kWaitForWork);
-    isolate->PerformMicrotaskCheckpoint();
+    isolate->RunMicrotasks();
   }
   return 0;
 }

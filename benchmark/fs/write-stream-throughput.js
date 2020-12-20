@@ -3,12 +3,9 @@
 
 const path = require('path');
 const common = require('../common.js');
-const fs = require('fs');
-
-const tmpdir = require('../../test/common/tmpdir');
-tmpdir.refresh();
-const filename = path.resolve(tmpdir.path,
+const filename = path.resolve(process.env.NODE_TMPDIR || __dirname,
                               `.removeme-benchmark-garbage-${process.pid}`);
+const fs = require('fs');
 
 const bench = common.createBenchmark(main, {
   dur: [5],
@@ -17,9 +14,9 @@ const bench = common.createBenchmark(main, {
 });
 
 function main({ dur, encodingType, size }) {
-  let encoding;
+  var encoding;
 
-  let chunk;
+  var chunk;
   switch (encodingType) {
     case 'buf':
       chunk = Buffer.alloc(size, 'b');
@@ -38,8 +35,8 @@ function main({ dur, encodingType, size }) {
 
   try { fs.unlinkSync(filename); } catch {}
 
-  let started = false;
-  let ended = false;
+  var started = false;
+  var ended = false;
 
   const f = fs.createWriteStream(filename);
   f.on('drain', write);

@@ -20,13 +20,8 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
-const {
-  mustCall,
-  mustCallAtLeast,
-} = require('../common');
+const common = require('../common');
 const assert = require('assert');
-const debug = require('util').debuglog('test');
-
 let bufsize = 0;
 
 switch (process.argv[2]) {
@@ -45,12 +40,12 @@ function parent() {
 
   let n = '';
   child.stdout.setEncoding('ascii');
-  child.stdout.on('data', mustCallAtLeast((c) => {
+  child.stdout.on('data', function(c) {
     n += c;
-  }));
-  child.stdout.on('end', mustCall(() => {
+  });
+  child.stdout.on('end', common.mustCall(function() {
     assert.strictEqual(+n, sent);
-    debug('ok');
+    console.log('ok');
   }));
 
   // Write until the buffer fills up.
@@ -76,11 +71,10 @@ function parent() {
 
 function child() {
   let received = 0;
-  process.stdin.on('data', mustCallAtLeast((c) => {
+  process.stdin.on('data', function(c) {
     received += c.length;
-  }));
-  process.stdin.on('end', mustCall(() => {
-    // This console.log is part of the test.
+  });
+  process.stdin.on('end', function() {
     console.log(received);
-  }));
+  });
 }

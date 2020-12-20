@@ -52,7 +52,6 @@ c();
 Debug.setListener(function () {});
 
 var d = create_closure();
-%PrepareFunctionForOptimization(d);
 %OptimizeFunctionOnNextCall(d);
 // Thanks to the debugger, we recreate the full code too. We deopt and run
 // it, stomping on the unexpected AllocationSite in the type vector slot.

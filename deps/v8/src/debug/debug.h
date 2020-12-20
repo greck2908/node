@@ -5,17 +5,16 @@
 #ifndef V8_DEBUG_DEBUG_H_
 #define V8_DEBUG_DEBUG_H_
 
-#include <memory>
 #include <vector>
 
-#include "src/codegen/source-position-table.h"
-#include "src/common/globals.h"
 #include "src/debug/debug-interface.h"
 #include "src/debug/interface-types.h"
-#include "src/execution/interrupts-scope.h"
-#include "src/execution/isolate.h"
-#include "src/handles/handles.h"
+#include "src/frames.h"
+#include "src/globals.h"
+#include "src/handles.h"
+#include "src/isolate.h"
 #include "src/objects/debug-objects.h"
+#include "src/source-position-table.h"
 
 namespace v8 {
 namespace internal {
@@ -23,10 +22,7 @@ namespace internal {
 // Forward declarations.
 class AbstractCode;
 class DebugScope;
-class InterpretedFrame;
-class JavaScriptFrame;
 class JSGeneratorObject;
-class StackFrame;
 
 // Step actions. NOTE: These values are in macros.py as well.
 enum StepAction : int8_t {
@@ -61,7 +57,6 @@ enum IgnoreBreakMode {
 
 class BreakLocation {
  public:
-  static BreakLocation Invalid() { return BreakLocation(-1, NOT_DEBUG_BREAK); }
   static BreakLocation FromFrame(Handle<DebugInfo> debug_info,
                                  JavaScriptFrame* frame);
 
@@ -215,10 +210,9 @@ class DebugFeatureTracker {
 class V8_EXPORT_PRIVATE Debug {
  public:
   // Debug event triggers.
-  void OnDebugBreak(Handle<FixedArray> break_points_hit, StepAction stepAction);
+  void OnDebugBreak(Handle<FixedArray> break_points_hit);
 
-  base::Optional<Object> OnThrow(Handle<Object> exception)
-      V8_WARN_UNUSED_RESULT;
+  void OnThrow(Handle<Object> exception);
   void OnPromiseReject(Handle<Object> promise, Handle<Object> value);
   void OnCompileError(Handle<Script> script);
   void OnAfterCompile(Handle<Script> script);
@@ -233,22 +227,17 @@ class V8_EXPORT_PRIVATE Debug {
   Handle<FixedArray> GetLoadedScripts();
 
   // Break point handling.
-  bool SetBreakpoint(Handle<SharedFunctionInfo> shared,
+  bool SetBreakPoint(Handle<JSFunction> function,
                      Handle<BreakPoint> break_point, int* source_position);
   void ClearBreakPoint(Handle<BreakPoint> break_point);
   void ChangeBreakOnException(ExceptionBreakType type, bool enable);
   bool IsBreakOnException(ExceptionBreakType type);
 
-  void SetTerminateOnResume();
-
   bool SetBreakPointForScript(Handle<Script> script, Handle<String> condition,
                               int* source_position, int* id);
-  bool SetBreakpointForFunction(Handle<SharedFunctionInfo> shared,
+  bool SetBreakpointForFunction(Handle<JSFunction> function,
                                 Handle<String> condition, int* id);
   void RemoveBreakpoint(int id);
-  void RemoveBreakpointForWasmScript(Handle<Script> script, int id);
-
-  void RecordWasmScriptWithBreakpoints(Handle<Script> script);
 
   // Find breakpoints from the debug info and the break location and check
   // whether they are hit. Return an empty handle if not, or a FixedArray with
@@ -273,8 +262,9 @@ class V8_EXPORT_PRIVATE Debug {
                               int end_position, bool restrict_to_function,
                               std::vector<BreakLocation>* locations);
 
+  MaybeHandle<JSArray> GetPrivateFields(Handle<JSReceiver> receiver);
+
   bool IsBlackboxed(Handle<SharedFunctionInfo> shared);
-  bool ShouldBeSkipped();
 
   bool CanBreakAtEntry(Handle<SharedFunctionInfo> shared);
 
@@ -351,7 +341,7 @@ class V8_EXPORT_PRIVATE Debug {
   void set_break_points_active(bool v) { break_points_active_ = v; }
   bool break_points_active() const { return break_points_active_; }
 
-  StackFrameId break_frame_id() { return thread_local_.break_frame_id_; }
+  StackFrame::Id break_frame_id() { return thread_local_.break_frame_id_; }
 
   Handle<Object> return_value_handle();
   Object return_value() { return thread_local_.return_value_; }
@@ -382,8 +372,6 @@ class V8_EXPORT_PRIVATE Debug {
     return thread_local_.break_on_next_function_call_;
   }
 
-  inline bool break_disabled() const { return break_disabled_; }
-
   DebugFeatureTracker* feature_tracker() { return &feature_tracker_; }
 
   // For functions in which we cannot set a break point, use a canonical
@@ -408,13 +396,14 @@ class V8_EXPORT_PRIVATE Debug {
     return is_suppressed_ || !is_active_ ||
            isolate_->debug_execution_mode() == DebugInfo::kSideEffects;
   }
+  inline bool break_disabled() const { return break_disabled_; }
 
   void clear_suspended_generator() {
-    thread_local_.suspended_generator_ = Smi::zero();
+    thread_local_.suspended_generator_ = Smi::kZero;
   }
 
   bool has_suspended_generator() const {
-    return thread_local_.suspended_generator_ != Smi::zero();
+    return thread_local_.suspended_generator_ != Smi::kZero;
   }
 
   bool IsExceptionBlackboxed(bool uncaught);
@@ -508,7 +497,7 @@ class V8_EXPORT_PRIVATE Debug {
     base::AtomicWord current_debug_scope_;
 
     // Frame id for the frame of the current break.
-    StackFrameId break_frame_id_;
+    StackFrame::Id break_frame_id_;
 
     // Step action for last step performed.
     StepAction last_step_action_;
@@ -549,9 +538,6 @@ class V8_EXPORT_PRIVATE Debug {
   // Storage location for registers when handling debug break calls
   ThreadLocal thread_local_;
 
-  // This is a global handle, lazily initialized.
-  Handle<WeakArrayList> wasm_scripts_with_breakpoints_;
-
   Isolate* isolate_;
 
   friend class Isolate;
@@ -573,17 +559,13 @@ class DebugScope {
   explicit DebugScope(Debug* debug);
   ~DebugScope();
 
-  void set_terminate_on_resume();
-
  private:
   Isolate* isolate() { return debug_->isolate_; }
 
   Debug* debug_;
   DebugScope* prev_;               // Previous scope if entered recursively.
-  StackFrameId break_frame_id_;    // Previous break frame id.
+  StackFrame::Id break_frame_id_;  // Previous break frame id.
   PostponeInterruptsScope no_interrupts_;
-  // This is used as a boolean.
-  bool terminate_on_resume_ = false;
 };
 
 // This scope is used to handle return values in nested debug break points.

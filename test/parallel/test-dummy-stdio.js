@@ -9,10 +9,8 @@ if (common.isWindows)
 function runTest(fd, streamName, testOutputStream, expectedName) {
   const result = child_process.spawnSync(process.execPath, [
     '--expose-internals',
-    '--no-warnings',
-    '-e',
-    `const { internalBinding } = require('internal/test/binding');
-    internalBinding('process_methods').resetStdioForTesting();
+    '-e', `
+    require('internal/process/stdio').resetStdioForTesting();
     fs.closeSync(${fd});
     const ctorName = process.${streamName}.constructor.name;
     process.${testOutputStream}.write(ctorName);

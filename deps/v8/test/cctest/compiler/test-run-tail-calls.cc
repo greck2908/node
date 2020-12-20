@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "src/assembler-inl.h"
 #include "src/base/utils/random-number-generator.h"
-#include "src/codegen/assembler-inl.h"
-#include "src/codegen/code-stub-assembler.h"
-#include "src/codegen/macro-assembler.h"
+#include "src/code-stub-assembler.h"
+#include "src/macro-assembler.h"
 
 #include "test/cctest/cctest.h"
 #include "test/cctest/compiler/code-assembler-tester.h"
@@ -26,11 +26,10 @@ Handle<Code> BuildCallee(Isolate* isolate, CallDescriptor* call_descriptor) {
   CodeAssemblerTester tester(isolate, call_descriptor, "callee");
   CodeStubAssembler assembler(tester.state());
   int param_count = static_cast<int>(call_descriptor->StackParameterCount());
-  TNode<IntPtrT> sum = __ IntPtrConstant(0);
+  Node* sum = __ IntPtrConstant(0);
   for (int i = 0; i < param_count; ++i) {
-    TNode<WordT> product =
-        __ IntPtrMul(__ Parameter(i), __ IntPtrConstant(i + 1));
-    sum = __ Signed(__ IntPtrAdd(sum, product));
+    Node* product = __ IntPtrMul(__ Parameter(i), __ IntPtrConstant(i + 1));
+    sum = __ IntPtrAdd(sum, product);
   }
   __ Return(sum);
   return tester.GenerateCodeCloseAndEscape();
@@ -92,17 +91,17 @@ CallDescriptor* CreateDescriptorForStackArguments(Zone* zone,
         i - stack_param_count, MachineType::IntPtr()));
   }
 
-  return zone->New<CallDescriptor>(
-      CallDescriptor::kCallCodeObject,  // kind
-      MachineType::AnyTagged(),         // target MachineType
-      LinkageLocation::ForAnyRegister(
-          MachineType::AnyTagged()),  // target location
-      locations.Build(),              // location_sig
-      stack_param_count,              // stack_parameter_count
-      Operator::kNoProperties,        // properties
-      kNoCalleeSaved,                 // callee-saved registers
-      kNoCalleeSaved,                 // callee-saved fp
-      CallDescriptor::kNoFlags);      // flags
+  return new (zone)
+      CallDescriptor(CallDescriptor::kCallCodeObject,  // kind
+                     MachineType::AnyTagged(),         // target MachineType
+                     LinkageLocation::ForAnyRegister(
+                         MachineType::AnyTagged()),  // target location
+                     locations.Build(),              // location_sig
+                     stack_param_count,              // stack_parameter_count
+                     Operator::kNoProperties,        // properties
+                     kNoCalleeSaved,                 // callee-saved registers
+                     kNoCalleeSaved,                 // callee-saved fp
+                     CallDescriptor::kNoFlags);      // flags
 }
 
 // Test a tail call from a caller with n parameters to a callee with m

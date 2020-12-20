@@ -29,15 +29,11 @@ const invalidcmd = 'hopefully_you_dont_have_this_on_your_machine';
 
 const empty = fixtures.path('empty.js');
 
-const invalidArgValueError = {
-  code: 'ERR_INVALID_ARG_VALUE',
-  name: 'TypeError'
-};
+const invalidArgValueError =
+  common.expectsError({ code: 'ERR_INVALID_ARG_VALUE', type: TypeError }, 14);
 
-const invalidArgTypeError = {
-  code: 'ERR_INVALID_ARG_TYPE',
-  name: 'TypeError'
-};
+const invalidArgTypeError =
+  common.expectsError({ code: 'ERR_INVALID_ARG_TYPE', type: TypeError }, 11);
 
 assert.throws(function() {
   spawn(invalidcmd, 'this is not an array');

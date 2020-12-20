@@ -14,7 +14,8 @@ try {
 const { buildEmbedderGraph } = internalBinding('heap_utils');
 const { getHeapSnapshot } = require('v8');
 
-function createJSHeapSnapshot(stream = getHeapSnapshot()) {
+function createJSHeapSnapshot() {
+  const stream = getHeapSnapshot();
   stream.pause();
   const dump = JSON.parse(stream.read());
   const meta = dump.snapshot.meta;
@@ -105,8 +106,8 @@ function isEdge(edge, { node_name, edge_name }) {
 }
 
 class State {
-  constructor(stream) {
-    this.snapshot = createJSHeapSnapshot(stream);
+  constructor() {
+    this.snapshot = createJSHeapSnapshot();
     this.embedderGraph = buildEmbedderGraph();
   }
 
@@ -188,8 +189,8 @@ class State {
   }
 }
 
-function recordState(stream = undefined) {
-  return new State(stream);
+function recordState() {
+  return new State();
 }
 
 function validateSnapshotNodes(...args) {

@@ -1,9 +1,5 @@
 'use strict';
 const common = require('../common');
-// IBMi process priority is different.
-if (common.isIBMi)
-  common.skip('IBMi has a different process priority');
-
 const assert = require('assert');
 const os = require('os');
 const {
@@ -30,11 +26,11 @@ assert.strictEqual(typeof PRIORITY_HIGHEST, 'number');
     message: /The "pid" argument must be of type number\./
   };
 
-  assert.throws(() => {
+  common.expectsError(() => {
     os.setPriority(pid, PRIORITY_NORMAL);
   }, errObj);
 
-  assert.throws(() => {
+  common.expectsError(() => {
     os.getPriority(pid);
   }, errObj);
 });
@@ -46,18 +42,18 @@ assert.strictEqual(typeof PRIORITY_HIGHEST, 'number');
     message: /The value of "pid" is out of range\./
   };
 
-  assert.throws(() => {
+  common.expectsError(() => {
     os.setPriority(pid, PRIORITY_NORMAL);
   }, errObj);
 
-  assert.throws(() => {
+  common.expectsError(() => {
     os.getPriority(pid);
   }, errObj);
 });
 
 // Test priority type validation.
 [null, true, false, 'foo', {}, [], /x/].forEach((priority) => {
-  assert.throws(() => {
+  common.expectsError(() => {
     os.setPriority(0, priority);
   }, {
     code: 'ERR_INVALID_ARG_TYPE',
@@ -75,7 +71,7 @@ assert.strictEqual(typeof PRIORITY_HIGHEST, 'number');
   PRIORITY_HIGHEST - 1,
   PRIORITY_LOW + 1
 ].forEach((priority) => {
-  assert.throws(() => {
+  common.expectsError(() => {
     os.setPriority(0, priority);
   }, {
     code: 'ERR_OUT_OF_RANGE',

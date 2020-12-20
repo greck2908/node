@@ -7,8 +7,8 @@
 
 #include <bitset>
 
-#include "src/objects/visitors.h"
 #include "src/snapshot/serializer.h"
+#include "src/visitors.h"
 
 namespace v8 {
 namespace internal {
@@ -24,8 +24,7 @@ class RootsSerializer : public Serializer {
  public:
   // The serializer expects that all roots before |first_root_to_be_serialized|
   // are already serialized.
-  RootsSerializer(Isolate* isolate, Snapshot::SerializerFlags flags,
-                  RootIndex first_root_to_be_serialized);
+  RootsSerializer(Isolate* isolate, RootIndex first_root_to_be_serialized);
 
   bool can_be_rehashed() const { return can_be_rehashed_; }
   bool root_has_been_serialized(RootIndex root_index) const {

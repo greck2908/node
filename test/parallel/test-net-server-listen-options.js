@@ -27,7 +27,7 @@ const listenOnPort = [
   const assertPort = () => {
     return common.expectsError({
       code: 'ERR_SOCKET_BAD_PORT',
-      name: 'RangeError'
+      type: RangeError
     });
   };
 
@@ -60,19 +60,19 @@ const listenOnPort = [
 
     if (typeof options === 'object' &&
       !(('port' in options) || ('path' in options))) {
-      assert.throws(fn,
-                    {
-                      code: 'ERR_INVALID_ARG_VALUE',
-                      name: 'TypeError',
-                      message: /^The argument 'options' must have the property "port" or "path"\. Received .+$/,
-                    });
+      common.expectsError(fn,
+                          {
+                            code: 'ERR_INVALID_ARG_VALUE',
+                            type: TypeError,
+                            message: /^The argument 'options' must have the property "port" or "path"\. Received .+$/,
+                          });
     } else {
-      assert.throws(fn,
-                    {
-                      code: 'ERR_INVALID_ARG_VALUE',
-                      name: 'TypeError',
-                      message: /^The argument 'options' is invalid\. Received .+$/,
-                    });
+      common.expectsError(fn,
+                          {
+                            code: 'ERR_INVALID_OPT_VALUE',
+                            type: TypeError,
+                            message: /^The value "{.*}" is invalid for option "options"(?:\. .+)?$/,
+                          });
     }
   }
 

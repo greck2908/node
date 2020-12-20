@@ -29,7 +29,6 @@ function CreateManyClosures_Setup() {
   // Create a closure and optimize.
   var f = g();
 
-  %PrepareFunctionForOptimization(f);
   f(0);
   f(0);
   %OptimizeFunctionOnNextCall(f);

@@ -1,7 +1,7 @@
 // Flags: --expose-internals
 'use strict';
 
-require('../common');
+const common = require('../common');
 const assert = require('assert');
 const fs = require('internal/fs/utils');
 
@@ -9,9 +9,9 @@ const fs = require('internal/fs/utils');
 fs.assertEncoding();
 fs.assertEncoding('utf8');
 
-assert.throws(
+common.expectsError(
   () => fs.assertEncoding('foo'),
-  { code: 'ERR_INVALID_ARG_VALUE', name: 'TypeError' }
+  { code: 'ERR_INVALID_OPT_VALUE_ENCODING', type: TypeError }
 );
 
 // Test junction symlinks

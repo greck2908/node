@@ -8,8 +8,6 @@ const common = require('../common');
 if (!common.hasIntl)
   common.skip('missing Intl');
 
-const assert = require('assert');
-
 const bad = [
   {
     encoding: 'utf-16le',
@@ -44,13 +42,13 @@ const bad = [
 ];
 
 bad.forEach((t) => {
-  assert.throws(
+  common.expectsError(
     () => {
       new TextDecoder(t.encoding, { fatal: true })
         .decode(new Uint8Array(t.input));
     }, {
       code: 'ERR_ENCODING_INVALID_ENCODED_DATA',
-      name: 'TypeError'
+      type: TypeError
     }
   );
 });

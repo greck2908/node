@@ -31,17 +31,12 @@ namespace node {
   V(nghttp2)                                                                   \
   V(napi)                                                                      \
   V(llhttp)                                                                    \
+  V(http_parser)                                                               \
 
 #if HAVE_OPENSSL
 #define NODE_VERSIONS_KEY_CRYPTO(V) V(openssl)
 #else
 #define NODE_VERSIONS_KEY_CRYPTO(V)
-#endif
-
-#if defined(NODE_EXPERIMENTAL_QUIC) && NODE_EXPERIMENTAL_QUIC
-#define NODE_VERSIONS_KEY_QUIC(V) V(ngtcp2) V(nghttp3)
-#else
-#define NODE_VERSIONS_KEY_QUIC(V)
 #endif
 
 #ifdef NODE_HAVE_I18N_SUPPORT
@@ -57,7 +52,6 @@ namespace node {
 #define NODE_VERSIONS_KEYS(V)                                                  \
   NODE_VERSIONS_KEYS_BASE(V)                                                   \
   NODE_VERSIONS_KEY_CRYPTO(V)                                                  \
-  NODE_VERSIONS_KEY_QUIC(V)                                                    \
   NODE_VERSIONS_KEY_INTL(V)
 
 class Metadata {
@@ -108,6 +102,8 @@ class Metadata {
 // Per-process global
 namespace per_process {
 extern Metadata metadata;
+extern const char* const llhttp_version;
+extern const char* const http_parser_version;
 }
 
 }  // namespace node

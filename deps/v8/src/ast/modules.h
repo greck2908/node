@@ -13,13 +13,13 @@ namespace internal {
 
 
 class AstRawString;
-class SourceTextModuleInfo;
-class SourceTextModuleInfoEntry;
+class ModuleInfo;
+class ModuleInfoEntry;
 class PendingCompilationErrorHandler;
 
-class SourceTextModuleDescriptor : public ZoneObject {
+class ModuleDescriptor : public ZoneObject {
  public:
-  explicit SourceTextModuleDescriptor(Zone* zone)
+  explicit ModuleDescriptor(Zone* zone)
       : module_requests_(zone),
         special_exports_(zone),
         namespace_imports_(zone),
@@ -84,9 +84,9 @@ class SourceTextModuleDescriptor : public ZoneObject {
     const AstRawString* import_name;
 
     // The module_request value records the order in which modules are
-    // requested. It also functions as an index into the SourceTextModuleInfo's
-    // array of module specifiers and into the Module's array of requested
-    // modules.  A negative value means no module request.
+    // requested. It also functions as an index into the ModuleInfo's array of
+    // module specifiers and into the Module's array of requested modules.  A
+    // negative value means no module request.
     int module_request;
 
     // Import/export entries that are associated with a MODULE-allocated
@@ -107,8 +107,7 @@ class SourceTextModuleDescriptor : public ZoneObject {
           module_request(-1),
           cell_index(0) {}
 
-    template <typename LocalIsolate>
-    Handle<SourceTextModuleInfoEntry> Serialize(LocalIsolate* isolate) const;
+    Handle<ModuleInfoEntry> Serialize(Isolate* isolate) const;
   };
 
   enum CellIndexKind { kInvalid, kExport, kImport };
@@ -126,12 +125,12 @@ class SourceTextModuleDescriptor : public ZoneObject {
     bool operator()(const AstRawString* lhs, const AstRawString* rhs) const;
   };
 
-  using ModuleRequestMap =
-      ZoneMap<const AstRawString*, ModuleRequest, AstRawStringComparer>;
-  using RegularExportMap =
-      ZoneMultimap<const AstRawString*, Entry*, AstRawStringComparer>;
-  using RegularImportMap =
-      ZoneMap<const AstRawString*, Entry*, AstRawStringComparer>;
+  typedef ZoneMap<const AstRawString*, ModuleRequest, AstRawStringComparer>
+      ModuleRequestMap;
+  typedef ZoneMultimap<const AstRawString*, Entry*, AstRawStringComparer>
+      RegularExportMap;
+  typedef ZoneMap<const AstRawString*, Entry*, AstRawStringComparer>
+      RegularImportMap;
 
   // Module requests.
   const ModuleRequestMap& module_requests() const { return module_requests_; }
@@ -185,8 +184,7 @@ class SourceTextModuleDescriptor : public ZoneObject {
     namespace_imports_.push_back(entry);
   }
 
-  template <typename LocalIsolate>
-  Handle<FixedArray> SerializeRegularExports(LocalIsolate* isolate,
+  Handle<FixedArray> SerializeRegularExports(Isolate* isolate,
                                              Zone* zone) const;
 
  private:

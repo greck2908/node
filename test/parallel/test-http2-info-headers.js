@@ -18,25 +18,25 @@ const afterRespondregex =
 
 function onStream(stream, headers, flags) {
 
-  assert.throws(() => stream.additionalHeaders({ ':status': 201 }),
-                {
-                  code: 'ERR_HTTP2_INVALID_INFO_STATUS',
-                  name: 'RangeError',
-                  message: /^Invalid informational status code: 201$/
-                });
+  common.expectsError(() => stream.additionalHeaders({ ':status': 201 }),
+                      {
+                        code: 'ERR_HTTP2_INVALID_INFO_STATUS',
+                        type: RangeError,
+                        message: /^Invalid informational status code: 201$/
+                      });
 
-  assert.throws(() => stream.additionalHeaders({ ':status': 101 }),
-                {
-                  code: 'ERR_HTTP2_STATUS_101',
-                  name: 'Error',
-                  message: status101regex
-                });
+  common.expectsError(() => stream.additionalHeaders({ ':status': 101 }),
+                      {
+                        code: 'ERR_HTTP2_STATUS_101',
+                        type: Error,
+                        message: status101regex
+                      });
 
-  assert.throws(
+  common.expectsError(
     () => stream.additionalHeaders({ ':method': 'POST' }),
     {
       code: 'ERR_HTTP2_INVALID_PSEUDOHEADER',
-      name: 'TypeError',
+      type: TypeError,
       message: '":method" is an invalid pseudoheader or is used incorrectly'
     }
   );
@@ -50,12 +50,12 @@ function onStream(stream, headers, flags) {
     ':status': 200
   });
 
-  assert.throws(() => stream.additionalHeaders({ abc: 123 }),
-                {
-                  code: 'ERR_HTTP2_HEADERS_AFTER_RESPOND',
-                  name: 'Error',
-                  message: afterRespondregex
-                });
+  common.expectsError(() => stream.additionalHeaders({ abc: 123 }),
+                      {
+                        code: 'ERR_HTTP2_HEADERS_AFTER_RESPOND',
+                        type: Error,
+                        message: afterRespondregex
+                      });
 
   stream.end('hello world');
 }

@@ -20,77 +20,68 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
-const {
-  mustCall,
-  mustCallAtLeast,
-} = require('../common');
+const common = require('../common');
 const assert = require('assert');
 const fork = require('child_process').fork;
 const net = require('net');
-const debug = require('util').debuglog('test');
 
 if (process.argv[2] === 'child') {
 
-  const onSocket = mustCall((msg, socket) => {
+  process.on('message', function onSocket(msg, socket) {
     if (msg.what !== 'socket') return;
     process.removeListener('message', onSocket);
     socket.end('echo');
-    debug('CHILD: got socket');
+    console.log('CHILD: got socket');
   });
-
-  process.on('message', onSocket);
 
   process.send({ what: 'ready' });
 } else {
 
   const child = fork(process.argv[1], ['child']);
 
-  child.on('exit', mustCall((code, signal) => {
+  child.on('exit', common.mustCall(function(code, signal) {
     const message = `CHILD: died with ${code}, ${signal}`;
     assert.strictEqual(code, 0, message);
   }));
 
   // Send net.Socket to child.
-  function testSocket() {
+  function testSocket(callback) {
 
     // Create a new server and connect to it,
     // but the socket will be handled by the child.
     const server = net.createServer();
-    server.on('connection', mustCall((socket) => {
-      // TODO(@jasnell): Close does not seem to actually be called.
-      // It is not clear if it is needed.
-      socket.on('close', () => {
-        debug('CLIENT: socket closed');
+    server.on('connection', function(socket) {
+      socket.on('close', function() {
+        console.log('CLIENT: socket closed');
       });
       child.send({ what: 'socket' }, socket);
-    }));
-    server.on('close', mustCall(() => {
-      debug('PARENT: server closed');
-    }));
+    });
+    server.on('close', function() {
+      console.log('PARENT: server closed');
+      callback();
+    });
 
-    server.listen(0, mustCall(() => {
-      debug('testSocket, listening');
+    server.listen(0, function() {
+      console.log('testSocket, listening');
       const connect = net.connect(server.address().port);
       let store = '';
-      connect.on('data', mustCallAtLeast((chunk) => {
+      connect.on('data', function(chunk) {
         store += chunk;
-        debug('CLIENT: got data');
-      }));
-      connect.on('close', mustCall(() => {
-        debug('CLIENT: closed');
+        console.log('CLIENT: got data');
+      });
+      connect.on('close', function() {
+        console.log('CLIENT: closed');
         assert.strictEqual(store, 'echo');
         server.close();
-      }));
-    }));
+      });
+    });
   }
 
-  const onReady = mustCall((msg) => {
+  // Create socket and send it to child.
+  child.on('message', function onReady(msg) {
     if (msg.what !== 'ready') return;
     child.removeListener('message', onReady);
 
-    testSocket();
+    testSocket(common.mustCall());
   });
-
-  // Create socket and send it to child.
-  child.on('message', onReady);
 }

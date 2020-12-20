@@ -98,7 +98,7 @@ function TestArraySortingWithUndefined() {
 TestArraySortingWithUndefined();
 
 // Test that sorting using an unsound comparison function still gives a
-// sensible result, i.e. it terminates without error and retains the elements
+// sane result, i.e. it terminates without error and retains the elements
 // in the array.
 function TestArraySortingWithUnsoundComparisonFunction() {
   var a = [ 3, void 0, 2 ];
@@ -127,8 +127,9 @@ function TestSparseNonArraySorting(length) {
   assertFalse(4 in obj, "objsort non-existing retained");
 }
 
-TestSparseNonArraySorting(1000);
 TestSparseNonArraySorting(5000);
+TestSparseNonArraySorting(500000);
+TestSparseNonArraySorting(Math.pow(2, 31) + 1);
 
 
 function TestArrayLongerLength(length) {
@@ -146,7 +147,8 @@ function TestArrayLongerLength(length) {
 TestArrayLongerLength(4);
 TestArrayLongerLength(10);
 TestArrayLongerLength(1000);
-TestArrayLongerLength(5000);
+TestArrayLongerLength(500000);
+TestArrayLongerLength(Math.pow(2,32) - 1);
 
 
 function TestNonArrayLongerLength(length) {
@@ -164,7 +166,8 @@ function TestNonArrayLongerLength(length) {
 TestNonArrayLongerLength(4);
 TestNonArrayLongerLength(10);
 TestNonArrayLongerLength(1000);
-TestNonArrayLongerLength(5000);
+TestNonArrayLongerLength(500000);
+TestNonArrayLongerLength(Math.pow(2,32) - 1);
 
 
 function TestNonArrayWithAccessors() {
@@ -559,23 +562,10 @@ function TestPrototypeHoles() {
     assertEquals(19, xs[9]);
   }
 
+  test(true);
   test(false);
-  // Expect a TypeError when trying to delete the accessor.
-  assertThrows(() => test(true), TypeError);
 }
 TestPrototypeHoles();
-
-// The following test ensures that [[Delete]] is called and it throws.
-function TestArrayWithAccessorThrowsOnDelete() {
-  let array = [5, 4, 1, /*hole*/, /*hole*/];
-
-  Object.defineProperty(array, '4', {
-    get: () => array.foo,
-    set: (val) => array.foo = val
-  });
-  assertThrows(() => array.sort((a, b) => a - b), TypeError);
-}
-TestArrayWithAccessorThrowsOnDelete();
 
 // The following test ensures that elements on the prototype are also copied
 // for JSArrays and not only JSObjects.

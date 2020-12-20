@@ -20,8 +20,11 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
-const { mustNotCall } = require('../common');
+require('../common');
+const assert = require('assert');
 
-process.on('beforeExit', mustNotCall('exit should not allow this to occur'));
+process.on('beforeExit', function() {
+  assert.fail('exit should not allow this to occur');
+});
 
 process.exit();

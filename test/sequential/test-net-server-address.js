@@ -25,89 +25,77 @@ const assert = require('assert');
 const net = require('net');
 
 // Test on IPv4 Server
-{
-  const family = 'IPv4';
-  const server = net.createServer();
+const family_ipv4 = 'IPv4';
+const server_ipv4 = net.createServer();
 
-  server.on('error', common.mustNotCall());
+server_ipv4.on('error', common.mustNotCall());
 
-  server
-    .listen(common.PORT + 1, common.localhostIPv4, common.mustCall(() => {
-      const address4 = server.address();
-      assert.strictEqual(address4.address, common.localhostIPv4);
-      assert.strictEqual(address4.port, common.PORT + 1);
-      assert.strictEqual(address4.family, family);
-      server.close();
-    }));
-}
+server_ipv4
+  .listen(common.PORT + 1, common.localhostIPv4, common.mustCall(() => {
+    const address_ipv4 = server_ipv4.address();
+    assert.strictEqual(address_ipv4.address, common.localhostIPv4);
+    assert.strictEqual(address_ipv4.port, common.PORT + 1);
+    assert.strictEqual(address_ipv4.family, family_ipv4);
+    server_ipv4.close();
+  }));
 
 if (!common.hasIPv6) {
   common.printSkipMessage('ipv6 part of test, no IPv6 support');
   return;
 }
 
-const family6 = 'IPv6';
-const anycast6 = '::';
-
 // Test on IPv6 Server
-{
-  const localhost = '::1';
+const localhost_ipv6 = '::1';
+const family_ipv6 = 'IPv6';
+const server_ipv6 = net.createServer();
 
-  const server = net.createServer();
+server_ipv6.on('error', common.mustNotCall());
 
-  server.on('error', common.mustNotCall());
-
-  server.listen(common.PORT + 2, localhost, common.mustCall(() => {
-    const address = server.address();
-    assert.strictEqual(address.address, localhost);
-    assert.strictEqual(address.port, common.PORT + 2);
-    assert.strictEqual(address.family, family6);
-    server.close();
-  }));
-}
+server_ipv6.listen(common.PORT + 2, localhost_ipv6, common.mustCall(() => {
+  const address_ipv6 = server_ipv6.address();
+  assert.strictEqual(address_ipv6.address, localhost_ipv6);
+  assert.strictEqual(address_ipv6.port, common.PORT + 2);
+  assert.strictEqual(address_ipv6.family, family_ipv6);
+  server_ipv6.close();
+}));
 
 // Test without hostname or ip
-{
-  const server = net.createServer();
+const anycast_ipv6 = '::';
+const server1 = net.createServer();
 
-  server.on('error', common.mustNotCall());
+server1.on('error', common.mustNotCall());
 
-  // Specify the port number
-  server.listen(common.PORT + 3, common.mustCall(() => {
-    const address = server.address();
-    assert.strictEqual(address.address, anycast6);
-    assert.strictEqual(address.port, common.PORT + 3);
-    assert.strictEqual(address.family, family6);
-    server.close();
-  }));
-}
+// Specify the port number
+server1.listen(common.PORT + 3, common.mustCall(() => {
+  const address = server1.address();
+  assert.strictEqual(address.address, anycast_ipv6);
+  assert.strictEqual(address.port, common.PORT + 3);
+  assert.strictEqual(address.family, family_ipv6);
+  server1.close();
+}));
 
 // Test without hostname or port
-{
-  const server = net.createServer();
+const server2 = net.createServer();
 
-  server.on('error', common.mustNotCall());
+server2.on('error', common.mustNotCall());
 
-  // Don't specify the port number
-  server.listen(common.mustCall(() => {
-    const address = server.address();
-    assert.strictEqual(address.address, anycast6);
-    assert.strictEqual(address.family, family6);
-    server.close();
-  }));
-}
+// Don't specify the port number
+server2.listen(common.mustCall(() => {
+  const address = server2.address();
+  assert.strictEqual(address.address, anycast_ipv6);
+  assert.strictEqual(address.family, family_ipv6);
+  server2.close();
+}));
 
 // Test without hostname, but with a false-y port
-{
-  const server = net.createServer();
+const server3 = net.createServer();
 
-  server.on('error', common.mustNotCall());
+server3.on('error', common.mustNotCall());
 
-  // Specify a false-y port number
-  server.listen(0, common.mustCall(() => {
-    const address = server.address();
-    assert.strictEqual(address.address, anycast6);
-    assert.strictEqual(address.family, family6);
-    server.close();
-  }));
-}
+// Specify a false-y port number
+server3.listen(0, common.mustCall(() => {
+  const address = server3.address();
+  assert.strictEqual(address.address, anycast_ipv6);
+  assert.strictEqual(address.family, family_ipv6);
+  server3.close();
+}));

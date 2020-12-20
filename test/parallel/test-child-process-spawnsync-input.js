@@ -76,9 +76,9 @@ let options = {
   input: 1234
 };
 
-assert.throws(
+common.expectsError(
   () => spawnSync('cat', [], options),
-  { code: 'ERR_INVALID_ARG_TYPE', name: 'TypeError' });
+  { code: 'ERR_INVALID_ARG_TYPE', type: TypeError });
 
 options = {
   input: 'hello world'

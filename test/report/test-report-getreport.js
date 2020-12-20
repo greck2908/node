@@ -1,7 +1,13 @@
+// Flags: --experimental-report
 'use strict';
-require('../common');
+const common = require('../common');
+common.skipIfReportDisabled();
 const assert = require('assert');
 const helper = require('../common/report');
+
+common.expectWarning('ExperimentalWarning',
+                     'report is an experimental feature. This feature could ' +
+                     'change at any time');
 
 {
   // Test with no arguments.
@@ -23,16 +29,9 @@ const helper = require('../common/report');
   assert.deepStrictEqual(helper.findReports(process.pid, process.cwd()), []);
 }
 
-{
-  const error = new Error();
-  error.foo = 'goo';
-  helper.validateContent(process.report.getReport(error),
-                         [['javascriptStack.errorProperties.foo', 'goo']]);
-}
-
 // Test with an invalid error argument.
 [null, 1, Symbol(), function() {}, 'foo'].forEach((error) => {
-  assert.throws(() => {
+  common.expectsError(() => {
     process.report.getReport(error);
   }, { code: 'ERR_INVALID_ARG_TYPE' });
 });

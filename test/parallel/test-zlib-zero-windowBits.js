@@ -1,6 +1,6 @@
 'use strict';
 
-require('../common');
+const common = require('../common');
 const assert = require('assert');
 const zlib = require('zlib');
 
@@ -24,10 +24,10 @@ const zlib = require('zlib');
 }
 
 {
-  assert.throws(() => zlib.createGzip({ windowBits: 0 }), {
+  common.expectsError(() => zlib.createGzip({ windowBits: 0 }), {
     code: 'ERR_OUT_OF_RANGE',
-    name: 'RangeError',
+    type: RangeError,
     message: 'The value of "options.windowBits" is out of range. ' +
-             'It must be >= 9 and <= 15. Received 0'
+             'It must be >= 8 and <= 15. Received 0'
   });
 }

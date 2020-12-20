@@ -56,22 +56,13 @@ function download() {
       if (res.complete) res.readable = true;
       callback();
     };
-    if (!abortRequest) {
-      res.on('end', common.mustCall(() => {
-        reqCountdown.dec();
-      }));
-      res.on('error', common.mustNotCall());
-    } else {
-      res.on('aborted', common.mustCall(() => {
-        aborted = true;
-        reqCountdown.dec();
-        writable.end();
-      }));
-      res.on('error', common.expectsError({
-        code: 'ECONNRESET'
-      }));
-    }
-
+    res.on('end', common.mustCall(() => {
+      reqCountdown.dec();
+    }));
+    res.on('aborted', () => {
+      aborted = true;
+    });
+    res.on('error', common.mustNotCall());
     writable.on('finish', () => {
       assert.strictEqual(aborted, abortRequest);
       finishCountdown.dec();

@@ -11,12 +11,15 @@ const assert = require('assert');
 
 // Test hasConverter method
 assert(icu.hasConverter('utf-8'),
-       'hasConverter should report converter exists for utf-8');
+       'hasConverter should report coverter exists for utf-8');
 assert(!icu.hasConverter('x'),
-       'hasConverter should report converter does not exist for x');
+       'hasConverter should report coverter does not exist for x');
 
 const tests = require('../fixtures/url-idna.js');
-const fixtures = require('../fixtures/icu-punycode-toascii.json');
+const fixtures = require('../common/fixtures');
+const wptToASCIITests = require(
+  fixtures.path('wpt', 'url', 'resources', 'toascii.json')
+);
 
 {
   for (const [i, { ascii, unicode }] of tests.entries()) {
@@ -30,7 +33,7 @@ const fixtures = require('../fixtures/icu-punycode-toascii.json');
 }
 
 {
-  for (const [i, test] of fixtures.entries()) {
+  for (const [i, test] of wptToASCIITests.entries()) {
     if (typeof test === 'string')
       continue; // skip comments
     const { comment, input, output } = test;
@@ -38,11 +41,11 @@ const fixtures = require('../fixtures/icu-punycode-toascii.json');
     if (comment)
       caseComment += ` (${comment})`;
     if (output === null) {
-      assert.throws(
+      common.expectsError(
         () => icu.toASCII(input),
         {
           code: 'ERR_INVALID_ARG_VALUE',
-          name: 'TypeError',
+          type: TypeError,
           message: 'Cannot convert name to ASCII'
         }
       );

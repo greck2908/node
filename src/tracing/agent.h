@@ -3,6 +3,7 @@
 
 #include "libplatform/v8-tracing.h"
 #include "uv.h"
+#include "v8.h"
 #include "util.h"
 #include "node_mutex.h"
 
@@ -10,11 +11,6 @@
 #include <set>
 #include <string>
 #include <unordered_map>
-
-namespace v8 {
-class ConvertableToTraceFormat;
-class TracingController;
-}  // namespace v8
 
 namespace node {
 namespace tracing {

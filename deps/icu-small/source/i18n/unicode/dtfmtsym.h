@@ -22,8 +22,6 @@
 
 #include "unicode/utypes.h"
 
-#if U_SHOW_CPLUSPLUS_API
-
 #if !UCONFIG_NO_FORMATTING
 
 #include "unicode/calendar.h"
@@ -919,8 +917,7 @@ private:
      *                             failure code upon return.
      * @param useLastResortData    determine if use last resort data
      */
-    void initializeData(const Locale& locale, const char *type,
-                        UErrorCode& status, UBool useLastResortData = false);
+    void initializeData(const Locale& locale, const char *type, UErrorCode& status, UBool useLastResortData = FALSE);
 
     /**
      * Copy or alias an array in another object, as appropriate.
@@ -984,12 +981,12 @@ private:
     static UDateFormatField U_EXPORT2 getPatternCharIndex(char16_t c);
 
     /**
-     * Returns true if f (with its pattern character repeated count times) is a numeric field.
+     * Returns TRUE if f (with its pattern character repeated count times) is a numeric field.
      */
     static UBool U_EXPORT2 isNumericField(UDateFormatField f, int32_t count);
 
     /**
-     * Returns true if c (repeated count times) is the pattern character for a numeric field.
+     * Returns TRUE if c (repeated count times) is the pattern character for a numeric field.
      */
     static UBool U_EXPORT2 isNumericPatternChar(char16_t c, int32_t count);
 public:
@@ -1013,8 +1010,6 @@ public:
 U_NAMESPACE_END
 
 #endif /* #if !UCONFIG_NO_FORMATTING */
-
-#endif /* U_SHOW_CPLUSPLUS_API */
 
 #endif // _DTFMTSYM
 //eof

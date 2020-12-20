@@ -1,13 +1,12 @@
 // Flags: --expose-internals
 'use strict';
-const common = require('../common');
+require('../common');
+const { internalBinding } = require('internal/test/binding');
 const { PassThrough } = require('stream');
 const readline = require('readline');
 const assert = require('assert');
 
 const ctrlU = { ctrl: true, name: 'u' };
-
-common.skipIfDumbTerminal();
 
 {
   const input = new PassThrough();
@@ -20,17 +19,25 @@ common.skipIfDumbTerminal();
   const tests = [
     [1, 'a'],
     [2, 'ab'],
-    [2, '丁'],
-    [0, '\u0301'],   // COMBINING ACUTE ACCENT
-    [1, 'a\u0301'],  // á
-    [0, '\u20DD'],   // COMBINING ENCLOSING CIRCLE
-    [2, 'a\u20DDb'], // a⃝b
-    [0, '\u200E'],   // LEFT-TO-RIGHT MARK
+    [2, '丁']
   ];
+
+  // The non-ICU JS implementation of character width calculation is only aware
+  // of the wide/narrow distinction. Only test these more advanced cases when
+  // ICU is available.
+  if (internalBinding('config').hasIntl) {
+    tests.push(
+      [0, '\u0301'],   // COMBINING ACUTE ACCENT
+      [1, 'a\u0301'],  // á
+      [0, '\u20DD'],   // COMBINING ENCLOSING CIRCLE
+      [2, 'a\u20DDb'], // a⃝b
+      [0, '\u200E']    // LEFT-TO-RIGHT MARK
+    );
+  }
 
   for (const [cursor, string] of tests) {
     rl.write(string);
-    assert.strictEqual(rl.getCursorPos().cols, cursor);
+    assert.strictEqual(rl._getCursorPos().cols, cursor);
     rl.write(null, ctrlU);
   }
 }

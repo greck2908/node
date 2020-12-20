@@ -9,7 +9,6 @@ Debug = debug.Debug;
 Debug.setListener(function() {});
 
 function f() {}
-%PrepareFunctionForOptimization(f);
 f();
 f();
 %OptimizeFunctionOnNextCall(f);
@@ -18,7 +17,6 @@ assertOptimized(f);
 
 var bp = Debug.setBreakPoint(f);
 assertUnoptimized(f);
-%PrepareFunctionForOptimization(f);
 f();
 f();
 %OptimizeFunctionOnNextCall(f);
@@ -26,7 +24,6 @@ f();
 assertUnoptimized(f);
 
 Debug.clearBreakPoint(bp);
-%PrepareFunctionForOptimization(f);
 %OptimizeFunctionOnNextCall(f);
 f();
 assertOptimized(f);

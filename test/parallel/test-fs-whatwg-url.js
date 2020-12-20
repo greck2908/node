@@ -22,20 +22,21 @@ const url = pathToFileURL(p);
 assert(url instanceof URL);
 
 // Check that we can pass in a URL object successfully
-fs.readFile(url, common.mustSucceed((data) => {
+fs.readFile(url, common.mustCall((err, data) => {
+  assert.ifError(err);
   assert(Buffer.isBuffer(data));
 }));
 
 // Check that using a non file:// URL reports an error
 const httpUrl = new URL('http://example.org');
 
-assert.throws(
+common.expectsError(
   () => {
     fs.readFile(httpUrl, common.mustNotCall());
   },
   {
     code: 'ERR_INVALID_URL_SCHEME',
-    name: 'TypeError',
+    type: TypeError,
     message: 'The URL must be of scheme file'
   });
 
@@ -43,60 +44,60 @@ assert.throws(
 if (common.isWindows) {
   // Encoded back and forward slashes are not permitted on windows
   ['%2f', '%2F', '%5c', '%5C'].forEach((i) => {
-    assert.throws(
+    common.expectsError(
       () => {
         fs.readFile(new URL(`file:///c:/tmp/${i}`), common.mustNotCall());
       },
       {
         code: 'ERR_INVALID_FILE_URL_PATH',
-        name: 'TypeError',
+        type: TypeError,
         message: 'File URL path must not include encoded \\ or / characters'
       }
     );
   });
-  assert.throws(
+  common.expectsError(
     () => {
       fs.readFile(new URL('file:///c:/tmp/%00test'), common.mustNotCall());
     },
     {
       code: 'ERR_INVALID_ARG_VALUE',
-      name: 'TypeError',
+      type: TypeError,
       message: 'The argument \'path\' must be a string or Uint8Array without ' +
-               "null bytes. Received 'c:\\\\tmp\\\\\\x00test'"
+               'null bytes. Received \'c:\\\\tmp\\\\\\u0000test\''
     }
   );
 } else {
   // Encoded forward slashes are not permitted on other platforms
   ['%2f', '%2F'].forEach((i) => {
-    assert.throws(
+    common.expectsError(
       () => {
         fs.readFile(new URL(`file:///c:/tmp/${i}`), common.mustNotCall());
       },
       {
         code: 'ERR_INVALID_FILE_URL_PATH',
-        name: 'TypeError',
+        type: TypeError,
         message: 'File URL path must not include encoded / characters'
       });
   });
-  assert.throws(
+  common.expectsError(
     () => {
       fs.readFile(new URL('file://hostname/a/b/c'), common.mustNotCall());
     },
     {
       code: 'ERR_INVALID_FILE_URL_HOST',
-      name: 'TypeError',
+      type: TypeError,
       message: `File URL host must be "localhost" or empty on ${os.platform()}`
     }
   );
-  assert.throws(
+  common.expectsError(
     () => {
       fs.readFile(new URL('file:///tmp/%00test'), common.mustNotCall());
     },
     {
       code: 'ERR_INVALID_ARG_VALUE',
-      name: 'TypeError',
-      message: "The argument 'path' must be a string or Uint8Array without " +
-               "null bytes. Received '/tmp/\\x00test'"
+      type: TypeError,
+      message: 'The argument \'path\' must be a string or Uint8Array without ' +
+               'null bytes. Received \'/tmp/\\u0000test\''
     }
   );
 }

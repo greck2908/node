@@ -19,9 +19,6 @@
 #define FPOSITER_H
 
 #include "unicode/utypes.h"
-
-#if U_SHOW_CPLUSPLUS_API
-
 #include "unicode/uobject.h"
 
 /**
@@ -96,7 +93,7 @@ public:
 
     /**
      * If the current position is valid, updates the FieldPosition values, advances the iterator,
-     * and returns true, otherwise returns false.
+     * and returns TRUE, otherwise returns FALSE.
      * @stable ICU 4.4
      */
     UBool next(FieldPosition& fp);
@@ -118,7 +115,5 @@ private:
 U_NAMESPACE_END
 
 #endif /* #if !UCONFIG_NO_FORMATTING */
-
-#endif /* U_SHOW_CPLUSPLUS_API */
 
 #endif // FPOSITER_H

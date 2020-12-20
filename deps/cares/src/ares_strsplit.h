@@ -40,4 +40,3 @@ void ares_strsplit_free(char **elms, size_t num_elm);
 
 
 #endif /* HEADER_CARES_STRSPLIT_H */
-

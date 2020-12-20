@@ -33,11 +33,11 @@ assert(inited < 15000);
   });
 
   [undefined, null, 'foo', 1].forEach((i) => {
-    assert.throws(
+    common.expectsError(
       () => performance.measure('test', 'A', i),
       {
         code: 'ERR_INVALID_PERFORMANCE_MARK',
-        name: 'Error',
+        type: Error,
         message: `The "${i}" performance mark has not been set`
       });
   });

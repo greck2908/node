@@ -71,7 +71,7 @@ module.exports = function(context) {
       if (missingCheckNodes.length > 0) {
         requireNodes.forEach((requireNode) => {
           const beforeAllChecks = missingCheckNodes.every((checkNode) => {
-            return requireNode.range[0] < checkNode.range[0];
+            return requireNode.start < checkNode.start;
           });
 
           if (beforeAllChecks) {
@@ -119,8 +119,4 @@ module.exports = function(context) {
     'MemberExpression:exit': (node) => testMemberExpression(node),
     'Program:exit': () => reportIfMissingCheck()
   };
-};
-
-module.exports.meta = {
-  fixable: 'code'
 };

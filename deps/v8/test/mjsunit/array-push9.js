@@ -10,7 +10,6 @@ function push(array, value) {
   array.push(value);
 }
 
-%PrepareFunctionForOptimization(push);
 push(array, 0);
 push(array, 1);
 push(array, 2);

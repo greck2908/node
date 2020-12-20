@@ -21,6 +21,7 @@
 
 #include "async_wrap-inl.h"
 #include "env-inl.h"
+#include "util-inl.h"
 #include "node.h"
 #include "handle_wrap.h"
 #include "string_bytes.h"
@@ -64,7 +65,7 @@ class FSEventWrap: public HandleWrap {
   static const encoding kDefaultEncoding = UTF8;
 
   FSEventWrap(Environment* env, Local<Object> object);
-  ~FSEventWrap() override = default;
+  ~FSEventWrap() = default;
 
   static void OnEvent(uv_fs_event_t* handle, const char* filename, int events,
     int status);
@@ -97,17 +98,17 @@ void FSEventWrap::Initialize(Local<Object> target,
 
   auto fsevent_string = FIXED_ONE_BYTE_STRING(env->isolate(), "FSEvent");
   Local<FunctionTemplate> t = env->NewFunctionTemplate(New);
-  t->InstanceTemplate()->SetInternalFieldCount(
-      FSEventWrap::kInternalFieldCount);
+  t->InstanceTemplate()->SetInternalFieldCount(1);
   t->SetClassName(fsevent_string);
 
-  t->Inherit(HandleWrap::GetConstructorTemplate(env));
+  t->Inherit(AsyncWrap::GetConstructorTemplate(env));
   env->SetProtoMethod(t, "start", Start);
+  env->SetProtoMethod(t, "close", Close);
 
   Local<FunctionTemplate> get_initialized_templ =
       FunctionTemplate::New(env->isolate(),
                             GetInitialized,
-                            Local<Value>(),
+                            env->as_callback_data(),
                             Signature::New(env->isolate(), t));
 
   t->PrototypeTemplate()->SetAccessorProperty(

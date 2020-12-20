@@ -26,7 +26,6 @@
       'openssl/ssl/ssl_init.c',
       'openssl/ssl/ssl_lib.c',
       'openssl/ssl/ssl_mcnf.c',
-      'openssl/ssl/ssl_quic.c',
       'openssl/ssl/ssl_rsa.c',
       'openssl/ssl/ssl_sess.c',
       'openssl/ssl/ssl_stat.c',
@@ -40,7 +39,6 @@
       'openssl/ssl/statem/statem_clnt.c',
       'openssl/ssl/statem/statem_dtls.c',
       'openssl/ssl/statem/statem_lib.c',
-      'openssl/ssl/statem/statem_quic.c',
       'openssl/ssl/statem/statem_srvr.c',
       'openssl/ssl/t1_enc.c',
       'openssl/ssl/t1_lib.c',
@@ -697,9 +695,9 @@
       'OPENSSL_PIC',
     ],
     'openssl_cflags_VC-WIN32': [
-      '/W3 /wd4090 /nologo /O2',
+      '/W3 /wd4090 /nologo /O2 /WX',
       '/Gs0 /GF /Gy',
-      '/W3 /wd4090 /nologo /O2',
+      '/W3 /wd4090 /nologo /O2 /WX',
     ],
     'openssl_ex_libs_VC-WIN32': [
       'ws2_32.lib gdi32.lib advapi32.lib crypt32.lib user32.lib',

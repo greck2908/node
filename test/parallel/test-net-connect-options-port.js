@@ -27,10 +27,10 @@ const net = require('net');
 
 // Test wrong type of ports
 {
-  const portTypeError = {
+  const portTypeError = common.expectsError({
     code: 'ERR_INVALID_ARG_TYPE',
-    name: 'TypeError'
-  };
+    type: TypeError
+  }, 96);
 
   syncFailToConnect(true, portTypeError);
   syncFailToConnect(false, portTypeError);
@@ -41,10 +41,10 @@ const net = require('net');
 
 // Test out of range ports
 {
-  const portRangeError = {
+  const portRangeError = common.expectsError({
     code: 'ERR_SOCKET_BAD_PORT',
-    name: 'RangeError'
-  };
+    type: RangeError
+  }, 168);
 
   syncFailToConnect('', portRangeError);
   syncFailToConnect(' ', portRangeError);
@@ -59,14 +59,14 @@ const net = require('net');
 // Test invalid hints
 {
   // connect({hint}, cb) and connect({hint})
-  const hints = (dns.ADDRCONFIG | dns.V4MAPPED | dns.ALL) + 42;
-  const hintOptBlocks = doConnect([{ port: 42, hints }],
+  const hints = (dns.ADDRCONFIG | dns.V4MAPPED) + 42;
+  const hintOptBlocks = doConnect([{ hints }],
                                   () => common.mustNotCall());
   for (const fn of hintOptBlocks) {
-    assert.throws(fn, {
-      code: 'ERR_INVALID_ARG_VALUE',
-      name: 'TypeError',
-      message: /The argument 'hints' is invalid\. Received \d+/
+    common.expectsError(fn, {
+      code: 'ERR_INVALID_OPT_VALUE',
+      type: TypeError,
+      message: /The value "\d+" is invalid for option "hints"/
     });
   }
 }
@@ -95,6 +95,7 @@ const net = require('net');
   // Try connecting to random ports, but do so once the server is closed
   server.on('close', () => {
     asyncFailToConnect(0);
+    asyncFailToConnect(/* undefined */);
   });
 }
 

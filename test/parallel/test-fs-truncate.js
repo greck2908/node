@@ -71,8 +71,9 @@ fs.truncateSync(fd);
 fs.closeSync(fd);
 
 // Async tests
-testTruncate(common.mustSucceed(() => {
-  testFtruncate(common.mustSucceed());
+testTruncate(common.mustCall(function(er) {
+  assert.ifError(er);
+  testFtruncate(common.mustCall(assert.ifError));
 }));
 
 function testTruncate(cb) {
@@ -146,7 +147,7 @@ function testFtruncate(cb) {
   const file2 = path.resolve(tmp, 'truncate-file-2.txt');
   fs.writeFileSync(file2, 'Hi');
   const fd = fs.openSync(file2, 'r+');
-  process.on('beforeExit', () => fs.closeSync(fd));
+  process.on('exit', () => fs.closeSync(fd));
   fs.ftruncateSync(fd, 4);
   assert(fs.readFileSync(file2).equals(Buffer.from('Hi\u0000\u0000')));
 }
@@ -154,7 +155,8 @@ function testFtruncate(cb) {
 {
   const file3 = path.resolve(tmp, 'truncate-file-3.txt');
   fs.writeFileSync(file3, 'Hi');
-  fs.truncate(file3, 4, common.mustSucceed(() => {
+  fs.truncate(file3, 4, common.mustCall(function(err) {
+    assert.ifError(err);
     assert(fs.readFileSync(file3).equals(Buffer.from('Hi\u0000\u0000')));
   }));
 }
@@ -163,8 +165,9 @@ function testFtruncate(cb) {
   const file4 = path.resolve(tmp, 'truncate-file-4.txt');
   fs.writeFileSync(file4, 'Hi');
   const fd = fs.openSync(file4, 'r+');
-  process.on('beforeExit', () => fs.closeSync(fd));
-  fs.ftruncate(fd, 4, common.mustSucceed(() => {
+  process.on('exit', () => fs.closeSync(fd));
+  fs.ftruncate(fd, 4, common.mustCall(function(err) {
+    assert.ifError(err);
     assert(fs.readFileSync(file4).equals(Buffer.from('Hi\u0000\u0000')));
   }));
 }
@@ -173,16 +176,16 @@ function testFtruncate(cb) {
   const file5 = path.resolve(tmp, 'truncate-file-5.txt');
   fs.writeFileSync(file5, 'Hi');
   const fd = fs.openSync(file5, 'r+');
-  process.on('beforeExit', () => fs.closeSync(fd));
+  process.on('exit', () => fs.closeSync(fd));
 
   ['', false, null, {}, []].forEach((input) => {
-    const received = common.invalidArgTypeHelper(input);
     assert.throws(
       () => fs.truncate(file5, input, common.mustNotCall()),
       {
         code: 'ERR_INVALID_ARG_TYPE',
         name: 'TypeError',
-        message: `The "len" argument must be of type number.${received}`
+        message: 'The "len" argument must be of type number. ' +
+                 `Received type ${typeof input}`
       }
     );
 
@@ -191,7 +194,8 @@ function testFtruncate(cb) {
       {
         code: 'ERR_INVALID_ARG_TYPE',
         name: 'TypeError',
-        message: `The "len" argument must be of type number.${received}`
+        message: 'The "len" argument must be of type number. ' +
+                 `Received type ${typeof input}`
       }
     );
   });
@@ -218,7 +222,8 @@ function testFtruncate(cb) {
     );
   });
 
-  fs.ftruncate(fd, undefined, common.mustSucceed(() => {
+  fs.ftruncate(fd, undefined, common.mustCall(function(err) {
+    assert.ifError(err);
     assert(fs.readFileSync(file5).equals(Buffer.from('')));
   }));
 }
@@ -227,8 +232,9 @@ function testFtruncate(cb) {
   const file6 = path.resolve(tmp, 'truncate-file-6.txt');
   fs.writeFileSync(file6, 'Hi');
   const fd = fs.openSync(file6, 'r+');
-  process.on('beforeExit', () => fs.closeSync(fd));
-  fs.ftruncate(fd, -1, common.mustSucceed(() => {
+  process.on('exit', () => fs.closeSync(fd));
+  fs.ftruncate(fd, -1, common.mustCall(function(err) {
+    assert.ifError(err);
     assert(fs.readFileSync(file6).equals(Buffer.from('')));
   }));
 }
@@ -236,7 +242,8 @@ function testFtruncate(cb) {
 {
   const file7 = path.resolve(tmp, 'truncate-file-7.txt');
   fs.writeFileSync(file7, 'Hi');
-  fs.truncate(file7, undefined, common.mustSucceed(() => {
+  fs.truncate(file7, undefined, common.mustCall(function(err) {
+    assert.ifError(err);
     assert(fs.readFileSync(file7).equals(Buffer.from('')));
   }));
 }
@@ -261,8 +268,8 @@ function testFtruncate(cb) {
     {
       code: 'ERR_INVALID_ARG_TYPE',
       name: 'TypeError',
-      message: 'The "len" argument must be of type number.' +
-               common.invalidArgTypeHelper(input)
+      message: 'The "len" argument must be of type number. ' +
+               `Received type ${typeof input}`
     }
   );
 });
@@ -274,8 +281,8 @@ function testFtruncate(cb) {
       {
         code: 'ERR_INVALID_ARG_TYPE',
         name: 'TypeError',
-        message: 'The "fd" argument must be of type number.' +
-                 common.invalidArgTypeHelper(input)
+        message: 'The "fd" argument must be of type number. ' +
+                 `Received type ${typeof input}`
       }
     );
   });

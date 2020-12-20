@@ -89,7 +89,7 @@ UCharCharacterIterator::hashCode() const {
     return ustr_hashUCharsN(text, textLength) ^ pos ^ begin ^ end;
 }
 
-UCharCharacterIterator*
+CharacterIterator*
 UCharCharacterIterator::clone() const {
     return new UCharCharacterIterator(*this);
 }

@@ -6,14 +6,15 @@
 
 #include "src/ast/ast.h"
 #include "src/base/platform/time.h"
-#include "src/codegen/compiler.h"
-#include "src/flags/flags.h"
-#include "src/handles/global-handles.h"
-#include "src/objects/objects-inl.h"
+#include "src/base/template-utils.h"
+#include "src/cancelable-task.h"
+#include "src/compiler.h"
+#include "src/flags.h"
+#include "src/global-handles.h"
+#include "src/objects-inl.h"
 #include "src/parsing/parse-info.h"
 #include "src/parsing/parser.h"
-#include "src/tasks/cancelable-task.h"
-#include "src/tasks/task-utils.h"
+#include "src/task-utils.h"
 #include "src/zone/zone-list-inl.h"  // crbug.com/v8/8816
 
 namespace v8 {
@@ -27,6 +28,7 @@ CompilerDispatcher::Job::~Job() = default;
 CompilerDispatcher::CompilerDispatcher(Isolate* isolate, Platform* platform,
                                        size_t max_stack_size)
     : isolate_(isolate),
+      allocator_(isolate->allocator()),
       worker_thread_runtime_call_stats_(
           isolate->counters()->worker_thread_runtime_call_stats()),
       background_compile_timer_(
@@ -64,8 +66,8 @@ base::Optional<CompilerDispatcher::JobId> CompilerDispatcher::Enqueue(
 
   if (!IsEnabled()) return base::nullopt;
 
-  std::unique_ptr<Job> job = std::make_unique<Job>(new BackgroundCompileTask(
-      outer_parse_info, function_name, function_literal,
+  std::unique_ptr<Job> job = base::make_unique<Job>(new BackgroundCompileTask(
+      allocator_, outer_parse_info, function_name, function_literal,
       worker_thread_runtime_call_stats_, background_compile_timer_,
       static_cast<int>(max_stack_size_)));
   JobMap::const_iterator it = InsertJob(std::move(job));
@@ -102,7 +104,7 @@ void CompilerDispatcher::RegisterSharedFunctionInfo(
 
   if (trace_compiler_dispatcher_) {
     PrintF("CompilerDispatcher: registering ");
-    function.ShortPrint();
+    function->ShortPrint();
     PrintF(" with job id %zu\n", job_id);
   }
 

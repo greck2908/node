@@ -1,14 +1,8 @@
 'use strict';
-// Flags: --no-warnings
 
 const common = require('../common');
 const { once, EventEmitter } = require('events');
-const {
-  strictEqual,
-  deepStrictEqual,
-  fail,
-  rejects,
-} = require('assert');
+const { strictEqual, deepStrictEqual } = require('assert');
 
 async function onceAnEvent() {
   const ee = new EventEmitter();
@@ -63,6 +57,8 @@ async function stopListeningAfterCatchingError() {
     ee.emit('myevent', 42, 24);
   });
 
+  process.on('multipleResolves', common.mustNotCall());
+
   try {
     await once(ee, 'myevent');
   } catch (_e) {
@@ -82,115 +78,10 @@ async function onceError() {
     ee.emit('error', expected);
   });
 
-  const promise = once(ee, 'error');
-  strictEqual(ee.listenerCount('error'), 1);
-  const [ err ] = await promise;
+  const [err] = await once(ee, 'error');
   strictEqual(err, expected);
   strictEqual(ee.listenerCount('error'), 0);
   strictEqual(ee.listenerCount('myevent'), 0);
-}
-
-async function onceWithEventTarget() {
-  const et = new EventTarget();
-  const event = new Event('myevent');
-  process.nextTick(() => {
-    et.dispatchEvent(event);
-  });
-  const [ value ] = await once(et, 'myevent');
-  strictEqual(value, event);
-}
-
-async function onceWithEventTargetError() {
-  const et = new EventTarget();
-  const error = new Event('error');
-  process.nextTick(() => {
-    et.dispatchEvent(error);
-  });
-
-  const [ err ] = await once(et, 'error');
-  strictEqual(err, error);
-}
-
-async function prioritizesEventEmitter() {
-  const ee = new EventEmitter();
-  ee.addEventListener = fail;
-  ee.removeAllListeners = fail;
-  process.nextTick(() => ee.emit('foo'));
-  await once(ee, 'foo');
-}
-
-async function abortSignalBefore() {
-  const ee = new EventEmitter();
-  const ac = new AbortController();
-  ee.on('error', common.mustNotCall());
-  ac.abort();
-
-  await Promise.all([1, {}, 'hi', null, false].map((signal) => {
-    return rejects(once(ee, 'foo', { signal }), {
-      code: 'ERR_INVALID_ARG_TYPE'
-    });
-  }));
-
-  return rejects(once(ee, 'foo', { signal: ac.signal }), {
-    name: 'AbortError'
-  });
-}
-
-async function abortSignalAfter() {
-  const ee = new EventEmitter();
-  const ac = new AbortController();
-  ee.on('error', common.mustNotCall());
-  const r = rejects(once(ee, 'foo', { signal: ac.signal }), {
-    name: 'AbortError'
-  });
-  process.nextTick(() => ac.abort());
-  return r;
-}
-
-async function abortSignalAfterEvent() {
-  const ee = new EventEmitter();
-  const ac = new AbortController();
-  process.nextTick(() => {
-    ee.emit('foo');
-    ac.abort();
-  });
-  await once(ee, 'foo', { signal: ac.signal });
-}
-
-async function eventTargetAbortSignalBefore() {
-  const et = new EventTarget();
-  const ac = new AbortController();
-  ac.abort();
-
-  await Promise.all([1, {}, 'hi', null, false].map((signal) => {
-    return rejects(once(et, 'foo', { signal }), {
-      code: 'ERR_INVALID_ARG_TYPE'
-    });
-  }));
-
-  return rejects(once(et, 'foo', { signal: ac.signal }), {
-    name: 'AbortError'
-  });
-}
-
-async function eventTargetAbortSignalAfter() {
-  const et = new EventTarget();
-  const ac = new AbortController();
-  const r = rejects(once(et, 'foo', { signal: ac.signal }), {
-    name: 'AbortError'
-  });
-  process.nextTick(() => ac.abort());
-  return r;
-}
-
-async function eventTargetAbortSignalAfterEvent() {
-  const et = new EventTarget();
-  const ac = new AbortController();
-  process.nextTick(() => {
-    et.dispatchEvent(new Event('foo'));
-    ac.abort();
-  });
-  await once(et, 'foo', { signal: ac.signal });
 }
 
 Promise.all([
@@ -198,14 +89,5 @@ Promise.all([
   onceAnEventWithTwoArgs(),
   catchesErrors(),
   stopListeningAfterCatchingError(),
-  onceError(),
-  onceWithEventTarget(),
-  onceWithEventTargetError(),
-  prioritizesEventEmitter(),
-  abortSignalBefore(),
-  abortSignalAfter(),
-  abortSignalAfterEvent(),
-  eventTargetAbortSignalBefore(),
-  eventTargetAbortSignalAfter(),
-  eventTargetAbortSignalAfterEvent(),
+  onceError()
 ]).then(common.mustCall());

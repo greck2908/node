@@ -1,8 +1,6 @@
-#define NAPI_EXPERIMENTAL
 #include <js_native_api.h>
 #include "../common.h"
 #include <string.h>
-#include "test_null.h"
 
 static int test_value = 3;
 
@@ -80,33 +78,6 @@ static napi_value GetPropertyNames(napi_env env, napi_callback_info info) {
 
   napi_value output;
   NAPI_CALL(env, napi_get_property_names(env, args[0], &output));
-
-  return output;
-}
-
-static napi_value GetSymbolNames(napi_env env, napi_callback_info info) {
-  size_t argc = 1;
-  napi_value args[1];
-  NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, NULL, NULL));
-
-  NAPI_ASSERT(env, argc >= 1, "Wrong number of arguments");
-
-  napi_valuetype value_type0;
-  NAPI_CALL(env, napi_typeof(env, args[0], &value_type0));
-
-  NAPI_ASSERT(env,
-              value_type0 == napi_object,
-              "Wrong type of arguments. Expects an object as first argument.");
-
-  napi_value output;
-  NAPI_CALL(env,
-            napi_get_all_property_names(
-                env,
-                args[0],
-                napi_key_include_prototypes,
-                napi_key_skip_strings,
-                napi_key_numbers_to_strings,
-                &output));
 
   return output;
 }
@@ -370,8 +341,8 @@ static napi_value Unwrap(napi_env env, napi_callback_info info) {
 
 static napi_value TestSetProperty(napi_env env,
                                   napi_callback_info info) {
-  napi_status status;
-  napi_value object, key, value;
+  napi_status ret[4];
+  napi_value object, key, value, prop_value;
 
   NAPI_CALL(env, napi_create_object(env, &object));
 
@@ -379,68 +350,122 @@ static napi_value TestSetProperty(napi_env env,
 
   NAPI_CALL(env, napi_create_object(env, &value));
 
-  status = napi_set_property(NULL, object, key, value);
+  ret[0] = napi_set_property(NULL, object, key, value);
 
-  add_returned_status(env,
-                      "envIsNull",
-                      object,
-                      "Invalid argument",
-                      napi_invalid_arg,
-                      status);
+  ret[1] = napi_set_property(env, NULL, key, value);
 
-  napi_set_property(env, NULL, key, value);
+  ret[2] = napi_set_property(env, object, NULL, value);
 
-  add_last_status(env, "objectIsNull", object);
+  ret[3] = napi_set_property(env, object, key, NULL);
 
-  napi_set_property(env, object, NULL, value);
+  NAPI_CALL(env, napi_create_string_utf8(env,
+                                         (ret[0] == napi_invalid_arg ?
+                                             "pass" : "fail"),
+                                         NAPI_AUTO_LENGTH,
+                                         &prop_value));
+  NAPI_CALL(env, napi_set_named_property(env,
+                                         object,
+                                         "envIsNull",
+                                         prop_value));
 
-  add_last_status(env, "keyIsNull", object);
+  NAPI_CALL(env, napi_create_string_utf8(env,
+                                         (ret[1] == napi_invalid_arg ?
+                                             "pass" : "fail"),
+                                         NAPI_AUTO_LENGTH,
+                                         &prop_value));
+  NAPI_CALL(env, napi_set_named_property(env,
+                                         object,
+                                         "objectIsNull",
+                                         prop_value));
 
-  napi_set_property(env, object, key, NULL);
+  NAPI_CALL(env, napi_create_string_utf8(env,
+                                         (ret[2] == napi_invalid_arg ?
+                                             "pass" : "fail"),
+                                         NAPI_AUTO_LENGTH,
+                                         &prop_value));
+  NAPI_CALL(env, napi_set_named_property(env,
+                                         object,
+                                         "keyIsNull",
+                                         prop_value));
 
-  add_last_status(env, "valueIsNull", object);
+  NAPI_CALL(env, napi_create_string_utf8(env,
+                                         (ret[3] == napi_invalid_arg ?
+                                             "pass" : "fail"),
+                                         NAPI_AUTO_LENGTH,
+                                         &prop_value));
+  NAPI_CALL(env, napi_set_named_property(env,
+                                         object,
+                                         "valueIsNull",
+                                         prop_value));
 
   return object;
 }
 
 static napi_value TestHasProperty(napi_env env,
                                   napi_callback_info info) {
-  napi_status status;
-  napi_value object, key;
+  napi_status ret[4];
+  napi_value object, key, prop_result;
   bool result;
 
   NAPI_CALL(env, napi_create_object(env, &object));
 
   NAPI_CALL(env, napi_create_string_utf8(env, "", NAPI_AUTO_LENGTH, &key));
 
-  status = napi_has_property(NULL, object, key, &result);
+  ret[0] = napi_has_property(NULL, object, key, &result);
 
-  add_returned_status(env,
-                      "envIsNull",
-                      object,
-                      "Invalid argument",
-                      napi_invalid_arg,
-                      status);
+  ret[1] = napi_has_property(env, NULL, key, &result);
 
-  napi_has_property(env, NULL, key, &result);
+  ret[2] = napi_has_property(env, object, NULL, &result);
 
-  add_last_status(env, "objectIsNull", object);
+  ret[3] = napi_has_property(env, object, key, NULL);
 
-  napi_has_property(env, object, NULL, &result);
+  NAPI_CALL(env, napi_create_string_utf8(env,
+                                         (ret[0] == napi_invalid_arg ?
+                                             "pass" : "fail"),
+                                         NAPI_AUTO_LENGTH,
+                                         &prop_result));
+  NAPI_CALL(env, napi_set_named_property(env,
+                                         object,
+                                         "envIsNull",
+                                         prop_result));
 
-  add_last_status(env, "keyIsNull", object);
+  NAPI_CALL(env, napi_create_string_utf8(env,
+                                         (ret[1] == napi_invalid_arg ?
+                                             "pass" : "fail"),
+                                         NAPI_AUTO_LENGTH,
+                                         &prop_result));
+  NAPI_CALL(env, napi_set_named_property(env,
+                                         object,
+                                         "objectIsNull",
+                                         prop_result));
 
-  napi_has_property(env, object, key, NULL);
+  NAPI_CALL(env, napi_create_string_utf8(env,
+                                         (ret[2] == napi_invalid_arg ?
+                                             "pass" : "fail"),
+                                         NAPI_AUTO_LENGTH,
+                                         &prop_result));
+  NAPI_CALL(env, napi_set_named_property(env,
+                                         object,
+                                         "keyIsNull",
+                                         prop_result));
 
-  add_last_status(env, "resultIsNull", object);
+  NAPI_CALL(env, napi_create_string_utf8(env,
+                                         (ret[3] == napi_invalid_arg ?
+                                             "pass" : "fail"),
+                                         NAPI_AUTO_LENGTH,
+                                         &prop_result));
+  NAPI_CALL(env, napi_set_named_property(env,
+                                         object,
+                                         "resultIsNull",
+                                         prop_result));
 
   return object;
 }
 
 static napi_value TestGetProperty(napi_env env,
                                   napi_callback_info info) {
-  napi_status status;
-  napi_value object, key, result;
+  napi_status ret[4];
+  napi_value object, key, result, prop_result;
 
   NAPI_CALL(env, napi_create_object(env, &object));
 
@@ -448,90 +473,55 @@ static napi_value TestGetProperty(napi_env env,
 
   NAPI_CALL(env, napi_create_object(env, &result));
 
-  status = napi_get_property(NULL, object, key, &result);
+  ret[0] = napi_get_property(NULL, object, key, &result);
 
-  add_returned_status(env,
-                      "envIsNull",
-                      object,
-                      "Invalid argument",
-                      napi_invalid_arg,
-                      status);
+  ret[1] = napi_get_property(env, NULL, key, &result);
 
-  napi_get_property(env, NULL, key, &result);
+  ret[2] = napi_get_property(env, object, NULL, &result);
 
-  add_last_status(env, "objectIsNull", object);
+  ret[3] = napi_get_property(env, object, key, NULL);
 
-  napi_get_property(env, object, NULL, &result);
+  NAPI_CALL(env, napi_create_string_utf8(env,
+                                         (ret[0] == napi_invalid_arg ?
+                                             "pass" : "fail"),
+                                         NAPI_AUTO_LENGTH,
+                                         &prop_result));
+  NAPI_CALL(env, napi_set_named_property(env,
+                                         object,
+                                         "envIsNull",
+                                         prop_result));
 
-  add_last_status(env, "keyIsNull", object);
+  NAPI_CALL(env, napi_create_string_utf8(env,
+                                         (ret[1] == napi_invalid_arg ?
+                                             "pass" : "fail"),
+                                         NAPI_AUTO_LENGTH,
+                                         &prop_result));
+  NAPI_CALL(env, napi_set_named_property(env,
+                                         object,
+                                         "objectIsNull",
+                                         prop_result));
 
-  napi_get_property(env, object, key, NULL);
+  NAPI_CALL(env, napi_create_string_utf8(env,
+                                         (ret[2] == napi_invalid_arg ?
+                                             "pass" : "fail"),
+                                         NAPI_AUTO_LENGTH,
+                                         &prop_result));
+  NAPI_CALL(env, napi_set_named_property(env,
+                                         object,
+                                         "keyIsNull",
+                                         prop_result));
 
-  add_last_status(env, "resultIsNull", object);
+  NAPI_CALL(env, napi_create_string_utf8(env,
+                                         (ret[3] == napi_invalid_arg ?
+                                             "pass" : "fail"),
+                                         NAPI_AUTO_LENGTH,
+                                         &prop_result));
+  NAPI_CALL(env, napi_set_named_property(env,
+                                         object,
+                                         "resultIsNull",
+                                         prop_result));
 
   return object;
-}
-
-static napi_value TestFreeze(napi_env env,
-                             napi_callback_info info) {
-  size_t argc = 1;
-  napi_value args[1];
-  NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, NULL, NULL));
-
-  napi_value object = args[0];
-  NAPI_CALL(env, napi_object_freeze(env, object));
-
-  return object;
-}
-
-static napi_value TestSeal(napi_env env,
-                           napi_callback_info info) {
-  size_t argc = 1;
-  napi_value args[1];
-  NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, NULL, NULL));
-
-  napi_value object = args[0];
-  NAPI_CALL(env, napi_object_seal(env, object));
-
-  return object;
-}
-
-// We create two type tags. They are basically 128-bit UUIDs.
-static const napi_type_tag type_tags[2] = {
-  { 0xdaf987b3cc62481a, 0xb745b0497f299531 },
-  { 0xbb7936c374084d9b, 0xa9548d0762eeedb9 }
-};
-
-static napi_value
-TypeTaggedInstance(napi_env env, napi_callback_info info) {
-  size_t argc = 1;
-  uint32_t type_index;
-  napi_value instance, which_type;
-
-  NAPI_CALL(env, napi_get_cb_info(env, info, &argc, &which_type, NULL, NULL));
-  NAPI_CALL(env, napi_get_value_uint32(env, which_type, &type_index));
-  NAPI_CALL(env, napi_create_object(env, &instance));
-  NAPI_CALL(env, napi_type_tag_object(env, instance, &type_tags[type_index]));
-
-  return instance;
-}
-
-static napi_value
-CheckTypeTag(napi_env env, napi_callback_info info) {
-  size_t argc = 2;
-  bool result;
-  napi_value argv[2], js_result;
-  uint32_t type_index;
-
-  NAPI_CALL(env, napi_get_cb_info(env, info, &argc, argv, NULL, NULL));
-  NAPI_CALL(env, napi_get_value_uint32(env, argv[0], &type_index));
-  NAPI_CALL(env, napi_check_object_type_tag(env,
-                                            argv[1],
-                                            &type_tags[type_index],
-                                            &result));
-  NAPI_CALL(env, napi_get_boolean(env, result, &js_result));
-
-  return js_result;
 }
 
 EXTERN_C_START
@@ -540,7 +530,6 @@ napi_value Init(napi_env env, napi_value exports) {
     DECLARE_NAPI_PROPERTY("Get", Get),
     DECLARE_NAPI_PROPERTY("GetNamed", GetNamed),
     DECLARE_NAPI_PROPERTY("GetPropertyNames", GetPropertyNames),
-    DECLARE_NAPI_PROPERTY("GetSymbolNames", GetSymbolNames),
     DECLARE_NAPI_PROPERTY("Set", Set),
     DECLARE_NAPI_PROPERTY("SetNamed", SetNamed),
     DECLARE_NAPI_PROPERTY("Has", Has),
@@ -553,14 +542,8 @@ napi_value Init(napi_env env, napi_value exports) {
     DECLARE_NAPI_PROPERTY("Unwrap", Unwrap),
     DECLARE_NAPI_PROPERTY("TestSetProperty", TestSetProperty),
     DECLARE_NAPI_PROPERTY("TestHasProperty", TestHasProperty),
-    DECLARE_NAPI_PROPERTY("TypeTaggedInstance", TypeTaggedInstance),
-    DECLARE_NAPI_PROPERTY("CheckTypeTag", CheckTypeTag),
     DECLARE_NAPI_PROPERTY("TestGetProperty", TestGetProperty),
-    DECLARE_NAPI_PROPERTY("TestFreeze", TestFreeze),
-    DECLARE_NAPI_PROPERTY("TestSeal", TestSeal),
   };
-
-  init_test_null(env, exports);
 
   NAPI_CALL(env, napi_define_properties(
       env, exports, sizeof(descriptors) / sizeof(*descriptors), descriptors));

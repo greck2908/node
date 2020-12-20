@@ -25,7 +25,7 @@ const bench = common.createBenchmark(main, {
 });
 
 function main({ n, search, encoding, type }) {
-  let aliceBuffer = fs.readFileSync(
+  var aliceBuffer = fs.readFileSync(
     path.resolve(__dirname, '../fixtures/alice.html')
   );
 
@@ -42,7 +42,7 @@ function main({ n, search, encoding, type }) {
   }
 
   bench.start();
-  for (let i = 0; i < n; i++) {
+  for (var i = 0; i < n; i++) {
     aliceBuffer.indexOf(search, 0, encoding);
   }
   bench.end(n);

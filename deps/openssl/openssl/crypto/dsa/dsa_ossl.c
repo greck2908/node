@@ -9,10 +9,10 @@
 
 #include <stdio.h>
 #include "internal/cryptlib.h"
-#include "crypto/bn.h"
+#include "internal/bn_int.h"
 #include <openssl/bn.h>
 #include <openssl/sha.h>
-#include "dsa_local.h"
+#include "dsa_locl.h"
 #include <openssl/asn1.h>
 
 static DSA_SIG *dsa_do_sign(const unsigned char *dgst, int dlen, DSA *dsa);
@@ -70,10 +70,6 @@ static DSA_SIG *dsa_do_sign(const unsigned char *dgst, int dlen, DSA *dsa)
 
     if (dsa->p == NULL || dsa->q == NULL || dsa->g == NULL) {
         reason = DSA_R_MISSING_PARAMETERS;
-        goto err;
-    }
-    if (dsa->priv_key == NULL) {
-        reason = DSA_R_MISSING_PRIVATE_KEY;
         goto err;
     }
 
@@ -199,10 +195,6 @@ static int dsa_sign_setup(DSA *dsa, BN_CTX *ctx_in,
         DSAerr(DSA_F_DSA_SIGN_SETUP, DSA_R_INVALID_PARAMETERS);
         return 0;
     }
-    if (dsa->priv_key == NULL) {
-        DSAerr(DSA_F_DSA_SIGN_SETUP, DSA_R_MISSING_PRIVATE_KEY);
-        return 0;
-    }
 
     k = BN_new();
     l = BN_new();
@@ -256,7 +248,7 @@ static int dsa_sign_setup(DSA *dsa, BN_CTX *ctx_in,
      * one bit longer than the modulus.
      *
      * There are some concerns about the efficacy of doing this.  More
-     * specifically refer to the discussion starting with:
+     * specificly refer to the discussion starting with:
      *     https://github.com/openssl/openssl/pull/7486#discussion_r228323705
      * The fix is to rework BN so these gymnastics aren't required.
      */

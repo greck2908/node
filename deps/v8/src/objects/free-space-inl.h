@@ -5,11 +5,12 @@
 #ifndef V8_OBJECTS_FREE_SPACE_INL_H_
 #define V8_OBJECTS_FREE_SPACE_INL_H_
 
-#include "src/execution/isolate.h"
+#include "src/objects/free-space.h"
+
 #include "src/heap/heap-write-barrier-inl.h"
 #include "src/heap/heap.h"
-#include "src/objects/free-space.h"
-#include "src/objects/objects-inl.h"
+#include "src/isolate.h"
+#include "src/objects-inl.h"
 
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
@@ -17,42 +18,47 @@
 namespace v8 {
 namespace internal {
 
-TQ_OBJECT_CONSTRUCTORS_IMPL(FreeSpace)
+OBJECT_CONSTRUCTORS_IMPL(FreeSpace, HeapObject)
 
+SMI_ACCESSORS(FreeSpace, size, kSizeOffset)
 RELAXED_SMI_ACCESSORS(FreeSpace, size, kSizeOffset)
 
 int FreeSpace::Size() { return size(); }
 
 FreeSpace FreeSpace::next() {
-  DCHECK(IsValid());
-  return FreeSpace::unchecked_cast(
-      TaggedField<Object, kNextOffset>::load(*this));
+#ifdef DEBUG
+  Heap* heap = GetHeapFromWritableObject(*this);
+  Object free_space_map =
+      Isolate::FromHeap(heap)->root(RootIndex::kFreeSpaceMap);
+  DCHECK_IMPLIES(!map_slot().contains_value(free_space_map->ptr()),
+                 !heap->deserialization_complete() &&
+                     map_slot().contains_value(kNullAddress));
+#endif
+  DCHECK_LE(kNextOffset + kTaggedSize, relaxed_read_size());
+  return FreeSpace::unchecked_cast(*ObjectSlot(address() + kNextOffset));
 }
 
 void FreeSpace::set_next(FreeSpace next) {
-  DCHECK(IsValid());
-  RELAXED_WRITE_FIELD(*this, kNextOffset, next);
+#ifdef DEBUG
+  Heap* heap = GetHeapFromWritableObject(*this);
+  Object free_space_map =
+      Isolate::FromHeap(heap)->root(RootIndex::kFreeSpaceMap);
+  DCHECK_IMPLIES(!map_slot().contains_value(free_space_map->ptr()),
+                 !heap->deserialization_complete() &&
+                     map_slot().contains_value(kNullAddress));
+#endif
+  DCHECK_LE(kNextOffset + kTaggedSize, relaxed_read_size());
+  ObjectSlot(address() + kNextOffset).Relaxed_Store(next);
 }
 
 FreeSpace FreeSpace::cast(HeapObject o) {
-  SLOW_DCHECK((!GetHeapFromWritableObject(o)->deserialization_complete()) ||
-              o.IsFreeSpace());
+  SLOW_DCHECK(!GetHeapFromWritableObject(o)->deserialization_complete() ||
+              o->IsFreeSpace());
   return bit_cast<FreeSpace>(o);
 }
 
 FreeSpace FreeSpace::unchecked_cast(const Object o) {
   return bit_cast<FreeSpace>(o);
-}
-
-bool FreeSpace::IsValid() {
-  Heap* heap = GetHeapFromWritableObject(*this);
-  Object free_space_map =
-      Isolate::FromHeap(heap)->root(RootIndex::kFreeSpaceMap);
-  CHECK_IMPLIES(!map_slot().contains_value(free_space_map.ptr()),
-                !heap->deserialization_complete() &&
-                    map_slot().contains_value(kNullAddress));
-  CHECK_LE(kNextOffset + kTaggedSize, relaxed_read_size());
-  return true;
 }
 
 }  // namespace internal

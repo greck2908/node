@@ -40,7 +40,7 @@ if (!process.env.HAS_STARTED_WORKER) {
 
   ['channel', 'connected'].forEach((fn) => {
     assert.throws(() => {
-      process[fn]; // eslint-disable-line no-unused-expressions
+      process[fn];
     }, { code: 'ERR_WORKER_UNSUPPORTED_OPERATION' });
   });
 

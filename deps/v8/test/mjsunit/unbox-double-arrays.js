@@ -149,13 +149,6 @@ function testOneArrayType(allocator) {
     assertTrue(%HasDoubleElements(a));
   }
 
-  %PrepareFunctionForOptimization(test_various_loads);
-  %PrepareFunctionForOptimization(test_various_loads2);
-  %PrepareFunctionForOptimization(test_various_loads3);
-  %PrepareFunctionForOptimization(test_various_loads6);
-  %PrepareFunctionForOptimization(test_various_loads7);
-  %PrepareFunctionForOptimization(test_various_stores);
-
   // Test double and integer values
   test_various_loads(large_array,
                      expected_array_value(5),
@@ -470,7 +463,6 @@ function call_apply() {
   called_by_apply.apply({}, large_array3);
 }
 
-%PrepareFunctionForOptimization(call_apply);
 call_apply();
 call_apply();
 call_apply();
@@ -491,7 +483,6 @@ function test_for_in() {
   assertTrue(next_expected == 96);
 }
 
-%PrepareFunctionForOptimization(test_for_in);
 test_for_in();
 test_for_in();
 test_for_in();
@@ -512,7 +503,6 @@ function test_getter() {
   assertEquals(expected_array_value(10), large_array3[2]);
 }
 
-%PrepareFunctionForOptimization(test_getter);
 test_getter();
 test_getter();
 test_getter();
@@ -541,7 +531,6 @@ function test_setter() {
   assertEquals(expected_array_value(2), large_array4[2]);
 }
 
-%PrepareFunctionForOptimization(test_setter);
 test_setter();
 test_setter();
 test_setter();

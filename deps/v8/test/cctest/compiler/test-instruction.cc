@@ -12,22 +12,21 @@
 #include "src/compiler/operator.h"
 #include "src/compiler/schedule.h"
 #include "src/compiler/scheduler.h"
-#include "src/objects/objects-inl.h"
+#include "src/objects-inl.h"
 #include "test/cctest/cctest.h"
 
 namespace v8 {
 namespace internal {
 namespace compiler {
 
-using TestInstr = v8::internal::compiler::Instruction;
-using TestInstrSeq = v8::internal::compiler::InstructionSequence;
+typedef v8::internal::compiler::Instruction TestInstr;
+typedef v8::internal::compiler::InstructionSequence TestInstrSeq;
 
 // A testing helper for the register code abstraction.
 class InstructionTester : public HandleAndZoneScope {
  public:  // We're all friends here.
   InstructionTester()
-      : HandleAndZoneScope(kCompressGraphZone),
-        graph(zone()),
+      : graph(zone()),
         schedule(zone()),
         common(zone()),
         machine(zone()),
@@ -49,8 +48,8 @@ class InstructionTester : public HandleAndZoneScope {
     }
     InstructionBlocks* instruction_blocks =
         TestInstrSeq::InstructionBlocksFor(main_zone(), &schedule);
-    code = main_zone()->New<TestInstrSeq>(main_isolate(), main_zone(),
-                                          instruction_blocks);
+    code = new (main_zone())
+        TestInstrSeq(main_isolate(), main_zone(), instruction_blocks);
   }
 
   Node* Int32Constant(int32_t val) {

@@ -20,32 +20,30 @@ assert.strictEqual(sessionName(1), 'client');
 });
 
 // Code coverage for assertWithinRange function
-assert.throws(
+common.expectsError(
   () => assertWithinRange('test', -1),
   {
     code: 'ERR_HTTP2_INVALID_SETTING_VALUE',
-    name: 'RangeError',
+    type: RangeError,
     message: 'Invalid value for setting "test": -1'
   });
 
 assertWithinRange('test', 1);
 
-assert.throws(
+common.expectsError(
   () => assertIsObject('foo', 'test'),
   {
     code: 'ERR_INVALID_ARG_TYPE',
-    name: 'TypeError',
-    message: 'The "test" argument must be of type object. Received ' +
-             "type string ('foo')"
+    type: TypeError,
+    message: 'The "test" argument must be of type Object. Received type string'
   });
 
-assert.throws(
+common.expectsError(
   () => assertIsObject('foo', 'test', ['Date']),
   {
     code: 'ERR_INVALID_ARG_TYPE',
-    name: 'TypeError',
-    message: 'The "test" argument must be an instance of Date. Received type ' +
-             "string ('foo')"
+    type: TypeError,
+    message: 'The "test" argument must be of type Date. Received type string'
   });
 
 assertIsObject({}, 'test');

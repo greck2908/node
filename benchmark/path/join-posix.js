@@ -15,7 +15,7 @@ function main({ n, paths }) {
   const orig = copy[1];
 
   bench.start();
-  for (let i = 0; i < n; i++) {
+  for (var i = 0; i < n; i++) {
     if (i % 3 === 0) {
       copy[1] = `${orig}${i}`;
       posix.join(...copy);

@@ -48,8 +48,8 @@ symlinks.forEach((symlink) => {
   fs.symlinkSync(symlink.target, mainPath);
 
   const flags = [
-    '',
-    '--preserve-symlinks-main'
+    '--experimental-modules',
+    '--experimental-modules --preserve-symlinks-main'
   ];
   flags.forEach((nodeOptions) => {
     const opts = {

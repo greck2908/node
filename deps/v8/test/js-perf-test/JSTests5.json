@@ -19,7 +19,7 @@
         "baseline-babel-es2017.js",
         "baseline-naive-promises.js"
       ],
-      "flags": ["--allow-natives-syntax", "--ignore-unhandled-promises"],
+      "flags": ["--allow-natives-syntax"],
       "results_regexp": "^%s\\-AsyncAwait\\(Score\\): (.+)$",
       "tests": [
         {"name": "BaselineES2017"},
@@ -40,6 +40,7 @@
       "main": "run.js",
       "resources": [],
       "results_regexp": "^%s\\-ArrayLiteralInitialSpreadLargePacked\\(Score\\): (.+)$",
+      "retry_count_arm64": 1,
       "tests": [
         {"name": "Spread"},
         {"name": "ForLength"},
@@ -56,6 +57,7 @@
       "main": "run.js",
       "resources": [],
       "results_regexp": "^%s\\-ArrayLiteralInitialSpreadLargeHoley\\(Score\\): (.+)$",
+      "retry_count_arm64": 1,
       "tests": [
         {"name": "Spread"},
         {"name": "ForLength"},
@@ -72,6 +74,7 @@
       "main": "run.js",
       "resources": [],
       "results_regexp": "^%s\\-ArrayLiteralInitialSpreadLargeDoublePacked\\(Score\\): (.+)$",
+      "retry_count_arm64": 1,
       "tests": [
         {"name": "Spread"},
         {"name": "ForLength"},
@@ -88,6 +91,7 @@
       "main": "run.js",
       "resources": [],
       "results_regexp": "^%s\\-ArrayLiteralInitialSpreadLargeDoubleHoley\\(Score\\): (.+)$",
+      "retry_count_arm64": 1,
       "tests": [
         {"name": "Spread"},
         {"name": "ForLength"},
@@ -504,9 +508,7 @@
         {"name": "NewIntlNumberFormat"},
         {"name": "NewIntlPluralRules"},
         {"name": "NewIntlListFormat"},
-        {"name": "NewIntlRelativeTimeFormat"},
-        {"name": "NewIntlLocale"},
-        {"name": "NewIntlLocaleWithOptions"}
+        {"name": "NewIntlRelativeTimeFormat"}
       ]
     },
     {
@@ -551,17 +553,15 @@
       "main": "run.js",
       "flags": ["--allow-natives-syntax"],
       "resources": [
-        "toNumber.js",
-        "toLocaleString.js",
-        "toHexString.js"
+	      "toNumber.js",
+	      "toLocaleString.js"
       ],
       "results_regexp": "^%s\\-Numbers\\(Score\\): (.+)$",
       "tests": [
         {"name": "Constructor"},
         {"name": "UnaryPlus"},
         {"name": "ParseFloat"},
-        {"name": "toLocaleString"},
-        {"name": "toHexString"}
+        {"name": "toLocaleString"}
       ]
     },
     {
@@ -570,26 +570,12 @@
       "main": "run.js",
       "flags": [],
       "resources": [
-	      "array-indexof-includes.js",
-	      "spread-call.js",
-        "tagged-template.js",
-        "has-own-property.js",
-        "array-map.js",
-        "array-reduce.js"
+	      "tagged-template.js"
       ],
       "results_regexp": "^%s\\-Numbers\\(Score\\): (.+)$",
       "tests": [
         {"name": "TaggedTemplate"},
-        {"name": "TaggedTemplateLoose"},
-        {"name": "ArrayIndexOf"},
-        {"name": "ArrayIncludes"},
-        {"name": "ApplySpreadLiteral"},
-        {"name": "SpreadCall"},
-        {"name": "SpreadCallSpreadLiteral"},
-        {"name": "HasOwnProperty"},
-        {"name": "ArrayMap"},
-        {"name": "ArrayReduce"},
-        {"name": "ArrayReduceRight"}
+        {"name": "TaggedTemplateLoose"}
       ]
     },
     {
@@ -619,18 +605,6 @@
         {"name": "Custom-Serialize-Error.stack"},
         {"name": "Inline-Serialize-Error.stack"},
         {"name": "Recursive-Serialize-Error.stack"}
-      ]
-    },
-    {
-      "name": "IC",
-      "path": ["IC"],
-      "main": "run.js",
-      "flags": ["--no-opt"],
-      "resources": ["loadconstantfromprototype.js"],
-      "results_regexp": "^%s\\-IC\\(Score\\): (.+)$",
-      "tests": [
-        {"name": "LoadConstantFromPrototype"
-        }
       ]
     }
   ]

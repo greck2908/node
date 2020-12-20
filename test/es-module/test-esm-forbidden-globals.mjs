@@ -1,3 +1,4 @@
+// Flags: --experimental-modules
 import '../common/index.mjs';
 
 // eslint-disable-next-line no-undef

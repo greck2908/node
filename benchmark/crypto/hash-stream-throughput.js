@@ -19,8 +19,8 @@ function main({ api, type, len, algo, writes }) {
     api = 'legacy';
   }
 
-  let message;
-  let encoding;
+  var message;
+  var encoding;
   switch (type) {
     case 'asc':
       message = 'a'.repeat(len);

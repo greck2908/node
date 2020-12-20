@@ -20,8 +20,7 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
-require('../common');
-const assert = require('assert');
+const common = require('../common');
 const http = require('http');
 const url = require('url');
 
@@ -35,11 +34,11 @@ const invalidUrls = [
 ];
 
 invalidUrls.forEach((invalid) => {
-  assert.throws(
+  common.expectsError(
     () => { http.request(url.parse(invalid)); },
     {
       code: 'ERR_INVALID_PROTOCOL',
-      name: 'TypeError'
+      type: TypeError
     }
   );
 });

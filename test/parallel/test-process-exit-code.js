@@ -22,7 +22,6 @@
 'use strict';
 require('../common');
 const assert = require('assert');
-const debug = require('util').debuglog('test');
 
 const testCases = require('../fixtures/process-exit-code-cases');
 
@@ -31,7 +30,7 @@ if (!process.argv[2]) {
 } else {
   const i = parseInt(process.argv[2]);
   if (Number.isNaN(i)) {
-    debug('Invalid test case index');
+    console.log('Invalid test case index');
     process.exit(100);
     return;
   }
@@ -49,7 +48,7 @@ function parent() {
       assert.strictEqual(
         code, exit,
         `wrong exit for ${arg}-${name}\nexpected:${exit} but got:${code}`);
-      debug(`ok - ${arg} exited with ${exit}`);
+      console.log(`ok - ${arg} exited with ${exit}`);
     });
   };
 

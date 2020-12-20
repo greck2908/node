@@ -1,4 +1,4 @@
-// Flags: --expose-internals
+// Flags: --expose_internals
 'use strict';
 const common = require('../common');
 const assert = require('assert');
@@ -29,9 +29,9 @@ if (process.argv[2] === 'child') {
   }
 
   // Verify that an error is thrown for unknown signals.
-  assert.throws(() => {
+  common.expectsError(() => {
     spawn('SIG_NOT_A_REAL_SIGNAL');
-  }, { code: 'ERR_UNKNOWN_SIGNAL', name: 'TypeError' });
+  }, { code: 'ERR_UNKNOWN_SIGNAL', type: TypeError });
 
   // Verify that the default kill signal is SIGTERM.
   {

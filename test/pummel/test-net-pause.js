@@ -20,7 +20,7 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
-require('../common');
+const common = require('../common');
 const assert = require('assert');
 const net = require('net');
 
@@ -43,7 +43,7 @@ const server = net.createServer((connection) => {
 });
 
 server.on('listening', () => {
-  const client = net.createConnection(server.address().port);
+  const client = net.createConnection(common.PORT);
   client.setEncoding('ascii');
   client.on('data', (d) => {
     console.log(d);
@@ -83,7 +83,7 @@ server.on('listening', () => {
     client.end();
   });
 });
-server.listen(0);
+server.listen(common.PORT);
 
 process.on('exit', () => {
   assert.strictEqual(recv.length, N);

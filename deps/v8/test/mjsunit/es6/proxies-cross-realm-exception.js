@@ -20,7 +20,6 @@ assertFalse(Realm.eval(realm, "1; Realm.global(0) instanceof Object"));
 // Test that the instannceof check works in optimized code.
 var test = Realm.eval(realm,
     "()=>{1.1; return Realm.global(0) instanceof Object; }");
-%PrepareFunctionForOptimization(test);
 assertFalse(test());
 test();
 test();

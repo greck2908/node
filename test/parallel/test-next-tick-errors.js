@@ -20,7 +20,7 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
-require('../common');
+const common = require('../common');
 const assert = require('assert');
 
 const order = [];
@@ -42,12 +42,16 @@ process.nextTick(function() {
 });
 
 function testNextTickWith(val) {
-  assert.throws(() => {
-    process.nextTick(val);
-  }, {
-    code: 'ERR_INVALID_CALLBACK',
-    name: 'TypeError'
-  });
+  common.expectsError(
+    function() {
+      process.nextTick(val);
+    },
+    {
+      code: 'ERR_INVALID_CALLBACK',
+      name: 'TypeError',
+      type: TypeError
+    }
+  );
 }
 
 testNextTickWith(false);

@@ -527,8 +527,6 @@ TimeZone::detectHostTimeZone()
 
 // -------------------------------------
 
-static UMutex gDefaultZoneMutex;
-
 /**
  * Initialize DEFAULT_ZONE from the system default time zone.
  * Upon return, DEFAULT_ZONE will not be NULL, unless operator new()
@@ -538,7 +536,6 @@ static void U_CALLCONV initDefault()
 {
     ucln_i18n_registerCleanup(UCLN_I18N_TIMEZONE, timeZone_cleanup);
 
-    Mutex lock(&gDefaultZoneMutex);
     // If setDefault() has already been called we can skip getting the
     // default zone information from the system.
     if (DEFAULT_ZONE != NULL) {
@@ -560,6 +557,9 @@ static void U_CALLCONV initDefault()
 
     TimeZone *default_zone = TimeZone::detectHostTimeZone();
 
+    // The only way for DEFAULT_ZONE to be non-null at this point is if the user
+    // made a thread-unsafe call to setDefault() or adoptDefault() in another
+    // thread while this thread was doing something that required getting the default.
     U_ASSERT(DEFAULT_ZONE == NULL);
 
     DEFAULT_ZONE = default_zone;
@@ -571,28 +571,7 @@ TimeZone* U_EXPORT2
 TimeZone::createDefault()
 {
     umtx_initOnce(gDefaultZoneInitOnce, initDefault);
-    {
-        Mutex lock(&gDefaultZoneMutex);
-        return (DEFAULT_ZONE != NULL) ? DEFAULT_ZONE->clone() : NULL;
-    }
-}
-
-// -------------------------------------
-
-TimeZone* U_EXPORT2
-TimeZone::forLocaleOrDefault(const Locale& locale)
-{
-    char buffer[ULOC_KEYWORDS_CAPACITY] = "";
-    UErrorCode localStatus = U_ZERO_ERROR;
-    int32_t count = locale.getKeywordValue("timezone", buffer, sizeof(buffer), localStatus);
-    if (U_FAILURE(localStatus) || localStatus == U_STRING_NOT_TERMINATED_WARNING) {
-        // the "timezone" keyword exceeds ULOC_KEYWORDS_CAPACITY; ignore and use default.
-        count = 0;
-    }
-    if (count > 0) {
-        return TimeZone::createTimeZone(UnicodeString(buffer, count, US_INV));
-    }
-    return TimeZone::createDefault();
+    return (DEFAULT_ZONE != NULL) ? DEFAULT_ZONE->clone() : NULL;
 }
 
 // -------------------------------------
@@ -602,12 +581,9 @@ TimeZone::adoptDefault(TimeZone* zone)
 {
     if (zone != NULL)
     {
-        {
-            Mutex lock(&gDefaultZoneMutex);
-            TimeZone *old = DEFAULT_ZONE;
-            DEFAULT_ZONE = zone;
-            delete old;
-        }
+        TimeZone *old = DEFAULT_ZONE;
+        DEFAULT_ZONE = zone;
+        delete old;
         ucln_i18n_registerCleanup(UCLN_I18N_TIMEZONE, timeZone_cleanup);
     }
 }

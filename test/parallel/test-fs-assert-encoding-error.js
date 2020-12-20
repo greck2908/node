@@ -4,10 +4,10 @@ const assert = require('assert');
 const fs = require('fs');
 
 const options = 'test';
-const expectedError = {
-  code: 'ERR_INVALID_ARG_VALUE',
-  name: 'TypeError',
-};
+const expectedError = common.expectsError({
+  code: 'ERR_INVALID_OPT_VALUE_ENCODING',
+  type: TypeError,
+}, 17);
 
 assert.throws(() => {
   fs.readFile('path', options, common.mustNotCall());

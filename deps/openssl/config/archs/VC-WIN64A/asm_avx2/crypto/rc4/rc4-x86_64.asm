@@ -19,14 +19,13 @@ $L$SEH_begin_RC4:
 	mov	rdx,r8
 	mov	rcx,r9
 
-
-
 	or	rsi,rsi
 	jne	NEAR $L$entry
 	mov	rdi,QWORD[8+rsp]	;WIN64 epilogue
 	mov	rsi,QWORD[16+rsp]
 	DB	0F3h,0C3h		;repret
 $L$entry:
+
 	push	rbx
 
 	push	r12
@@ -559,7 +558,6 @@ $L$SEH_begin_RC4_set_key:
 	mov	rdx,r8
 
 
-
 	lea	rdi,[8+rdi]
 	lea	rdx,[rsi*1+rdx]
 	neg	rsi
@@ -628,14 +626,12 @@ $L$exit_key:
 	mov	rdi,QWORD[8+rsp]	;WIN64 epilogue
 	mov	rsi,QWORD[16+rsp]
 	DB	0F3h,0C3h		;repret
-
 $L$SEH_end_RC4_set_key:
 
 global	RC4_options
 
 ALIGN	16
 RC4_options:
-
 	lea	rax,[$L$opts]
 	mov	edx,DWORD[OPENSSL_ia32cap_P]
 	bt	edx,20
@@ -648,7 +644,6 @@ $L$8xchar:
 	add	rax,12
 $L$done:
 	DB	0F3h,0C3h		;repret
-
 ALIGN	64
 $L$opts:
 DB	114,99,52,40,56,120,44,105,110,116,41,0

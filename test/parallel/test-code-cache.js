@@ -22,23 +22,17 @@ for (const key of canBeRequired) {
 // The computation has to be delayed until we have done loading modules
 const {
   compiledWithoutCache,
-  compiledWithCache,
-  compiledInSnapshot
+  compiledWithCache
 } = getCacheUsage();
 
-function extractModules(list) {
-  return list.filter((m) => m.startsWith('NativeModule'))
+const loadedModules = process.moduleLoadList
+  .filter((m) => m.startsWith('NativeModule'))
   .map((m) => m.replace('NativeModule ', ''));
-}
-
-const loadedModules = extractModules(process.moduleLoadList);
 
 // Cross-compiled binaries do not have code cache, verifies that the builtins
 // are all compiled without cache and we are doing the bookkeeping right.
 if (!process.features.cached_builtins) {
   console.log('The binary is not configured with code cache');
-  assert(!process.config.variables.node_use_node_code_cache);
-
   if (isMainThread) {
     assert.deepStrictEqual(compiledWithCache, new Set());
     for (const key of loadedModules) {
@@ -52,7 +46,10 @@ if (!process.features.cached_builtins) {
     assert.notDeepStrictEqual(compiledWithCache, new Set());
   }
 } else {  // Native compiled
-  assert(process.config.variables.node_use_node_code_cache);
+  assert.strictEqual(
+    process.config.variables.node_code_cache,
+    'yes'
+  );
 
   if (!isMainThread) {
     for (const key of [ 'internal/bootstrap/pre_execution' ]) {
@@ -66,9 +63,7 @@ if (!process.features.cached_builtins) {
     if (cannotBeRequired.has(key) && !compiledWithoutCache.has(key)) {
       wrong.push(`"${key}" should've been compiled **without** code cache`);
     }
-    if (canBeRequired.has(key) &&
-      !compiledWithCache.has(key) &&
-      compiledInSnapshot.indexOf(key) === -1) {
+    if (canBeRequired.has(key) && !compiledWithCache.has(key)) {
       wrong.push(`"${key}" should've been compiled **with** code cache`);
     }
   }

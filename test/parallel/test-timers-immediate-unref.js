@@ -1,6 +1,8 @@
 'use strict';
 
 const common = require('../common');
+const Countdown = require('../common/countdown');
+
 const assert = require('assert');
 
 const immediate = setImmediate(() => {});
@@ -14,10 +16,12 @@ clearImmediate(immediate);
 setImmediate(common.mustCall(firstStep)).ref().unref().unref().ref();
 
 function firstStep() {
+  const countdown =
+    new Countdown(2, common.mustCall(() => setImmediate(secondStep)));
   // Unrefed setImmediate executes if it was unrefed but something else keeps
   // the loop open
-  setImmediate(common.mustCall()).unref();
-  setTimeout(common.mustCall(() => { setImmediate(secondStep); }), 0);
+  setImmediate(() => countdown.dec()).unref();
+  setTimeout(() => countdown.dec(), 50);
 }
 
 function secondStep() {

@@ -10,13 +10,13 @@
 #include <vector>
 
 #include "include/v8.h"
-#include "src/common/globals.h"
+#include "src/globals.h"
 
 namespace v8 {
 
 namespace internal {
 class BuiltinArguments;
-}  // namespace internal
+}  // internal
 
 namespace debug {
 
@@ -40,6 +40,33 @@ class V8_EXPORT_PRIVATE Location {
   int line_number_;
   int column_number_;
   bool is_empty_;
+};
+
+/**
+ * The result of disassembling a wasm function.
+ * Consists of the disassembly string and an offset table mapping wasm byte
+ * offsets to line and column in the disassembly.
+ * The offset table entries are ordered by the byte_offset.
+ * All numbers are 0-based.
+ */
+struct WasmDisassemblyOffsetTableEntry {
+  WasmDisassemblyOffsetTableEntry(uint32_t byte_offset, int line, int column)
+      : byte_offset(byte_offset), line(line), column(column) {}
+
+  uint32_t byte_offset;
+  int line;
+  int column;
+};
+
+struct WasmDisassembly {
+  using OffsetTable = std::vector<WasmDisassemblyOffsetTableEntry>;
+  WasmDisassembly() = default;
+  WasmDisassembly(std::string disassembly, OffsetTable offset_table)
+      : disassembly(std::move(disassembly)),
+        offset_table(std::move(offset_table)) {}
+
+  std::string disassembly;
+  OffsetTable offset_table;
 };
 
 enum DebugAsyncActionType {
@@ -102,7 +129,7 @@ class ConsoleCallArguments : private v8::FunctionCallbackInfo<v8::Value> {
   }
 
   explicit ConsoleCallArguments(const v8::FunctionCallbackInfo<v8::Value>&);
-  explicit ConsoleCallArguments(const internal::BuiltinArguments&);
+  explicit ConsoleCallArguments(internal::BuiltinArguments&);
 };
 
 class ConsoleContext {

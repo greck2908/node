@@ -6,17 +6,14 @@
 #define V8_COMPILER_ESCAPE_ANALYSIS_H_
 
 #include "src/base/functional.h"
-#include "src/common/globals.h"
 #include "src/compiler/graph-reducer.h"
 #include "src/compiler/js-graph.h"
 #include "src/compiler/persistent-map.h"
+#include "src/globals.h"
 #include "src/objects/name.h"
 
 namespace v8 {
 namespace internal {
-
-class TickCounter;
-
 namespace compiler {
 
 class CommonOperatorBuilder;
@@ -41,8 +38,7 @@ class EffectGraphReducer {
   };
 
   EffectGraphReducer(Graph* graph,
-                     std::function<void(Node*, Reduction*)> reduce,
-                     TickCounter* tick_counter, Zone* zone);
+                     std::function<void(Node*, Reduction*)> reduce, Zone* zone);
 
   void ReduceGraph() { ReduceFrom(graph_->end()); }
 
@@ -60,8 +56,6 @@ class EffectGraphReducer {
 
   bool Complete() { return stack_.empty() && revisit_.empty(); }
 
-  TickCounter* tick_counter() const { return tick_counter_; }
-
  private:
   struct NodeState {
     Node* node;
@@ -75,7 +69,6 @@ class EffectGraphReducer {
   ZoneStack<Node*> revisit_;
   ZoneStack<NodeState> stack_;
   std::function<void(Node*, Reduction*)> reduce_;
-  TickCounter* const tick_counter_;
 };
 
 // A variable is an abstract storage location, which is lowered to SSA values
@@ -171,7 +164,7 @@ class EscapeAnalysisResult {
 class V8_EXPORT_PRIVATE EscapeAnalysis final
     : public NON_EXPORTED_BASE(EffectGraphReducer) {
  public:
-  EscapeAnalysis(JSGraph* jsgraph, TickCounter* tick_counter, Zone* zone);
+  EscapeAnalysis(JSGraph* jsgraph, Zone* zone);
 
   EscapeAnalysisResult analysis_result() {
     DCHECK(Complete());

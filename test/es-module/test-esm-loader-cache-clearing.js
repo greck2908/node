@@ -1,3 +1,4 @@
+// Flags: --experimental-modules
 'use strict';
 require('../common');
 

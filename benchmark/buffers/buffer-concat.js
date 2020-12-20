@@ -15,7 +15,7 @@ function main({ n, pieces, pieceSize, withTotalLength }) {
   const totalLength = withTotalLength ? pieces * pieceSize : undefined;
 
   bench.start();
-  for (let i = 0; i < n; i++) {
+  for (var i = 0; i < n; i++) {
     Buffer.concat(list, totalLength);
   }
   bench.end(n);

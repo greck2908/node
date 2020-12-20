@@ -1,3 +1,4 @@
+// Flags: --expose-internals
 'use strict';
 const common = require('../common');
 
@@ -28,4 +29,4 @@ async function runTest() {
   return child.kill();
 }
 
-runTest().then(common.mustCall());
+runTest();

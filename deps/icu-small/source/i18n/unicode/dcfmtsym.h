@@ -28,12 +28,10 @@
 #define DCFMTSYM_H
 
 #include "unicode/utypes.h"
-
-#if U_SHOW_CPLUSPLUS_API
+#include "unicode/uchar.h"
 
 #if !UCONFIG_NO_FORMATTING
 
-#include "unicode/uchar.h"
 #include "unicode/uobject.h"
 #include "unicode/locid.h"
 #include "unicode/numsys.h"
@@ -291,17 +289,6 @@ public:
      */
     void setSymbol(ENumberFormatSymbol symbol, const UnicodeString &value, const UBool propogateDigits);
 
-#ifndef U_HIDE_INTERNAL_API
-    /**
-     * Loads symbols for the specified currency into this instance.
-     *
-     * This method is internal. If you think it should be public, file a ticket.
-     *
-     * @internal
-     */
-    void setCurrency(const UChar* currency, UErrorCode& status);
-#endif  // U_HIDE_INTERNAL_API
-
     /**
      * Returns the locale for which this object was constructed.
      * @stable ICU 2.6
@@ -378,12 +365,14 @@ private:
      *                             back to the locale.
      */
     void initialize(const Locale& locale, UErrorCode& success,
-                    UBool useLastResortData = false, const NumberingSystem* ns = nullptr);
+        UBool useLastResortData = FALSE, const NumberingSystem* ns = nullptr);
 
     /**
      * Initialize the symbols with default values.
      */
     void initialize();
+
+    void setCurrencyForSymbols();
 
 public:
 
@@ -466,11 +455,13 @@ private:
      * to non-resource bundle strings,
      * then regular UnicodeString copies must be used instead of fastCopyFrom().
      *
+     * @internal
      */
     UnicodeString fSymbols[kFormatSymbolCount];
 
     /**
      * Non-symbol variable for getConstSymbol(). Always empty.
+     * @internal
      */
     UnicodeString fNoSymbol;
 
@@ -543,12 +534,12 @@ inline const UnicodeString& DecimalFormatSymbols::getConstDigitSymbol(int32_t di
 // -------------------------------------
 
 inline void
-DecimalFormatSymbols::setSymbol(ENumberFormatSymbol symbol, const UnicodeString &value, const UBool propagateDigits = true) {
+DecimalFormatSymbols::setSymbol(ENumberFormatSymbol symbol, const UnicodeString &value, const UBool propogateDigits = TRUE) {
     if (symbol == kCurrencySymbol) {
-        fIsCustomCurrencySymbol = true;
+        fIsCustomCurrencySymbol = TRUE;
     }
     else if (symbol == kIntlCurrencySymbol) {
-        fIsCustomIntlCurrencySymbol = true;
+        fIsCustomIntlCurrencySymbol = TRUE;
     }
     if(symbol<kFormatSymbolCount) {
         fSymbols[symbol]=value;
@@ -559,7 +550,7 @@ DecimalFormatSymbols::setSymbol(ENumberFormatSymbol symbol, const UnicodeString 
     // Also record updates to fCodePointZero. Be conservative if in doubt.
     if (symbol == kZeroDigitSymbol) {
         UChar32 sym = value.char32At(0);
-        if ( propagateDigits && u_charDigitValue(sym) == 0 && value.countChar32() == 1 ) {
+        if ( propogateDigits && u_charDigitValue(sym) == 0 && value.countChar32() == 1 ) {
             fCodePointZero = sym;
             for ( int8_t i = 1 ; i<= 9 ; i++ ) {
                 sym++;
@@ -590,8 +581,6 @@ DecimalFormatSymbols::getCurrencyPattern() const {
 U_NAMESPACE_END
 
 #endif /* #if !UCONFIG_NO_FORMATTING */
-
-#endif /* U_SHOW_CPLUSPLUS_API */
 
 #endif // _DCFMTSYM
 //eof

@@ -3,7 +3,6 @@
 const common = require('../common');
 if (!common.hasCrypto)
   common.skip('missing crypto');
-const assert = require('assert');
 const http2 = require('http2');
 const Countdown = require('../common/countdown');
 
@@ -23,7 +22,7 @@ server.listen(0, common.mustCall(() => {
   });
 
   // Request 1 will fail because there are two content-length header values
-  assert.throws(
+  common.expectsError(
     () => {
       client.request({
         ':method': 'POST',
@@ -32,7 +31,7 @@ server.listen(0, common.mustCall(() => {
       });
     }, {
       code: 'ERR_HTTP2_HEADER_SINGLE_VALUE',
-      name: 'TypeError',
+      type: TypeError,
       message: 'Header field "content-length" must only have a single value'
     }
   );
@@ -58,7 +57,7 @@ server.listen(0, common.mustCall(() => {
     req.on('close', common.mustCall(() => countdown.dec()));
     req.on('error', common.expectsError({
       code: 'ERR_HTTP2_STREAM_ERROR',
-      name: 'Error',
+      type: Error,
       message: 'Stream closed with error code NGHTTP2_PROTOCOL_ERROR'
     }));
   }

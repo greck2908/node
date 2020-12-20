@@ -19,9 +19,9 @@ if (process.argv[2] === 'child') {
     process.send(data);
   });
 } else {
-  assert.throws(
+  common.expectsError(
     () => cp.fork(__filename, { stdio: ['pipe', 'pipe', 'pipe', 'pipe'] }),
-    { code: 'ERR_CHILD_PROCESS_IPC_REQUIRED', name: 'Error' });
+    { code: 'ERR_CHILD_PROCESS_IPC_REQUIRED', type: Error });
 
   let ipc = '';
   let stderr = '';

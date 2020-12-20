@@ -1,6 +1,5 @@
 'use strict';
 const common = require('../common');
-const assert = require('assert');
 const net = require('net');
 
 {
@@ -15,7 +14,7 @@ const net = require('net');
 }
 
 {
-  assert.throws(
+  common.expectsError(
     () => net.createConnection({ path: {} }),
     { code: 'ERR_INVALID_ARG_TYPE' }
   );

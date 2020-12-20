@@ -1,3 +1,4 @@
+// Flags: --expose-internals
 'use strict';
 const common = require('../common');
 common.skipIfInspectorDisabled();
@@ -20,7 +21,7 @@ async function checkAsyncStackTrace(session) {
          `${Object.keys(paused.params)} contains "asyncStackTrace" property`);
   assert(paused.params.asyncStackTrace.description, 'Timeout');
   assert(paused.params.asyncStackTrace.callFrames
-           .some((frame) => frame.url === 'node:internal/process/execution'));
+           .some((frame) => frame.functionName === 'Module._compile'));
 }
 
 async function runTests() {
@@ -44,4 +45,4 @@ async function runTests() {
   instance.kill();
 }
 
-runTests().then(common.mustCall());
+runTests();

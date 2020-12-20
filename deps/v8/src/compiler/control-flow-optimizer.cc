@@ -4,7 +4,6 @@
 
 #include "src/compiler/control-flow-optimizer.h"
 
-#include "src/codegen/tick-counter.h"
 #include "src/compiler/common-operator.h"
 #include "src/compiler/graph.h"
 #include "src/compiler/node-matchers.h"
@@ -17,20 +16,18 @@ namespace compiler {
 ControlFlowOptimizer::ControlFlowOptimizer(Graph* graph,
                                            CommonOperatorBuilder* common,
                                            MachineOperatorBuilder* machine,
-                                           TickCounter* tick_counter,
                                            Zone* zone)
     : graph_(graph),
       common_(common),
       machine_(machine),
       queue_(zone),
       queued_(graph, 2),
-      zone_(zone),
-      tick_counter_(tick_counter) {}
+      zone_(zone) {}
+
 
 void ControlFlowOptimizer::Optimize() {
   Enqueue(graph()->start());
   while (!queue_.empty()) {
-    tick_counter_->TickAndMaybeEnterSafepoint();
     Node* node = queue_.front();
     queue_.pop();
     if (node->IsDead()) continue;

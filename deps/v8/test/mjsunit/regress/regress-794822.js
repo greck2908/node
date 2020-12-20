@@ -9,13 +9,11 @@ function* opt(arg = () => arg) {
   for (;;) {
     arg;
     yield;
-    function inner() {
-      tmp;
-    }
+    function inner() { tmp }
     break;
   }
-};
-%PrepareFunctionForOptimization(opt);
+}
+
 opt();
 %OptimizeFunctionOnNextCall(opt);
 opt();

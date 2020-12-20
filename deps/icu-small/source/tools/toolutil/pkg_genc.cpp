@@ -48,8 +48,6 @@
 #include "uoptions.h"
 #include "pkg_genc.h"
 #include "filetools.h"
-#include "charstr.h"
-#include "unicode/errorcode.h"
 
 #define MAX_COLUMN ((uint32_t)(0xFFFFFFFFU))
 
@@ -58,15 +56,7 @@
 
 /* prototypes --------------------------------------------------------------- */
 static void
-getOutFilename(
-    const char *inFilename,
-    const char *destdir,
-    char *outFilename,
-    int32_t outFilenameCapacity,
-    char *entryName,
-    int32_t entryNameCapacity,
-    const char *newSuffix,
-    const char *optFilename);
+getOutFilename(const char *inFilename, const char *destdir, char *outFilename, char *entryName, const char *newSuffix, const char *optFilename);
 
 static uint32_t
 write8(FileStream *out, uint8_t byte, uint32_t column);
@@ -131,9 +121,6 @@ static const struct AssemblyType {
     {"gcc",
         ".globl %s\n"
         "\t.section .note.GNU-stack,\"\",%%progbits\n"
-        "#ifdef __CET__\n"
-        "# include <cet.h>\n"
-        "#endif\n"
         "\t.section .rodata\n"
         "\t.balign 16\n"
         "#ifdef U_HIDE_DATA_SYMBOL\n"
@@ -272,21 +259,13 @@ printAssemblyHeadersToStdErr(void) {
 }
 
 U_CAPI void U_EXPORT2
-writeAssemblyCode(
-        const char *filename,
-        const char *destdir,
-        const char *optEntryPoint,
-        const char *optFilename,
-        char *outFilePath,
-        size_t outFilePathCapacity) {
+writeAssemblyCode(const char *filename, const char *destdir, const char *optEntryPoint, const char *optFilename, char *outFilePath) {
     uint32_t column = MAX_COLUMN;
-    char entry[96];
-    union {
-        uint32_t uint32s[1024];
-        char chars[4096];
-    } buffer;
+    char entry[64];
+    uint32_t buffer[1024];
+    char *bufferStr = (char *)buffer;
     FileStream *in, *out;
-    size_t i, length, count;
+    size_t i, length;
 
     in=T_FileStream_open(filename, "rb");
     if(in==NULL) {
@@ -294,27 +273,15 @@ writeAssemblyCode(
         exit(U_FILE_ACCESS_ERROR);
     }
 
-    getOutFilename(
-        filename,
-        destdir,
-        buffer.chars,
-        sizeof(buffer.chars),
-        entry,
-        sizeof(entry),
-        ".S",
-        optFilename);
-    out=T_FileStream_open(buffer.chars, "w");
+    getOutFilename(filename, destdir, bufferStr, entry, ".S", optFilename);
+    out=T_FileStream_open(bufferStr, "w");
     if(out==NULL) {
-        fprintf(stderr, "genccode: unable to open output file %s\n", buffer.chars);
+        fprintf(stderr, "genccode: unable to open output file %s\n", bufferStr);
         exit(U_FILE_ACCESS_ERROR);
     }
 
     if (outFilePath != NULL) {
-        if (uprv_strlen(buffer.chars) >= outFilePathCapacity) {
-            fprintf(stderr, "genccode: filename too long\n");
-            exit(U_ILLEGAL_ARGUMENT_ERROR);
-        }
-        uprv_strcpy(outFilePath, buffer.chars);
+        uprv_strcpy(outFilePath, bufferStr);
     }
 
 #if defined (WINDOWS_WITH_GNUC) && U_PLATFORM != U_PF_CYGWIN
@@ -335,42 +302,29 @@ writeAssemblyCode(
         }
     }
 
-    count = snprintf(
-        buffer.chars, sizeof(buffer.chars),
-        assemblyHeader[assemblyHeaderIndex].header,
+    sprintf(bufferStr, assemblyHeader[assemblyHeaderIndex].header,
         entry, entry, entry, entry,
         entry, entry, entry, entry);
-    if (count >= sizeof(buffer.chars)) {
-        fprintf(stderr, "genccode: entry name too long (long filename?)\n");
-        exit(U_ILLEGAL_ARGUMENT_ERROR);
-    }
-    T_FileStream_writeLine(out, buffer.chars);
+    T_FileStream_writeLine(out, bufferStr);
     T_FileStream_writeLine(out, assemblyHeader[assemblyHeaderIndex].beginLine);
 
     for(;;) {
-        memset(buffer.uint32s, 0, sizeof(buffer.uint32s));
-        length=T_FileStream_read(in, buffer.uint32s, sizeof(buffer.uint32s));
+        memset(buffer, 0, sizeof(buffer));
+        length=T_FileStream_read(in, buffer, sizeof(buffer));
         if(length==0) {
             break;
         }
-        for(i=0; i<(length/sizeof(buffer.uint32s[0])); i++) {
-            // TODO: What if the last read sees length not as a multiple of 4?
-            column = write32(out, buffer.uint32s[i], column);
+        for(i=0; i<(length/sizeof(buffer[0])); i++) {
+            column = write32(out, buffer[i], column);
         }
     }
 
     T_FileStream_writeLine(out, "\n");
 
-    count = snprintf(
-        buffer.chars, sizeof(buffer.chars),
-        assemblyHeader[assemblyHeaderIndex].footer,
+    sprintf(bufferStr, assemblyHeader[assemblyHeaderIndex].footer,
         entry, entry, entry, entry,
         entry, entry, entry, entry);
-    if (count >= sizeof(buffer.chars)) {
-        fprintf(stderr, "genccode: entry name too long (long filename?)\n");
-        exit(U_ILLEGAL_ARGUMENT_ERROR);
-    }
-    T_FileStream_writeLine(out, buffer.chars);
+    T_FileStream_writeLine(out, bufferStr);
 
     if(T_FileStream_error(in)) {
         fprintf(stderr, "genccode: file read error while generating from file %s\n", filename);
@@ -387,17 +341,11 @@ writeAssemblyCode(
 }
 
 U_CAPI void U_EXPORT2
-writeCCode(
-        const char *filename,
-        const char *destdir,
-        const char *optName,
-        const char *optFilename,
-        char *outFilePath,
-        size_t outFilePathCapacity) {
+writeCCode(const char *filename, const char *destdir, const char *optName, const char *optFilename, char *outFilePath) {
     uint32_t column = MAX_COLUMN;
-    char buffer[4096], entry[96];
+    char buffer[4096], entry[64];
     FileStream *in, *out;
-    size_t i, length, count;
+    size_t i, length;
 
     in=T_FileStream_open(filename, "rb");
     if(in==NULL) {
@@ -406,35 +354,16 @@ writeCCode(
     }
 
     if(optName != NULL) { /* prepend  'icudt28_' */
-        // +2 includes the _ and the NUL
-        if (uprv_strlen(optName) + 2 > sizeof(entry)) {
-            fprintf(stderr, "genccode: entry name too long (long filename?)\n");
-            exit(U_ILLEGAL_ARGUMENT_ERROR);
-        }
-        strcpy(entry, optName);
-        strcat(entry, "_");
+      strcpy(entry, optName);
+      strcat(entry, "_");
     } else {
-        entry[0] = 0;
+      entry[0] = 0;
     }
 
-    getOutFilename(
-        filename,
-        destdir,
-        buffer,
-        static_cast<int32_t>(sizeof(buffer)),
-        entry + uprv_strlen(entry),
-        static_cast<int32_t>(sizeof(entry) - uprv_strlen(entry)),
-        ".c",
-        optFilename);
-
+    getOutFilename(filename, destdir, buffer, entry+uprv_strlen(entry), ".c", optFilename);
     if (outFilePath != NULL) {
-        if (uprv_strlen(buffer) >= outFilePathCapacity) {
-            fprintf(stderr, "genccode: filename too long\n");
-            exit(U_ILLEGAL_ARGUMENT_ERROR);
-        }
         uprv_strcpy(outFilePath, buffer);
     }
-
     out=T_FileStream_open(buffer, "w");
     if(out==NULL) {
         fprintf(stderr, "genccode: unable to open output file %s\n", buffer);
@@ -462,7 +391,7 @@ writeCCode(
     magic numbers we must still use the initial double.
     [grhoten 4/24/2003]
     */
-    count = snprintf(buffer, sizeof(buffer),
+    sprintf(buffer,
         "#ifndef IN_GENERATED_CCODE\n"
         "#define IN_GENERATED_CCODE\n"
         "#define U_DISABLE_RENAMING 1\n"
@@ -474,10 +403,6 @@ writeCCode(
         "    const char *bytes; \n"
         "} %s={ 0.0, \n",
         entry);
-    if (count >= sizeof(buffer)) {
-        fprintf(stderr, "genccode: entry name too long (long filename?)\n");
-        exit(U_ILLEGAL_ARGUMENT_ERROR);
-    }
     T_FileStream_writeLine(out, buffer);
 
     for(;;) {
@@ -493,7 +418,7 @@ writeCCode(
     T_FileStream_writeLine(out, "\"\n};\nU_CDECL_END\n");
 #else
     /* Function renaming shouldn't be done in data */
-    count = snprintf(buffer, sizeof(buffer),
+    sprintf(buffer,
         "#ifndef IN_GENERATED_CCODE\n"
         "#define IN_GENERATED_CCODE\n"
         "#define U_DISABLE_RENAMING 1\n"
@@ -505,10 +430,6 @@ writeCCode(
         "    uint8_t bytes[%ld]; \n"
         "} %s={ 0.0, {\n",
         (long)T_FileStream_size(in), entry);
-    if (count >= sizeof(buffer)) {
-        fprintf(stderr, "genccode: entry name too long (long filename?)\n");
-        exit(U_ILLEGAL_ARGUMENT_ERROR);
-    }
     T_FileStream_writeLine(out, buffer);
 
     for(;;) {
@@ -662,84 +583,66 @@ write8str(FileStream *out, uint8_t byte, uint32_t column) {
 #endif
 
 static void
-getOutFilename(
-        const char *inFilename,
-        const char *destdir,
-        char *outFilename,
-        int32_t outFilenameCapacity,
-        char *entryName,
-        int32_t entryNameCapacity,
-        const char *newSuffix,
-        const char *optFilename) {
+getOutFilename(const char *inFilename, const char *destdir, char *outFilename, char *entryName, const char *newSuffix, const char *optFilename) {
     const char *basename=findBasename(inFilename), *suffix=uprv_strrchr(basename, '.');
-
-    icu::CharString outFilenameBuilder;
-    icu::CharString entryNameBuilder;
-    icu::ErrorCode status;
 
     /* copy path */
     if(destdir!=NULL && *destdir!=0) {
-        outFilenameBuilder.append(destdir, status);
-        outFilenameBuilder.ensureEndsWithFileSeparator(status);
+        do {
+            *outFilename++=*destdir++;
+        } while(*destdir!=0);
+        if(*(outFilename-1)!=U_FILE_SEP_CHAR) {
+            *outFilename++=U_FILE_SEP_CHAR;
+        }
+        inFilename=basename;
     } else {
-        outFilenameBuilder.append(inFilename, static_cast<int32_t>(basename - inFilename), status);
+        while(inFilename<basename) {
+            *outFilename++=*inFilename++;
+        }
     }
-    inFilename=basename;
 
     if(suffix==NULL) {
         /* the filename does not have a suffix */
-        entryNameBuilder.append(inFilename, status);
+        uprv_strcpy(entryName, inFilename);
         if(optFilename != NULL) {
-            outFilenameBuilder.append(optFilename, status);
+          uprv_strcpy(outFilename, optFilename);
         } else {
-            outFilenameBuilder.append(inFilename, status);
+          uprv_strcpy(outFilename, inFilename);
         }
-        outFilenameBuilder.append(newSuffix, status);
+        uprv_strcat(outFilename, newSuffix);
     } else {
-        int32_t saveOutFilenameLength = outFilenameBuilder.length();
+        char *saveOutFilename = outFilename;
         /* copy basename */
         while(inFilename<suffix) {
-            // iSeries cannot have '-' in the .o objects.
-            char c = (*inFilename=='-') ? '_' : *inFilename;
-            outFilenameBuilder.append(c, status);
-            entryNameBuilder.append(c, status);
-            inFilename++;
+            if(*inFilename=='-') {
+                /* iSeries cannot have '-' in the .o objects. */
+                *outFilename++=*entryName++='_';
+                inFilename++;
+            }
+            else {
+                *outFilename++=*entryName++=*inFilename++;
+            }
         }
 
         /* replace '.' by '_' */
-        outFilenameBuilder.append('_', status);
-        entryNameBuilder.append('_', status);
+        *outFilename++=*entryName++='_';
         ++inFilename;
 
         /* copy suffix */
-        outFilenameBuilder.append(inFilename, status);
-        entryNameBuilder.append(inFilename, status);
+        while(*inFilename!=0) {
+            *outFilename++=*entryName++=*inFilename++;
+        }
+
+        *entryName=0;
 
         if(optFilename != NULL) {
-            outFilenameBuilder.truncate(saveOutFilenameLength);
-            outFilenameBuilder.append(optFilename, status);
+            uprv_strcpy(saveOutFilename, optFilename);
+            uprv_strcat(saveOutFilename, newSuffix);
+        } else {
+            /* add ".c" */
+            uprv_strcpy(outFilename, newSuffix);
         }
-        // add ".c"
-        outFilenameBuilder.append(newSuffix, status);
     }
-
-    if (status.isFailure()) {
-        fprintf(stderr, "genccode: error building filename or entrypoint\n");
-        exit(status.get());
-    }
-
-    if (outFilenameBuilder.length() >= outFilenameCapacity) {
-        fprintf(stderr, "genccode: output filename too long\n");
-        exit(U_ILLEGAL_ARGUMENT_ERROR);
-    }
-
-    if (entryNameBuilder.length() >= entryNameCapacity) {
-        fprintf(stderr, "genccode: entry name too long (long filename?)\n");
-        exit(U_ILLEGAL_ARGUMENT_ERROR);
-    }
-
-    outFilenameBuilder.extract(outFilename, outFilenameCapacity, status);
-    entryNameBuilder.extract(entryName, entryNameCapacity, status);
 }
 
 #ifdef CAN_GENERATE_OBJECTS
@@ -874,15 +777,7 @@ getArchitecture(uint16_t *pCPU, uint16_t *pBits, UBool *pIsBigEndian, const char
 }
 
 U_CAPI void U_EXPORT2
-writeObjectCode(
-        const char *filename,
-        const char *destdir,
-        const char *optEntryPoint,
-        const char *optMatchArch,
-        const char *optFilename,
-        char *outFilePath,
-        size_t outFilePathCapacity,
-        UBool optWinDllExport) {
+writeObjectCode(const char *filename, const char *destdir, const char *optEntryPoint, const char *optMatchArch, const char *optFilename, char *outFilePath) {
     /* common variables */
     char buffer[4096], entry[96]={ 0 };
     FileStream *in, *out;
@@ -891,8 +786,6 @@ writeObjectCode(
 
     uint16_t cpu, bits;
     UBool makeBigEndian;
-
-    (void)optWinDllExport; /* unused except Windows */
 
     /* platform-specific variables and initialization code */
 #ifdef U_ELF
@@ -1168,21 +1061,8 @@ writeObjectCode(
     }
     size=T_FileStream_size(in);
 
-    getOutFilename(
-        filename,
-        destdir,
-        buffer,
-        sizeof(buffer),
-        entry + entryOffset,
-        sizeof(entry) - entryOffset,
-        newSuffix,
-        optFilename);
-
+    getOutFilename(filename, destdir, buffer, entry+entryOffset, newSuffix, optFilename);
     if (outFilePath != NULL) {
-        if (uprv_strlen(buffer) >= outFilePathCapacity) {
-            fprintf(stderr, "genccode: filename too long\n");
-            exit(U_ILLEGAL_ARGUMENT_ERROR);
-        }
         uprv_strcpy(outFilePath, buffer);
     }
 
@@ -1260,17 +1140,12 @@ writeObjectCode(
     uprv_memset(&symbolNames, 0, sizeof(symbolNames));
 
     /* write the linker export directive */
-    if (optWinDllExport) {
-        uprv_strcpy(objHeader.linkerOptions, "-export:");
-        length=8;
-        uprv_strcpy(objHeader.linkerOptions+length, entry);
-        length+=entryLength;
-        uprv_strcpy(objHeader.linkerOptions+length, ",data ");
-        length+=6;
-    }
-    else {
-        length=0;
-    }
+    uprv_strcpy(objHeader.linkerOptions, "-export:");
+    length=8;
+    uprv_strcpy(objHeader.linkerOptions+length, entry);
+    length+=entryLength;
+    uprv_strcpy(objHeader.linkerOptions+length, ",data ");
+    length+=6;
 
     /* set the file header */
     objHeader.fileHeader.Machine=cpu;

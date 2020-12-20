@@ -19,7 +19,6 @@ server.on(
       assert.strictEqual(typeof settings.maxFrameSize, 'number');
       assert.strictEqual(typeof settings.maxConcurrentStreams, 'number');
       assert.strictEqual(typeof settings.maxHeaderListSize, 'number');
-      assert.strictEqual(typeof settings.maxHeaderSize, 'number');
     };
 
     const localSettings = stream.session.localSettings;
@@ -38,12 +37,6 @@ server.on(
     stream.end('hello world');
   })
 );
-
-server.on('session', (session) => {
-  session.settings({
-    maxConcurrentStreams: 2
-  });
-});
 
 server.listen(
   0,
@@ -64,18 +57,11 @@ server.listen(
         assert.strictEqual(settings.maxFrameSize, 16384);
       }, 2)
     );
-
-    let calledOnce = false;
     client.on(
       'remoteSettings',
       common.mustCall((settings) => {
         assert(settings);
-        assert.strictEqual(
-          settings.maxConcurrentStreams,
-          calledOnce ? 2 : (2 ** 32) - 1
-        );
-        calledOnce = true;
-      }, 2)
+      })
     );
 
     const headers = { ':path': '/' };
@@ -101,16 +87,14 @@ server.listen(
         ['maxFrameSize', 16383],
         ['maxFrameSize', 2 ** 24],
         ['maxHeaderListSize', -1],
-        ['maxHeaderListSize', 2 ** 32],
-        ['maxHeaderSize', -1],
-        ['maxHeaderSize', 2 ** 32]
+        ['maxHeaderListSize', 2 ** 32]
       ].forEach((i) => {
         const settings = {};
         settings[i[0]] = i[1];
-        assert.throws(
+        common.expectsError(
           () => client.settings(settings),
           {
-            name: 'RangeError',
+            type: RangeError,
             code: 'ERR_HTTP2_INVALID_SETTING_VALUE',
             message: `Invalid value for setting "${i[0]}": ${i[1]}`
           }
@@ -119,10 +103,10 @@ server.listen(
 
       // Error checks for enablePush
       [1, {}, 'test', [], null, Infinity, NaN].forEach((i) => {
-        assert.throws(
+        common.expectsError(
           () => client.settings({ enablePush: i }),
           {
-            name: 'TypeError',
+            type: TypeError,
             code: 'ERR_HTTP2_INVALID_SETTING_VALUE',
             message: `Invalid value for setting "enablePush": ${i}`
           }

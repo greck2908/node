@@ -45,16 +45,13 @@ var f = function() {
   var bar = "foo";
   var baz = bar;  // Break point should be here.
   return bar;
-};
+}
 
 var g = function() {
   var bar = "foo";
   var baz = bar;  // Break point should be here.
   return bar;
-};
-
-%PrepareFunctionForOptimization(f);
-%PrepareFunctionForOptimization(g);
+}
 
 f();
 f();

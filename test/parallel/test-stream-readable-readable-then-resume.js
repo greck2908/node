@@ -2,7 +2,6 @@
 
 const common = require('../common');
 const { Readable } = require('stream');
-const assert = require('assert');
 
 // This test verifies that a stream could be resumed after
 // removing the readable event in the same tick
@@ -25,7 +24,6 @@ function check(s) {
   const readableListener = common.mustNotCall();
   s.on('readable', readableListener);
   s.on('end', common.mustCall());
-  assert.strictEqual(s.removeListener, s.off);
   s.removeListener('readable', readableListener);
   s.resume();
 }

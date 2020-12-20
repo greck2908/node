@@ -3,7 +3,6 @@
 const common = require('../common');
 
 common.skipIfInspectorDisabled();
-common.skipIfWorker();
 
 const assert = require('assert');
 const { Worker } = require('worker_threads');
@@ -13,7 +12,9 @@ const session = new Session();
 
 let done = false;
 
-function onAttachToWorker({ params: { sessionId } }) {
+session.connect();
+
+session.on('NodeWorker.attachedToWorker', ({ params: { sessionId } }) => {
   let id = 1;
   function postToWorkerInspector(method, params) {
     session.post('NodeWorker.sendMessageToWorker', {
@@ -46,11 +47,7 @@ function onAttachToWorker({ params: { sessionId } }) {
                         { enabled: true });
   // start worker
   postToWorkerInspector('Runtime.runIfWaitingForDebugger');
-}
-
-session.connect();
-
-session.on('NodeWorker.attachedToWorker', common.mustCall(onAttachToWorker));
+});
 
 session.post('NodeWorker.enable', { waitForDebuggerOnStart: true }, () => {
   new Worker('console.log("Worker is done")', { eval: true })

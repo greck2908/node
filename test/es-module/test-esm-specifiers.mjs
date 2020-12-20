@@ -1,9 +1,6 @@
-// Flags: --experimental-specifier-resolution=node
-import { mustNotCall } from '../common/index.mjs';
+// Flags: --experimental-modules --es-module-specifier-resolution=node
+import { mustNotCall } from '../common';
 import assert from 'assert';
-import path from 'path';
-import { spawn } from 'child_process';
-import { fileURLToPath } from 'url';
 
 // commonJS index.js
 import commonjs from '../fixtures/es-module-specifiers/package-type-commonjs';
@@ -17,8 +14,8 @@ assert.strictEqual(commonjs, 'commonjs');
 assert.strictEqual(module, 'module');
 assert.strictEqual(success, 'success');
 assert.strictEqual(explicit, 'esm');
-assert.strictEqual(implicit, 'cjs');
-assert.strictEqual(implicitModule, 'cjs');
+assert.strictEqual(implicit, 'esm');
+assert.strictEqual(implicitModule, 'esm');
 
 async function main() {
   try {
@@ -36,27 +33,3 @@ async function main() {
 }
 
 main().catch(mustNotCall);
-
-// Test path from command line arguments
-[
-  'package-type-commonjs',
-  'package-type-module',
-  '/',
-  '/index',
-].forEach((item) => {
-  const modulePath = path.join(
-    fileURLToPath(import.meta.url),
-    '../../fixtures/es-module-specifiers',
-    item,
-  );
-  [
-    '--experimental-specifier-resolution',
-    '--es-module-specifier-resolution'
-  ].forEach((option) => {
-    spawn(process.execPath,
-          [`${option}=node`, modulePath],
-          { stdio: 'inherit' }).on('exit', (code) => {
-      assert.strictEqual(code, 0);
-    });
-  });
-});

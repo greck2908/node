@@ -1,7 +1,6 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
+#define NAPI_EXPERIMENTAL
 #include <js_native_api.h>
+#include <stdlib.h>
 #include "../common.h"
 
 static napi_value testStrictEquals(napi_env env, napi_callback_info info) {
@@ -148,22 +147,16 @@ static napi_value deref_item_was_called(napi_env env, napi_callback_info info) {
   return it_was_called;
 }
 
-static napi_value wrap_first_arg(napi_env env,
-                                 napi_callback_info info,
-                                 napi_finalize finalizer,
-                                 void* data) {
+static napi_value wrap(napi_env env, napi_callback_info info) {
   size_t argc = 1;
   napi_value to_wrap;
 
-  NAPI_CALL(env, napi_get_cb_info(env, info, &argc, &to_wrap, NULL, NULL));
-  NAPI_CALL(env, napi_wrap(env, to_wrap, data, finalizer, NULL, NULL));
-
-  return to_wrap;
-}
-
-static napi_value wrap(napi_env env, napi_callback_info info) {
   deref_item_called = false;
-  return wrap_first_arg(env, info, deref_item, &deref_item_called);
+
+  NAPI_CALL(env, napi_get_cb_info(env, info, &argc, &to_wrap, NULL, NULL));
+  NAPI_CALL(env, napi_wrap(env, to_wrap, &deref_item_called, deref_item, NULL, NULL));
+
+  return NULL;
 }
 
 static napi_value unwrap(napi_env env, napi_callback_info info) {
@@ -194,7 +187,13 @@ static void test_finalize(napi_env env, void* data, void* hint) {
 }
 
 static napi_value test_finalize_wrap(napi_env env, napi_callback_info info) {
-  return wrap_first_arg(env, info, test_finalize, NULL);
+  size_t argc = 1;
+  napi_value js_object;
+
+  NAPI_CALL(env, napi_get_cb_info(env, info, &argc, &js_object, NULL, NULL));
+  NAPI_CALL(env, napi_wrap(env, js_object, NULL, test_finalize, NULL, NULL));
+
+  return NULL;
 }
 
 static napi_value finalize_was_called(napi_env env, napi_callback_info info) {
@@ -253,34 +252,6 @@ static napi_value add_finalizer_only(napi_env env, napi_callback_info info) {
   return NULL;
 }
 
-static const char* env_cleanup_finalizer_messages[] = {
-  "simple wrap",
-  "wrap, removeWrap",
-  "first wrap",
-  "second wrap"
-};
-
-static void cleanup_env_finalizer(napi_env env, void* data, void* hint) {
-  (void) env;
-  (void) hint;
-
-  printf("finalize at env cleanup for %s\n",
-      env_cleanup_finalizer_messages[(uintptr_t)data]);
-}
-
-static napi_value env_cleanup_wrap(napi_env env, napi_callback_info info) {
-  size_t argc = 2;
-  napi_value argv[2];
-  uint32_t value;
-  uintptr_t ptr_value;
-  NAPI_CALL(env, napi_get_cb_info(env, info, &argc, argv, NULL, NULL));
-
-  NAPI_CALL(env, napi_get_value_uint32(env, argv[1], &value));
-
-  ptr_value = value;
-  return wrap_first_arg(env, info, cleanup_env_finalizer, (void*)ptr_value);
-}
-
 EXTERN_C_START
 napi_value Init(napi_env env, napi_value exports) {
   napi_property_descriptor descriptors[] = {
@@ -295,7 +266,6 @@ napi_value Init(napi_env env, napi_value exports) {
     DECLARE_NAPI_PROPERTY("testNapiErrorCleanup", testNapiErrorCleanup),
     DECLARE_NAPI_PROPERTY("testNapiTypeof", testNapiTypeof),
     DECLARE_NAPI_PROPERTY("wrap", wrap),
-    DECLARE_NAPI_PROPERTY("envCleanupWrap", env_cleanup_wrap),
     DECLARE_NAPI_PROPERTY("unwrap", unwrap),
     DECLARE_NAPI_PROPERTY("removeWrap", remove_wrap),
     DECLARE_NAPI_PROPERTY("addFinalizerOnly", add_finalizer_only),

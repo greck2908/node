@@ -32,18 +32,17 @@ server.listen(0, mustCall(() => {
   }));
 
   req.on('error', expectsError({
-    name: 'Error',
+    type: Error,
     code: 'ECONNRESET',
     message: 'socket hang up'
   }));
 
   req.on('close', mustCall(() => {
-    strictEqual(req.destroyed, true);
     server.close();
   }));
 
   req.on('timeout', mustCall(() => {
-    strictEqual(req.socket.listenerCount('timeout'), 1);
+    strictEqual(req.socket.listenerCount('timeout'), 0);
     req.destroy();
   }));
 }));

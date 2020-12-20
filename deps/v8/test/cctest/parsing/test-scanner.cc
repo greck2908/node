@@ -5,9 +5,8 @@
 // Tests v8::internal::Scanner. Note that presently most unit tests for the
 // Scanner are in cctest/test-parsing.cc, rather than here.
 
-#include "src/handles/handles-inl.h"
-#include "src/objects/objects-inl.h"
-#include "src/parsing/parse-info.h"
+#include "src/handles-inl.h"
+#include "src/objects-inl.h"
 #include "src/parsing/scanner-character-streams.h"
 #include "src/parsing/scanner.h"
 #include "test/cctest/cctest.h"
@@ -35,9 +34,8 @@ struct ScannerTestHelper {
 ScannerTestHelper make_scanner(const char* src) {
   ScannerTestHelper helper;
   helper.stream = ScannerStream::ForTesting(src);
-  helper.scanner = std::unique_ptr<Scanner>(
-      new Scanner(helper.stream.get(),
-                  UnoptimizedCompileFlags::ForTest(CcTest::i_isolate())));
+  helper.scanner =
+      std::unique_ptr<Scanner>(new Scanner(helper.stream.get(), false));
   helper.scanner->Initialize();
   return helper;
 }

@@ -14,7 +14,7 @@ const bench = common.createBenchmark(main, {
 
 function main({ input, n }) {
   bench.start();
-  for (let i = 0; i < n; i += 1)
+  for (var i = 0; i < n; i += 1)
     querystring.unescapeBuffer(input);
   bench.end(n);
 }

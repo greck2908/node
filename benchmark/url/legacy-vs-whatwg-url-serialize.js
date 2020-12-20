@@ -13,9 +13,9 @@ const bench = common.createBenchmark(main, {
 function useLegacy(data) {
   const obj = url.parse(data[0]);
   const len = data.length;
-  let noDead = url.format(obj);
+  var noDead = url.format(obj);
   bench.start();
-  for (let i = 0; i < len; i++) {
+  for (var i = 0; i < len; i++) {
     noDead = data[i].toString();
   }
   bench.end(len);
@@ -25,9 +25,9 @@ function useLegacy(data) {
 function useWHATWG(data) {
   const obj = new URL(data[0]);
   const len = data.length;
-  let noDead = obj.toString();
+  var noDead = obj.toString();
   bench.start();
-  for (let i = 0; i < len; i++) {
+  for (var i = 0; i < len; i++) {
     noDead = data[i].toString();
   }
   bench.end(len);
@@ -35,9 +35,10 @@ function useWHATWG(data) {
 }
 
 function main({ type, e, method }) {
+  e = +e;
   const data = common.bakeUrlData(type, e, false, false);
 
-  let noDead;  // Avoid dead code elimination.
+  var noDead;  // Avoid dead code elimination.
   switch (method) {
     case 'legacy':
       noDead = useLegacy(data);

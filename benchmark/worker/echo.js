@@ -1,7 +1,6 @@
 'use strict';
 
 const common = require('../common.js');
-const { Worker } = require('worker_threads');
 const path = require('path');
 const bench = common.createBenchmark(main, {
   workers: [1],
@@ -12,14 +11,19 @@ const bench = common.createBenchmark(main, {
 
 const workerPath = path.resolve(__dirname, '..', 'fixtures', 'echo.worker.js');
 
-function main({ n, workers, sendsPerBroadcast: sends, payload: payloadType }) {
-  const expectedPerBroadcast = sends * workers;
-  let payload;
-  let readies = 0;
-  let broadcasts = 0;
-  let msgCount = 0;
+function main(conf) {
+  const { Worker } = require('worker_threads');
 
-  switch (payloadType) {
+  const n = +conf.n;
+  const workers = +conf.workers;
+  const sends = +conf.sendsPerBroadcast;
+  const expectedPerBroadcast = sends * workers;
+  var payload;
+  var readies = 0;
+  var broadcasts = 0;
+  var msgCount = 0;
+
+  switch (conf.payload) {
     case 'string':
       payload = 'hello world!';
       break;
@@ -32,7 +36,7 @@ function main({ n, workers, sendsPerBroadcast: sends, payload: payloadType }) {
 
   const workerObjs = [];
 
-  for (let i = 0; i < workers; ++i) {
+  for (var i = 0; i < workers; ++i) {
     const worker = new Worker(workerPath);
     workerObjs.push(worker);
     worker.on('online', onOnline);
@@ -55,7 +59,7 @@ function main({ n, workers, sendsPerBroadcast: sends, payload: payloadType }) {
       return;
     }
     for (const worker of workerObjs) {
-      for (let i = 0; i < sends; ++i)
+      for (var i = 0; i < sends; ++i)
         worker.postMessage(payload);
     }
   }

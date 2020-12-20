@@ -23,7 +23,6 @@
   function testRestPoint(x, y) {
     return new RestPoint(x, y);
   }
-  %PrepareFunctionForOptimization(testRestPoint);
   testRestPoint(1, 2);
   testRestPoint(1, 2);
   %OptimizeFunctionOnNextCall(testRestPoint);

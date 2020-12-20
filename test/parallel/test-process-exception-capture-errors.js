@@ -1,24 +1,23 @@
 'use strict';
 const common = require('../common');
-const assert = require('assert');
 
-assert.throws(
+common.expectsError(
   () => process.setUncaughtExceptionCaptureCallback(42),
   {
     code: 'ERR_INVALID_ARG_TYPE',
-    name: 'TypeError',
-    message: 'The "fn" argument must be of type function or null. ' +
-             'Received type number (42)'
+    type: TypeError,
+    message: 'The "fn" argument must be one of type Function or null. ' +
+             'Received type number'
   }
 );
 
 process.setUncaughtExceptionCaptureCallback(common.mustNotCall());
 
-assert.throws(
+common.expectsError(
   () => process.setUncaughtExceptionCaptureCallback(common.mustNotCall()),
   {
     code: 'ERR_UNCAUGHT_EXCEPTION_CAPTURE_ALREADY_SET',
-    name: 'Error',
+    type: Error,
     message: /setupUncaughtExceptionCapture.*called while a capture callback/
   }
 );

@@ -2,9 +2,7 @@
 
 // Testcase to check reporting of uv handles.
 const common = require('../common');
-if (common.isIBMi)
-  common.skip('IBMi does not support fs.watch()');
-
+common.skipIfReportDisabled();
 if (process.argv[2] === 'child') {
   // Exit on loss of parent process
   const exit = () => process.exit(2);
@@ -77,12 +75,13 @@ if (process.argv[2] === 'child') {
   const tmpdir = require('../common/tmpdir');
   tmpdir.refresh();
   const options = { encoding: 'utf8', silent: true, cwd: tmpdir.path };
-  const child = fork(__filename, ['child'], options);
+  const child = fork('--experimental-report', [__filename, 'child'], options);
   let child_data;
   child.on('message', (data) => { child_data = data; });
   let stderr = '';
   child.stderr.on('data', (chunk) => { stderr += chunk; });
   let stdout = '';
+  const std_msg = 'Found messages in stderr unexpectedly: ';
   const report_msg = 'Report files were written: unexpectedly';
   child.stdout.on('data', (chunk) => { stdout += chunk; });
   child.on('exit', common.mustCall((code, signal) => {
@@ -90,7 +89,10 @@ if (process.argv[2] === 'child') {
                            `${code}`);
     assert.deepStrictEqual(signal, null, 'Process should have exited cleanly,' +
                             ` but did not: ${signal}`);
-    assert.strictEqual(stderr.trim(), '');
+    assert.ok(stderr.match(
+      '(node:.*) ExperimentalWarning: report is an experimental' +
+      ' feature. This feature could change at any time'),
+              std_msg);
 
     const reports = helper.findReports(child.pid, tmpdir.path);
     assert.deepStrictEqual(reports, [], report_msg, reports);
@@ -127,9 +129,6 @@ if (process.argv[2] === 'child') {
       fs_poll: common.mustCall(function fs_poll_validator(handle) {
         assert.strictEqual(handle.filename, expected_filename);
         assert(handle.is_referenced);
-      }),
-      loop: common.mustCall(function loop_validator(handle) {
-        assert.strictEqual(typeof handle.loopIdleTimeSeconds, 'number');
       }),
       pipe: common.mustCallAtLeast(function pipe_validator(handle) {
         assert(handle.is_referenced);

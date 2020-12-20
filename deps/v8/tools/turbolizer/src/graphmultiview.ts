@@ -33,14 +33,8 @@ export class GraphMultiView extends View {
   createViewElement() {
     const pane = document.createElement("div");
     pane.setAttribute("id", multiviewID);
-    pane.setAttribute("tabindex", "1");
     pane.className = "viewpane";
     return pane;
-  }
-
-  hide() {
-    this.hideCurrentPhase();
-    super.hide();
   }
 
   constructor(id, selectionBroker, sourceResolver) {
@@ -91,9 +85,7 @@ export class GraphMultiView extends View {
   }
 
   show() {
-    // Insert before is used so that the display is inserted before the
-    // resizer for the RangeView.
-    this.container.insertBefore(this.divNode, this.container.firstChild);
+    super.show();
     this.initializeSelect();
     const lastPhaseIndex = +window.sessionStorage.getItem("lastSelectedPhase");
     const initialPhaseIndex = this.sourceResolver.repairPhaseId(lastPhaseIndex);
@@ -114,6 +106,7 @@ export class GraphMultiView extends View {
   displayPhaseView(view: PhaseView, data, selection?: Set<any>) {
     const rememberedSelection = selection ? selection : this.hideCurrentPhase();
     view.initializeContent(data, rememberedSelection);
+    this.divNode.classList.toggle("scrollable", view.isScrollable());
     this.currentPhaseView = view;
   }
 

@@ -1,12 +1,10 @@
-# Query string
+# Query String
 
-<!--introduced_in=v0.1.25-->
+<!--introduced_in=v0.10.0-->
 
 > Stability: 2 - Stable
 
 <!--name=querystring-->
-
-<!-- source_link=lib/querystring.js -->
 
 The `querystring` module provides utilities for parsing and formatting URL
 query strings. It can be accessed using:
@@ -15,21 +13,21 @@ query strings. It can be accessed using:
 const querystring = require('querystring');
 ```
 
-## `querystring.decode()`
+## querystring.decode()
 <!-- YAML
 added: v0.1.99
 -->
 
 The `querystring.decode()` function is an alias for `querystring.parse()`.
 
-## `querystring.encode()`
+## querystring.encode()
 <!-- YAML
 added: v0.1.99
 -->
 
 The `querystring.encode()` function is an alias for `querystring.stringify()`.
 
-## `querystring.escape(str)`
+## querystring.escape(str)
 <!-- YAML
 added: v0.1.25
 -->
@@ -45,7 +43,7 @@ generally not expected to be used directly. It is exported primarily to allow
 application code to provide a replacement percent-encoding implementation if
 necessary by assigning `querystring.escape` to an alternative function.
 
-## `querystring.parse(str[, sep[, eq[, options]]])`
+## querystring.parse(str[, sep[, eq[, options]]])
 <!-- YAML
 added: v0.1.25
 changes:
@@ -55,9 +53,7 @@ changes:
   - version: v6.0.0
     pr-url: https://github.com/nodejs/node/pull/6055
     description: The returned object no longer inherits from `Object.prototype`.
-  - version:
-    - v6.0.0
-    - v4.2.4
+  - version: v6.0.0, v4.2.4
     pr-url: https://github.com/nodejs/node/pull/3807
     description: The `eq` parameter may now have a length of more than `1`.
 -->
@@ -103,7 +99,7 @@ querystring.parse('w=%D6%D0%CE%C4&foo=bar', null, null,
                   { decodeURIComponent: gbkDecodeURIComponent });
 ```
 
-## `querystring.stringify(obj[, sep[, eq[, options]]])`
+## querystring.stringify(obj[, sep[, eq[, options]]])
 <!-- YAML
 added: v0.1.25
 -->
@@ -144,11 +140,10 @@ querystring.stringify({ w: '中文', foo: 'bar' }, null, null,
                       { encodeURIComponent: gbkEncodeURIComponent });
 ```
 
-## `querystring.unescape(str)`
+## querystring.unescape(str)
 <!-- YAML
 added: v0.1.25
 -->
-
 * `str` {string}
 
 The `querystring.unescape()` method performs decoding of URL percent-encoded

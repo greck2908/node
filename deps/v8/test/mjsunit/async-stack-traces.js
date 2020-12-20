@@ -26,8 +26,6 @@
   }
 
   assertPromiseResult((async () => {
-    %PrepareFunctionForOptimization(one);
-    %PrepareFunctionForOptimization(two);
     await test(one);
     await test(one);
     %OptimizeFunctionOnNextCall(two);
@@ -59,8 +57,6 @@
   }
 
   assertPromiseResult((async() => {
-    %PrepareFunctionForOptimization(one);
-    %PrepareFunctionForOptimization(two);
     await test(one);
     await test(one);
     %OptimizeFunctionOnNextCall(two);
@@ -96,8 +92,6 @@
   }
 
   assertPromiseResult((async() => {
-    %PrepareFunctionForOptimization(one);
-    %PrepareFunctionForOptimization(two);
     await test(one);
     await test(one);
     %OptimizeFunctionOnNextCall(two);
@@ -137,8 +131,6 @@
   }
 
   assertPromiseResult((async() => {
-    %PrepareFunctionForOptimization(callOne);
-    %PrepareFunctionForOptimization(callTwo);
     await test(callOne);
     await test(callOne);
     %OptimizeFunctionOnNextCall(callTwo);
@@ -172,8 +164,6 @@
   }
 
   assertPromiseResult((async() => {
-    %PrepareFunctionForOptimization(one);
-    %PrepareFunctionForOptimization(two);
     await test(one);
     await test(one);
     %OptimizeFunctionOnNextCall(two);
@@ -206,8 +196,6 @@
   }
 
   assertPromiseResult((async () => {
-    %PrepareFunctionForOptimization(one);
-    %PrepareFunctionForOptimization(two);
     await test(one);
     await test(one);
     %OptimizeFunctionOnNextCall(two);
@@ -240,8 +228,6 @@
   }
 
   assertPromiseResult((async () => {
-    %PrepareFunctionForOptimization(one);
-    %PrepareFunctionForOptimization(two);
     await test(one);
     await test(one);
     %OptimizeFunctionOnNextCall(two);
@@ -274,8 +260,6 @@
   }
 
   assertPromiseResult((async () => {
-    %PrepareFunctionForOptimization(one);
-    %PrepareFunctionForOptimization(two);
     await test(one);
     await test(one);
     %OptimizeFunctionOnNextCall(two);
@@ -307,45 +291,6 @@
   }
 
   assertPromiseResult((async () => {
-    %PrepareFunctionForOptimization(one);
-    %PrepareFunctionForOptimization(two);
-    await test(one);
-    await test(one);
-    %OptimizeFunctionOnNextCall(two);
-    await test(one);
-    %OptimizeFunctionOnNextCall(one);
-    await test(one);
-  })());
-})();
-
-// Basic test for reject.
-(function() {
-  async function one(x) {
-    await two(x);
-  }
-
-  async function two(x) {
-    try {
-      await Promise.reject(new Error());
-      assertUnreachable();
-    } catch (e) {
-      throw new Error();
-    }
-  }
-
-  async function test(f) {
-    try {
-      await f(1);
-      assertUnreachable();
-    } catch (e) {
-      assertInstanceof(e, Error);
-      assertMatches(/Error.+at two.+at async one.+at async test/ms, e.stack);
-    }
-  }
-
-  assertPromiseResult((async () => {
-    %PrepareFunctionForOptimization(one);
-    %PrepareFunctionForOptimization(two);
     await test(one);
     await test(one);
     %OptimizeFunctionOnNextCall(two);

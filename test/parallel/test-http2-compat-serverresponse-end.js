@@ -25,16 +25,16 @@ const {
   // but callback will only be called once
   const server = createServer(mustCall((request, response) => {
     response.end('end', 'utf8', mustCall(() => {
-      response.end(mustCall());
+      response.end(mustNotCall());
       process.nextTick(() => {
-        response.end(mustCall());
+        response.end(mustNotCall());
         server.close();
       });
     }));
     response.on('finish', mustCall(() => {
-      response.end(mustCall());
+      response.end(mustNotCall());
     }));
-    response.end(mustCall());
+    response.end(mustNotCall());
   }));
   server.listen(0, mustCall(() => {
     let data = '';
@@ -149,13 +149,9 @@ const {
   // Http2ServerResponse.end is necessary on HEAD requests in compat
   // for http1 compatibility
   const server = createServer(mustCall((request, response) => {
-    strictEqual(response.writableEnded, false);
-    strictEqual(response.finished, false);
-    response.writeHead(HTTP_STATUS_OK, { foo: 'bar' });
-    strictEqual(response.finished, false);
-    response.end('data', mustCall());
-    strictEqual(response.writableEnded, true);
     strictEqual(response.finished, true);
+    response.writeHead(HTTP_STATUS_OK, { foo: 'bar' });
+    response.end('data', mustCall());
   }));
   server.listen(0, mustCall(() => {
     const { port } = server.address();
@@ -294,7 +290,7 @@ const {
     }));
     response.end('data', mustCall(() => {
       strictEqual(finished, false);
-      response.end('data', mustCall());
+      response.end('data', mustNotCall());
     }));
   }));
   server.listen(0, mustCall(() => {
@@ -328,7 +324,7 @@ const {
   // Should be able to respond to HEAD with just .end
   const server = createServer(mustCall((request, response) => {
     response.end('data', mustCall());
-    response.end(mustCall());
+    response.end(mustNotCall());
   }));
   server.listen(0, mustCall(() => {
     const { port } = server.address();

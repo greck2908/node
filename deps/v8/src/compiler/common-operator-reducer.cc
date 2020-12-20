@@ -21,9 +21,6 @@ namespace {
 
 Decision DecideCondition(JSHeapBroker* broker, Node* const cond) {
   switch (cond->opcode()) {
-    case IrOpcode::kFoldConstant: {
-      return DecideCondition(broker, cond->InputAt(1));
-    }
     case IrOpcode::kInt32Constant: {
       Int32Matcher mcond(cond);
       return mcond.Value() ? Decision::kTrue : Decision::kFalse;
@@ -75,8 +72,6 @@ Reduction CommonOperatorReducer::Reduce(Node* node) {
       return ReduceSelect(node);
     case IrOpcode::kSwitch:
       return ReduceSwitch(node);
-    case IrOpcode::kStaticAssert:
-      return ReduceStaticAssert(node);
     default:
       break;
   }
@@ -307,7 +302,8 @@ Reduction CommonOperatorReducer::ReduceReturn(Node* node) {
     // hence checkpoints can be cut out of the effect chain flowing into it.
     effect = NodeProperties::GetEffectInput(effect);
     NodeProperties::ReplaceEffectInput(node, effect);
-    return Changed(node).FollowedBy(ReduceReturn(node));
+    Reduction const reduction = ReduceReturn(node);
+    return reduction.Changed() ? reduction : Changed(node);
   }
   // TODO(ahaas): Extend the reduction below to multiple return values.
   if (ValueInputCountOfReturn(node->op()) != 1) {
@@ -339,9 +335,9 @@ Reduction CommonOperatorReducer::ReduceReturn(Node* node) {
     //        End
 
     // Now the effect input to the {Return} node can be either an {EffectPhi}
-    // hanging off the same {Merge}, or the effect chain doesn't depend on the
-    // {Phi} or the {Merge}, in which case we know that the effect input must
-    // somehow dominate all merged branches.
+    // hanging off the same {Merge}, or the {Merge} node is only connected to
+    // the {Return} and the {Phi}, in which case we know that the effect input
+    // must somehow dominate all merged branches.
 
     Node::Inputs control_inputs = control->inputs();
     Node::Inputs value_inputs = value->inputs();
@@ -349,7 +345,7 @@ Reduction CommonOperatorReducer::ReduceReturn(Node* node) {
     DCHECK_EQ(control_inputs.count(), value_inputs.count() - 1);
     DCHECK_EQ(IrOpcode::kEnd, graph()->end()->opcode());
     DCHECK_NE(0, graph()->end()->InputCount());
-    if (control->OwnedBy(node, value) && value->OwnedBy(node)) {
+    if (control->OwnedBy(node, value)) {
       for (int i = 0; i < control_inputs.count(); ++i) {
         // Create a new {Return} and connect it to {end}. We don't need to mark
         // {end} as revisit, because we mark {node} as {Dead} below, which was
@@ -461,18 +457,6 @@ Reduction CommonOperatorReducer::ReduceSwitch(Node* node) {
     return Replace(dead());
   }
   return NoChange();
-}
-
-Reduction CommonOperatorReducer::ReduceStaticAssert(Node* node) {
-  DCHECK_EQ(IrOpcode::kStaticAssert, node->opcode());
-  Node* const cond = node->InputAt(0);
-  Decision decision = DecideCondition(broker(), cond);
-  if (decision == Decision::kTrue) {
-    RelaxEffectsAndControls(node);
-    return Changed(node);
-  } else {
-    return NoChange();
-  }
 }
 
 Reduction CommonOperatorReducer::Change(Node* node, Operator const* op,

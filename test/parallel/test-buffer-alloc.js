@@ -1,6 +1,5 @@
 'use strict';
 const common = require('../common');
-
 const assert = require('assert');
 const vm = require('vm');
 
@@ -9,8 +8,8 @@ const SlowBuffer = require('buffer').SlowBuffer;
 // Verify the maximum Uint8Array size. There is no concrete limit by spec. The
 // internal limits should be updated if this fails.
 assert.throws(
-  () => new Uint8Array(2 ** 32 + 1),
-  { message: 'Invalid typed array length: 4294967297' }
+  () => new Uint8Array(2 ** 31),
+  { message: 'Invalid typed array length: 2147483648' }
 );
 
 const b = Buffer.allocUnsafe(1024);
@@ -82,20 +81,20 @@ Buffer(0);
 
 const outOfRangeError = {
   code: 'ERR_OUT_OF_RANGE',
-  name: 'RangeError'
+  type: RangeError
 };
 
 // Try to write a 0-length string beyond the end of b
-assert.throws(() => b.write('', 2048), outOfRangeError);
+common.expectsError(() => b.write('', 2048), outOfRangeError);
 
 // Throw when writing to negative offset
-assert.throws(() => b.write('a', -1), outOfRangeError);
+common.expectsError(() => b.write('a', -1), outOfRangeError);
 
 // Throw when writing past bounds from the pool
-assert.throws(() => b.write('a', 2048), outOfRangeError);
+common.expectsError(() => b.write('a', 2048), outOfRangeError);
 
 // Throw when writing to negative offset
-assert.throws(() => b.write('a', -1), outOfRangeError);
+common.expectsError(() => b.write('a', -1), outOfRangeError);
 
 // Try to copy 0 bytes worth of data into an empty buffer
 b.copy(Buffer.alloc(0), 0, 0, 0);
@@ -794,31 +793,31 @@ assert.strictEqual(Buffer.from('13.37').length, 5);
 Buffer.from(Buffer.allocUnsafe(0), 0, 0);
 
 // issue GH-5587
-assert.throws(
+common.expectsError(
   () => Buffer.alloc(8).writeFloatLE(0, 5),
   outOfRangeError
 );
-assert.throws(
+common.expectsError(
   () => Buffer.alloc(16).writeDoubleLE(0, 9),
   outOfRangeError
 );
 
 // Attempt to overflow buffers, similar to previous bug in array buffers
-assert.throws(
+common.expectsError(
   () => Buffer.allocUnsafe(8).writeFloatLE(0.0, 0xffffffff),
   outOfRangeError
 );
-assert.throws(
+common.expectsError(
   () => Buffer.allocUnsafe(8).writeFloatLE(0.0, 0xffffffff),
   outOfRangeError
 );
 
 // Ensure negative values can't get past offset
-assert.throws(
+common.expectsError(
   () => Buffer.allocUnsafe(8).writeFloatLE(0.0, -1),
   outOfRangeError
 );
-assert.throws(
+common.expectsError(
   () => Buffer.allocUnsafe(8).writeFloatLE(0.0, -1),
   outOfRangeError
 );
@@ -918,11 +917,11 @@ assert.throws(
 
 // Regression test for https://github.com/nodejs/node-v0.x-archive/issues/5482:
 // should throw but not assert in C++ land.
-assert.throws(
+common.expectsError(
   () => Buffer.from('', 'buffer'),
   {
     code: 'ERR_UNKNOWN_ENCODING',
-    name: 'TypeError',
+    type: TypeError,
     message: 'Unknown encoding: buffer'
   }
 );
@@ -963,24 +962,23 @@ Buffer.poolSize = 0;
 assert(Buffer.allocUnsafe(1).parent instanceof ArrayBuffer);
 Buffer.poolSize = ps;
 
-assert.throws(
+common.expectsError(
   () => Buffer.allocUnsafe(10).copy(),
   {
     code: 'ERR_INVALID_ARG_TYPE',
-    name: 'TypeError',
-    message: 'The "target" argument must be an instance of Buffer or ' +
-             'Uint8Array. Received undefined'
+    type: TypeError,
+    message: 'argument must be a buffer'
   });
 
 assert.throws(() => Buffer.from(), {
   name: 'TypeError',
-  message: 'The first argument must be of type string or an instance of ' +
-  'Buffer, ArrayBuffer, or Array or an Array-like Object. Received undefined'
+  message: 'The first argument must be one of type string, Buffer, ' +
+  'ArrayBuffer, Array, or Array-like Object. Received type undefined'
 });
 assert.throws(() => Buffer.from(null), {
   name: 'TypeError',
-  message: 'The first argument must be of type string or an instance of ' +
-  'Buffer, ArrayBuffer, or Array or an Array-like Object. Received null'
+  message: 'The first argument must be one of type string, Buffer, ' +
+  'ArrayBuffer, Array, or Array-like Object. Received type object'
 });
 
 // Test prototype getters don't throw
@@ -1008,14 +1006,14 @@ assert.strictEqual(SlowBuffer.prototype.offset, undefined);
 {
   const errMsg = common.expectsError({
     code: 'ERR_BUFFER_OUT_OF_BOUNDS',
-    name: 'RangeError',
+    type: RangeError,
     message: '"offset" is outside of buffer bounds'
   });
   assert.throws(() => Buffer.from(new ArrayBuffer(0), -1 >>> 0), errMsg);
 }
 
 // ParseArrayIndex() should reject values that don't fit in a 32 bits size_t.
-assert.throws(() => {
+common.expectsError(() => {
   const a = Buffer.alloc(1);
   const b = Buffer.alloc(1);
   a.copy(b, 0, 0x100000000, 0x100000001);
@@ -1048,30 +1046,30 @@ assert.strictEqual(Buffer.prototype.toLocaleString, Buffer.prototype.toString);
   assert.strictEqual(buf.toLocaleString(), buf.toString());
 }
 
-assert.throws(() => {
+common.expectsError(() => {
   Buffer.alloc(0x1000, 'This is not correctly encoded', 'hex');
 }, {
   code: 'ERR_INVALID_ARG_VALUE',
-  name: 'TypeError'
+  type: TypeError
 });
 
-assert.throws(() => {
+common.expectsError(() => {
   Buffer.alloc(0x1000, 'c', 'hex');
 }, {
   code: 'ERR_INVALID_ARG_VALUE',
-  name: 'TypeError'
+  type: TypeError
 });
 
-assert.throws(() => {
+common.expectsError(() => {
   Buffer.alloc(1, Buffer.alloc(0));
 }, {
   code: 'ERR_INVALID_ARG_VALUE',
-  name: 'TypeError'
+  type: TypeError
 });
 
-assert.throws(() => {
+common.expectsError(() => {
   Buffer.alloc(40, 'x', 20);
 }, {
   code: 'ERR_INVALID_ARG_TYPE',
-  name: 'TypeError'
+  type: TypeError
 });

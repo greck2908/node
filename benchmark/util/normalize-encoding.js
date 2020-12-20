@@ -46,11 +46,11 @@ function getInput(input) {
 function main({ input, n }) {
   const { normalizeEncoding } = require('internal/util');
   const inputs = getInput(input);
-  let noDead = '';
+  var noDead = '';
 
   bench.start();
-  for (let i = 0; i < n; ++i) {
-    for (let j = 0; j < inputs.length; ++j) {
+  for (var i = 0; i < n; ++i) {
+    for (var j = 0; j < inputs.length; ++j) {
       noDead = normalizeEncoding(inputs[j]);
     }
   }

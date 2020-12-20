@@ -8,11 +8,11 @@ const doc = fs.readFileSync(path.resolve(__dirname, '../../doc/api/errors.md'),
                             'utf8');
 
 function isInDoc(code) {
-  return doc.includes(`### \`${code}\``);
+  return doc.match(`### ${code}`) != null;
 }
 
 function includesAnchor(code) {
-  return doc.includes(`<a id="${code}"></a>`);
+  return doc.match(`<a id="${code}"></a>`) != null;
 }
 
 function errorForNode(node) {

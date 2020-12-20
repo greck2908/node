@@ -4,7 +4,6 @@ const common = require('../common');
 if (!common.hasCrypto)
   common.skip('missing crypto');
 
-const assert = require('assert');
 const http2 = require('http2');
 
 const server = http2.createServer();
@@ -27,14 +26,14 @@ server.listen(0, common.mustCall(() => {
   const client = http2.connect(`http://localhost:${server.address().port}`);
 
   client.on('connect', () => {
-    const outOfRangeNum = 2 ** 32;
-    assert.throws(
+    const outOfRangeNum = 2 ** 31;
+    common.expectsError(
       () => client.setNextStreamID(outOfRangeNum),
       {
-        name: 'RangeError',
+        type: RangeError,
         code: 'ERR_OUT_OF_RANGE',
         message: 'The value of "id" is out of range.' +
-           ' It must be > 0 and <= 4294967295. Received ' + outOfRangeNum
+           ' It must be > 0 and <= 2147483647. Received ' + outOfRangeNum
       }
     );
 
@@ -44,13 +43,13 @@ server.listen(0, common.mustCall(() => {
         return;
       }
 
-      assert.throws(
+      common.expectsError(
         () => client.setNextStreamID(value),
         {
-          name: 'TypeError',
+          type: TypeError,
           code: 'ERR_INVALID_ARG_TYPE',
-          message: 'The "id" argument must be of type number.' +
-                   common.invalidArgTypeHelper(value)
+          message: 'The "id" argument must be of type number. Received type ' +
+                   typeof value
         }
       );
     });

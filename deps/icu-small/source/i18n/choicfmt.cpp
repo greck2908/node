@@ -563,7 +563,7 @@ ChoiceFormat::matchStringUntilLimitPart(
 
 // -------------------------------------
 
-ChoiceFormat*
+Format*
 ChoiceFormat::clone() const
 {
     ChoiceFormat *aCopy = new ChoiceFormat(*this);

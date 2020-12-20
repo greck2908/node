@@ -10,7 +10,7 @@ const {
   restoreStderr
 } = require('../common/hijackstdio');
 const assert = require('assert');
-// Flags: --expose-internals
+// Flags: --expose_internals
 const internalTLS = require('internal/tls');
 const tls = require('tls');
 
