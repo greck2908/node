@@ -8,9 +8,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <memory>
+
 #include "src/wasm/module-decoder.h"
-#include "src/wasm/wasm-interpreter.h"
 #include "src/wasm/wasm-module-builder.h"
+#include "test/common/wasm/wasm-interpreter.h"
 
 namespace v8 {
 namespace internal {
@@ -37,9 +39,9 @@ class WasmExecutionFuzzer {
  protected:
   virtual bool GenerateModule(
       Isolate* isolate, Zone* zone, Vector<const uint8_t> data,
-      ZoneBuffer& buffer, int32_t& num_args,
-      std::unique_ptr<WasmValue[]>& interpreter_args,
-      std::unique_ptr<Handle<Object>[]>& compiler_args) = 0;
+      ZoneBuffer* buffer, int32_t* num_args,
+      std::unique_ptr<WasmValue[]>* interpreter_args,
+      std::unique_ptr<Handle<Object>[]>* compiler_args) = 0;
 };
 
 }  // namespace fuzzer

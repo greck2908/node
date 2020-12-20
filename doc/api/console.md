@@ -4,6 +4,8 @@
 
 > Stability: 2 - Stable
 
+<!-- source_link=lib/console.js -->
+
 The `console` module provides a simple debugging console that is similar to the
 JavaScript console mechanism provided by web browsers.
 
@@ -28,7 +30,15 @@ console.log('hello world');
 console.log('hello %s', 'world');
 // Prints: hello world, to stdout
 console.error(new Error('Whoops, something bad happened'));
-// Prints: [Error: Whoops, something bad happened], to stderr
+// Prints error message and stack trace to stderr:
+//   Error: Whoops, something bad happened
+//     at [eval]:5:15
+//     at Script.runInThisContext (node:vm:132:18)
+//     at Object.runInThisContext (node:vm:309:38)
+//     at node:internal/process/execution:77:19
+//     at [eval]-wrapper:6:22
+//     at evalScript (node:internal/process/execution:76:60)
+//     at node:internal/main/eval_string:23:3
 
 const name = 'Will Robinson';
 console.warn(`Danger ${name}! Danger!`);
@@ -54,7 +64,7 @@ myConsole.warn(`Danger ${name}! Danger!`);
 // Prints: Danger Will Robinson! Danger!, to err
 ```
 
-## Class: Console
+## Class: `Console`
 <!-- YAML
 changes:
   - version: v8.0.0
@@ -77,20 +87,25 @@ const { Console } = require('console');
 const { Console } = console;
 ```
 
-### new Console(stdout[, stderr][, ignoreErrors])
-### new Console(options)
+### `new Console(stdout[, stderr][, ignoreErrors])`
+### `new Console(options)`
 <!-- YAML
 changes:
-  - version: v8.0.0
-    pr-url: https://github.com/nodejs/node/pull/9744
-    description: The `ignoreErrors` option was introduced.
+  - version:
+     - v14.2.0
+     - v12.17.0
+    pr-url: https://github.com/nodejs/node/pull/32964
+    description: The `groupIndentation` option was introduced.
+  - version: v11.7.0
+    pr-url: https://github.com/nodejs/node/pull/24978
+    description: The `inspectOptions` option is introduced.
   - version: v10.0.0
     pr-url: https://github.com/nodejs/node/pull/19372
     description: The `Console` constructor now supports an `options` argument,
                  and the `colorMode` option was introduced.
-  - version: v11.7.0
-    pr-url: https://github.com/nodejs/node/pull/24978
-    description: The `inspectOptions` option is introduced.
+  - version: v8.0.0
+    pr-url: https://github.com/nodejs/node/pull/9744
+    description: The `ignoreErrors` option was introduced.
 -->
 
 * `options` {Object}
@@ -99,13 +114,16 @@ changes:
   * `ignoreErrors` {boolean} Ignore errors when writing to the underlying
     streams. **Default:** `true`.
   * `colorMode` {boolean|string} Set color support for this `Console` instance.
-    Setting to `true` enables coloring while inspecting values, setting to
-    `'auto'` will make color support depend on the value of the `isTTY` property
+    Setting to `true` enables coloring while inspecting values. Setting to
+    `false` disables coloring while inspecting values. Setting to
+    `'auto'` makes color support depend on the value of the `isTTY` property
     and the value returned by `getColorDepth()` on the respective stream. This
     option can not be used, if `inspectOptions.colors` is set as well.
     **Default:** `'auto'`.
   * `inspectOptions` {Object} Specifies options that are passed along to
     [`util.inspect()`][].
+  * `groupIndentation` {number} Set group indentation.
+    **Default:** `2`.
 
 Creates a new `Console` with one or two writable stream instances. `stdout` is a
 writable stream to print log or info output. `stderr` is used for warning or
@@ -129,7 +147,7 @@ The global `console` is a special `Console` whose output is sent to
 new Console({ stdout: process.stdout, stderr: process.stderr });
 ```
 
-### console.assert(value[, ...message])
+### `console.assert(value[, ...message])`
 <!-- YAML
 added: v0.1.101
 changes:
@@ -138,25 +156,28 @@ changes:
     description: The implementation is now spec compliant and does not throw
                  anymore.
 -->
+
 * `value` {any} The value tested for being truthy.
 * `...message` {any} All arguments besides `value` are used as error message.
 
-A simple assertion test that verifies whether `value` is truthy. If it is not,
-`Assertion failed` is logged. If provided, the error `message` is formatted
-using [`util.format()`][] by passing along all message arguments. The output is
-used as the error message.
+`console.assert()` writes a message if `value` is [falsy][] or omitted. It only
+writes a message and does not otherwise affect execution. The output always
+starts with `"Assertion failed"`. If provided, `message` is formatted using
+[`util.format()`][].
+
+If `value` is [truthy][], nothing happens.
 
 ```js
 console.assert(true, 'does nothing');
-// OK
+
 console.assert(false, 'Whoops %s work', 'didn\'t');
 // Assertion failed: Whoops didn't work
+
+console.assert();
+// Assertion failed
 ```
 
-Calling `console.assert()` with a falsy assertion will only cause the `message`
-to be printed to the console without interrupting execution of subsequent code.
-
-### console.clear()
+### `console.clear()`
 <!-- YAML
 added: v8.3.0
 -->
@@ -170,7 +191,7 @@ operates similarly to the `clear` shell command. On Windows, `console.clear()`
 will clear only the output in the current terminal viewport for the Node.js
 binary.
 
-### console.count([label])
+### `console.count([label])`
 <!-- YAML
 added: v8.3.0
 -->
@@ -203,7 +224,7 @@ undefined
 >
 ```
 
-### console.countReset([label])
+### `console.countReset([label])`
 <!-- YAML
 added: v8.3.0
 -->
@@ -225,7 +246,7 @@ undefined
 >
 ```
 
-### console.debug(data[, ...args])
+### `console.debug(data[, ...args])`
 <!-- YAML
 added: v8.0.0
 changes:
@@ -233,15 +254,17 @@ changes:
     pr-url: https://github.com/nodejs/node/pull/17033
     description: "`console.debug` is now an alias for `console.log`."
 -->
+
 * `data` {any}
 * `...args` {any}
 
 The `console.debug()` function is an alias for [`console.log()`][].
 
-### console.dir(obj[, options])
+### `console.dir(obj[, options])`
 <!-- YAML
 added: v0.1.101
 -->
+
 * `obj` {any}
 * `options` {Object}
   * `showHidden` {boolean} If `true` then the object's non-enumerable and symbol
@@ -256,7 +279,7 @@ added: v0.1.101
 Uses [`util.inspect()`][] on `obj` and prints the resulting string to `stdout`.
 This function bypasses any custom `inspect()` function defined on `obj`.
 
-### console.dirxml(...data)
+### `console.dirxml(...data)`
 <!-- YAML
 added: v8.0.0
 changes:
@@ -264,15 +287,17 @@ changes:
     pr-url: https://github.com/nodejs/node/pull/17152
     description: "`console.dirxml` now calls `console.log` for its arguments."
 -->
+
 * `...data` {any}
 
 This method calls `console.log()` passing it the arguments received.
 This method does not produce any XML formatting.
 
-### console.error([data][, ...args])
+### `console.error([data][, ...args])`
 <!-- YAML
 added: v0.1.100
 -->
+
 * `data` {any}
 * `...args` {any}
 
@@ -293,45 +318,49 @@ If formatting elements (e.g. `%d`) are not found in the first string then
 [`util.inspect()`][] is called on each argument and the resulting string
 values are concatenated. See [`util.format()`][] for more information.
 
-### console.group([...label])
+### `console.group([...label])`
 <!-- YAML
 added: v8.5.0
 -->
 
 * `...label` {any}
 
-Increases indentation of subsequent lines by two spaces.
+Increases indentation of subsequent lines by spaces for `groupIndentation`
+length.
 
 If one or more `label`s are provided, those are printed first without the
 additional indentation.
 
-### console.groupCollapsed()
+### `console.groupCollapsed()`
 <!-- YAML
   added: v8.5.0
 -->
 
 An alias for [`console.group()`][].
 
-### console.groupEnd()
+### `console.groupEnd()`
 <!-- YAML
 added: v8.5.0
 -->
 
-Decreases indentation of subsequent lines by two spaces.
+Decreases indentation of subsequent lines by spaces for `groupIndentation`
+length.
 
-### console.info([data][, ...args])
+### `console.info([data][, ...args])`
 <!-- YAML
 added: v0.1.100
 -->
+
 * `data` {any}
 * `...args` {any}
 
 The `console.info()` function is an alias for [`console.log()`][].
 
-### console.log([data][, ...args])
+### `console.log([data][, ...args])`
 <!-- YAML
 added: v0.1.100
 -->
+
 * `data` {any}
 * `...args` {any}
 
@@ -350,7 +379,7 @@ console.log('count:', count);
 
 See [`util.format()`][] for more information.
 
-### console.table(tabularData[, properties])
+### `console.table(tabularData[, properties])`
 <!-- YAML
 added: v10.0.0
 -->
@@ -387,26 +416,32 @@ console.table([{ a: 1, b: 'Y' }, { a: 'Z', b: 2 }], ['a']);
 // └─────────┴─────┘
 ```
 
-### console.time([label])
+### `console.time([label])`
 <!-- YAML
 added: v0.1.104
 -->
+
 * `label` {string} **Default:** `'default'`
 
 Starts a timer that can be used to compute the duration of an operation. Timers
 are identified by a unique `label`. Use the same `label` when calling
 [`console.timeEnd()`][] to stop the timer and output the elapsed time in
-milliseconds to `stdout`. Timer durations are accurate to the sub-millisecond.
+suitable time units to `stdout`. For example, if the elapsed
+time is 3869ms, `console.timeEnd()` displays "3.869s".
 
-### console.timeEnd([label])
+### `console.timeEnd([label])`
 <!-- YAML
 added: v0.1.104
 changes:
+  - version: v13.0.0
+    pr-url: https://github.com/nodejs/node/pull/29251
+    description: The elapsed time is diplayed with a suitable time unit.
   - version: v6.0.0
     pr-url: https://github.com/nodejs/node/pull/5901
     description: This method no longer supports multiple calls that don’t map
                  to individual `console.time()` calls; see below for details.
 -->
+
 * `label` {string} **Default:** `'default'`
 
 Stops a timer that was previously started by calling [`console.time()`][] and
@@ -419,10 +454,11 @@ console.timeEnd('100-elements');
 // prints 100-elements: 225.438ms
 ```
 
-### console.timeLog([label][, ...data])
+### `console.timeLog([label][, ...data])`
 <!-- YAML
 added: v10.7.0
 -->
+
 * `label` {string} **Default:** `'default'`
 * `...data` {any}
 
@@ -438,10 +474,11 @@ doExpensiveProcess2(value);
 console.timeEnd('process');
 ```
 
-### console.trace([message][, ...args])
+### `console.trace([message][, ...args])`
 <!-- YAML
 added: v0.1.104
 -->
+
 * `message` {any}
 * `...args` {any}
 
@@ -464,10 +501,11 @@ console.trace('Show me');
 //    at REPLServer.Interface._ttyWrite (readline.js:826:14)
 ```
 
-### console.warn([data][, ...args])
+### `console.warn([data][, ...args])`
 <!-- YAML
 added: v0.1.100
 -->
+
 * `data` {any}
 * `...args` {any}
 
@@ -478,26 +516,18 @@ The following methods are exposed by the V8 engine in the general API but do
 not display anything unless used in conjunction with the [inspector][]
 (`--inspect` flag).
 
-### console.markTimeline([label])
+### `console.profile([label])`
 <!-- YAML
 added: v8.0.0
 -->
-* `label` {string} **Default:** `'default'`
 
-This method does not display anything unless used in the inspector. The
-`console.markTimeline()` method is the deprecated form of
-[`console.timeStamp()`][].
-
-### console.profile([label])
-<!-- YAML
-added: v8.0.0
--->
 * `label` {string}
 
 This method does not display anything unless used in the inspector. The
 `console.profile()` method starts a JavaScript CPU profile with an optional
 label until [`console.profileEnd()`][] is called. The profile is then added to
 the **Profile** panel of the inspector.
+
 ```js
 console.profile('MyLabel');
 // Some code
@@ -505,10 +535,11 @@ console.profileEnd('MyLabel');
 // Adds the profile 'MyLabel' to the Profiles panel of the inspector.
 ```
 
-### console.profileEnd([label])
+### `console.profileEnd([label])`
 <!-- YAML
 added: v8.0.0
 -->
+
 * `label` {string}
 
 This method does not display anything unless used in the inspector. Stops the
@@ -519,34 +550,16 @@ the report to the **Profiles** panel of the inspector. See
 If this method is called without a label, the most recently started profile is
 stopped.
 
-### console.timeStamp([label])
+### `console.timeStamp([label])`
 <!-- YAML
 added: v8.0.0
 -->
+
 * `label` {string}
 
 This method does not display anything unless used in the inspector. The
 `console.timeStamp()` method adds an event with the label `'label'` to the
 **Timeline** panel of the inspector.
-
-### console.timeline([label])
-<!-- YAML
-added: v8.0.0
--->
-* `label` {string} **Default:** `'default'`
-
-This method does not display anything unless used in the inspector. The
-`console.timeline()` method is the deprecated form of [`console.time()`][].
-
-### console.timelineEnd([label])
-<!-- YAML
-added: v8.0.0
--->
-* `label` {string} **Default:** `'default'`
-
-This method does not display anything unless used in the inspector. The
-`console.timelineEnd()` method is the deprecated form of
-[`console.timeEnd()`][].
 
 [`console.error()`]: #console_console_error_data_args
 [`console.group()`]: #console_console_group_label
@@ -555,11 +568,12 @@ This method does not display anything unless used in the inspector. The
 [`console.profileEnd()`]: #console_console_profileend_label
 [`console.time()`]: #console_console_time_label
 [`console.timeEnd()`]: #console_console_timeend_label
-[`console.timeStamp()`]: #console_console_timestamp_label
-[`process.stderr`]: process.html#process_process_stderr
-[`process.stdout`]: process.html#process_process_stdout
-[`util.format()`]: util.html#util_util_format_format_args
-[`util.inspect()`]: util.html#util_util_inspect_object_options
-[customizing `util.inspect()` colors]: util.html#util_customizing_util_inspect_colors
-[inspector]: debugger.html
-[note on process I/O]: process.html#process_a_note_on_process_i_o
+[`process.stderr`]: process.md#process_process_stderr
+[`process.stdout`]: process.md#process_process_stdout
+[`util.format()`]: util.md#util_util_format_format_args
+[`util.inspect()`]: util.md#util_util_inspect_object_options
+[customizing `util.inspect()` colors]: util.md#util_customizing_util_inspect_colors
+[falsy]: https://developer.mozilla.org/en-US/docs/Glossary/Falsy
+[inspector]: debugger.md
+[note on process I/O]: process.md#process_a_note_on_process_i_o
+[truthy]: https://developer.mozilla.org/en-US/docs/Glossary/Truthy

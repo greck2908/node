@@ -9,7 +9,6 @@ const bench = common.createBenchmark(main, {
 });
 
 function main({ n, type, endian, value }) {
-  type = type || 'Double';
   const buff = Buffer.alloc(8);
   const fn = `read${type}${endian}`;
   const values = {
@@ -32,7 +31,7 @@ function main({ n, type, endian, value }) {
   buff[`write${type}${endian}`](values[type][value], 0);
 
   bench.start();
-  for (var i = 0; i !== n; i++) {
+  for (let i = 0; i !== n; i++) {
     buff[fn](0);
   }
   bench.end(n);

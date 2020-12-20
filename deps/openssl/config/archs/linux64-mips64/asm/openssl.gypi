@@ -26,6 +26,7 @@
       'openssl/ssl/ssl_init.c',
       'openssl/ssl/ssl_lib.c',
       'openssl/ssl/ssl_mcnf.c',
+      'openssl/ssl/ssl_quic.c',
       'openssl/ssl/ssl_rsa.c',
       'openssl/ssl/ssl_sess.c',
       'openssl/ssl/ssl_stat.c',
@@ -39,6 +40,7 @@
       'openssl/ssl/statem/statem_clnt.c',
       'openssl/ssl/statem/statem_dtls.c',
       'openssl/ssl/statem/statem_lib.c',
+      'openssl/ssl/statem/statem_quic.c',
       'openssl/ssl/statem/statem_srvr.c',
       'openssl/ssl/t1_enc.c',
       'openssl/ssl/t1_lib.c',
@@ -701,7 +703,6 @@
       'POLY1305_ASM',
     ],
     'openssl_cflags_linux64-mips64': [
-      '-mips3',
       '-Wa,--noexecstack',
       '-Wall -O3',
       '-pthread -mabi=64',

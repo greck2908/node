@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "src/basic-block-profiler.h"
-#include "src/objects-inl.h"
+#include "src/diagnostics/basic-block-profiler.h"
+#include "src/objects/objects-inl.h"
 #include "test/cctest/cctest.h"
 #include "test/cctest/compiler/codegen-tester.h"
 
@@ -18,13 +18,15 @@ class BasicBlockProfilerTest : public RawMachineAssemblerTester<int32_t> {
     FLAG_turbo_profiling = true;
   }
 
-  void ResetCounts() { BasicBlockProfiler::Get()->ResetCounts(); }
+  void ResetCounts() {
+    BasicBlockProfiler::Get()->ResetCounts(CcTest::i_isolate());
+  }
 
   void Expect(size_t size, uint32_t* expected) {
     const BasicBlockProfiler::DataList* l =
         BasicBlockProfiler::Get()->data_list();
     CHECK_NE(0, static_cast<int>(l->size()));
-    const BasicBlockProfiler::Data* data = l->back();
+    const BasicBlockProfilerData* data = l->back().get();
     CHECK_EQ(static_cast<int>(size), static_cast<int>(data->n_blocks()));
     const uint32_t* counts = data->counts();
     for (size_t i = 0; i < size; ++i) {

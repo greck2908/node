@@ -44,28 +44,30 @@ from testrunner.outproc import test262
 
 # TODO(littledan): move the flag mapping into the status file
 FEATURE_FLAGS = {
-  'class-fields-public': '--harmony-public-fields',
-  'class-static-fields-public': '--harmony-class-fields',
-  'class-fields-private': '--harmony-private-fields',
-  'class-static-fields-private': '--harmony-private-fields',
-  'String.prototype.matchAll': '--harmony-string-matchall',
-  'Symbol.matchAll': '--harmony-string-matchall',
-  'numeric-separator-literal': '--harmony-numeric-separator',
-  'Intl.DateTimeFormat-datetimestyle': '--harmony-intl-datetime-style',
-  'Intl.Locale': '--harmony-locale',
   'Intl.Segmenter': '--harmony-intl-segmenter',
+  'Intl.DateTimeFormat-dayPeriod': '--harmony-intl-dateformat-day-period',
+  'Intl.DateTimeFormat-quarter': '--harmony-intl-dateformat-quarter',
+  'String.prototype.replaceAll': '--harmony_string_replaceall',
   'Symbol.prototype.description': '--harmony-symbol-description',
-  'globalThis': '--harmony-global',
-  'well-formed-json-stringify': '--harmony-json-stringify',
   'export-star-as-namespace-from-module': '--harmony-namespace-exports',
-  'Object.fromEntries': '--harmony-object-from-entries',
-  'hashbang': '--harmony-hashbang',
-  'BigInt': '--harmony-intl-bigint',
+  'Promise.allSettled': '--harmony-promise-all-settled',
+  'FinalizationRegistry': '--harmony-weak-refs-with-cleanup-some',
+  'WeakRef': '--harmony-weak-refs-with-cleanup-some',
+  'host-gc-required': '--expose-gc-as=v8GC',
+  'IsHTMLDDA': '--allow-natives-syntax',
+  'top-level-await': '--harmony-top-level-await',
+  'regexp-match-indices': '--harmony-regexp-match-indices',
+  # https://github.com/tc39/test262/pull/2395
+  'regexp-named-groups': '--harmony-regexp-match-indices',
+  'class-methods-private': '--harmony-private-methods',
+  'class-static-methods-private': '--harmony-private-methods',
+  'AggregateError': '--harmony-promise-any',
+  'logical-assignment-operators': '--harmony-logical-assignment',
+  'Promise.any': '--harmony-promise-any',
+  'Atomics.waitAsync': '--harmony-atomics-waitasync',
 }
 
-SKIPPED_FEATURES = set(['class-methods-private',
-                        'class-static-methods-private',
-                        'Intl.NumberFormat-unified'])
+SKIPPED_FEATURES = set([])
 
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 
@@ -205,6 +207,8 @@ class TestCase(testcase.D8TestCase):
         list(self.suite.harness) +
         ([os.path.join(self.suite.root, "harness-agent.js")]
          if self.__needs_harness_agent() else []) +
+        ([os.path.join(self.suite.root, "harness-ishtmldda.js")]
+         if "IsHTMLDDA" in self.test_record.get("features", []) else []) +
         ([os.path.join(self.suite.root, "harness-adapt-donotevaluate.js")]
          if self.fail_phase_only and not self._fail_phase_reverse else []) +
         self._get_includes() +
@@ -214,6 +218,7 @@ class TestCase(testcase.D8TestCase):
 
   def _get_suite_flags(self):
     return (
+        ["--ignore-unhandled-promises"] +
         (["--throws"] if "negative" in self.test_record else []) +
         (["--allow-natives-syntax"]
          if "detachArrayBuffer.js" in self.test_record.get("includes", [])

@@ -174,6 +174,7 @@ var V8OptimizationStatus = {
   kIsExecuting: 1 << 10,
   kTopmostFrameIsTurboFanned: 1 << 11,
   kLiteMode: 1 << 12,
+  kMarkedForDeoptimization: 1 << 13,
 };
 
 // Returns true if --lite-mode is on and we can't ever turn on optimization.
@@ -215,6 +216,7 @@ var prettyPrinted;
   var ArrayPrototypeJoin = Array.prototype.join;
   var ArrayPrototypeMap = Array.prototype.map;
   var ArrayPrototypePush = Array.prototype.push;
+  var JSONStringify = JSON.stringify;
 
   var BigIntPrototypeValueOf;
   // TODO(neis): Remove try-catch once BigInts are enabled by default.
@@ -251,7 +253,7 @@ var prettyPrinted;
   prettyPrinted = function prettyPrinted(value) {
     switch (typeof value) {
       case "string":
-        return JSON.stringify(value);
+        return JSONStringify(value);
       case "bigint":
         return String(value) + "n";
       case "number":
@@ -294,7 +296,7 @@ var prettyPrinted;
           default:
             return objectClass + "(" + String(value) + ")";
         }
-        // [[Class]] is "Object".
+        // classOf() returned "Object".
         var name = value.constructor.name;
         if (name) return name + "()";
         return "Object()";
@@ -390,25 +392,13 @@ var prettyPrinted;
   }
 
   assertSame = function assertSame(expected, found, name_opt) {
-    // TODO(mstarzinger): We should think about using Harmony's egal operator
-    // or the function equivalent Object.is() here.
-    if (found === expected) {
-      if (expected !== 0 || (1 / expected) === (1 / found)) return;
-    } else if ((expected !== expected) && (found !== found)) {
-      return;
-    }
+    if (Object.is(expected, found)) return;
     fail(prettyPrinted(expected), found, name_opt);
   };
 
   assertNotSame = function assertNotSame(expected, found, name_opt) {
-    // TODO(mstarzinger): We should think about using Harmony's egal operator
-    // or the function equivalent Object.is() here.
-    if (found !== expected) {
-      if (expected === 0 || (1 / expected) !== (1 / found)) return;
-    } else if (!((expected !== expected) && (found !== found))) {
-      return;
-    }
-    fail(prettyPrinted(expected), found, name_opt);
+    if (!Object.is(expected, found)) return;
+    fail("not same as " + prettyPrinted(expected), found, name_opt);
   }
 
   assertEquals = function assertEquals(expected, found, name_opt) {
@@ -508,6 +498,9 @@ var prettyPrinted;
   }
 
   assertThrows = function assertThrows(code, type_opt, cause_opt) {
+    if (arguments.length > 1 && type_opt === undefined) {
+      failWithMessage('invalid use of assertThrows, unknown type_opt given');
+    }
     if (type_opt !== undefined && typeof type_opt !== 'function') {
       failWithMessage(
           'invalid use of assertThrows, maybe you want assertThrowsEquals');
@@ -535,6 +528,9 @@ var prettyPrinted;
   };
 
   assertThrowsAsync = function assertThrowsAsync(promise, type_opt, cause_opt) {
+    if (arguments.length > 1 && type_opt === undefined) {
+      failWithMessage('invalid use of assertThrows, unknown type_opt given');
+    }
     if (type_opt !== undefined && typeof type_opt !== 'function') {
       failWithMessage(
           'invalid use of assertThrows, maybe you want assertThrowsEquals');
@@ -553,13 +549,14 @@ var prettyPrinted;
   assertInstanceof = function assertInstanceof(obj, type) {
     if (!(obj instanceof type)) {
       var actualTypeName = null;
-      var actualConstructor = Object.getPrototypeOf(obj).constructor;
-      if (typeof actualConstructor === "function") {
+      var actualConstructor = obj && Object.getPrototypeOf(obj).constructor;
+      if (typeof actualConstructor === 'function') {
         actualTypeName = actualConstructor.name || String(actualConstructor);
       }
-      failWithMessage("Object <" + prettyPrinted(obj) + "> is not an instance of <" +
-               (type.name || type) + ">" +
-               (actualTypeName ? " but of <" + actualTypeName + ">" : ""));
+      failWithMessage(
+          'Object <' + prettyPrinted(obj) + '> is not an instance of <' +
+          (type.name || type) + '>' +
+          (actualTypeName ? ' but of <' + actualTypeName + '>' : ''));
     }
   };
 

@@ -4,14 +4,14 @@
 
 #include "test/cctest/compiler/function-tester.h"
 
-#include "src/api-inl.h"
-#include "src/assembler.h"
+#include "src/api/api-inl.h"
+#include "src/codegen/assembler.h"
+#include "src/codegen/optimized-compilation-info.h"
 #include "src/compiler/linkage.h"
 #include "src/compiler/pipeline.h"
-#include "src/execution.h"
-#include "src/handles.h"
-#include "src/objects-inl.h"
-#include "src/optimized-compilation-info.h"
+#include "src/execution/execution.h"
+#include "src/handles/handles.h"
+#include "src/objects/objects-inl.h"
 #include "src/parsing/parse-info.h"
 #include "test/cctest/cctest.h"
 
@@ -25,7 +25,7 @@ FunctionTester::FunctionTester(const char* source, uint32_t flags)
       function((FLAG_allow_natives_syntax = true, NewFunction(source))),
       flags_(flags) {
   Compile(function);
-  const uint32_t supported_flags = OptimizedCompilationInfo::kInliningEnabled;
+  const uint32_t supported_flags = OptimizedCompilationInfo::kInlining;
   CHECK_EQ(0u, flags_ & ~supported_flags);
 }
 
@@ -137,7 +137,7 @@ Handle<JSFunction> FunctionTester::ForMachineGraph(Graph* graph,
     p = *f.function;
   }
   return Handle<JSFunction>(
-      p, p->GetIsolate());  // allocated in outer handle scope.
+      p, p.GetIsolate());  // allocated in outer handle scope.
 }
 
 Handle<JSFunction> FunctionTester::Compile(Handle<JSFunction> function) {
@@ -150,7 +150,8 @@ Handle<JSFunction> FunctionTester::Compile(Handle<JSFunction> function) {
 Handle<JSFunction> FunctionTester::CompileGraph(Graph* graph) {
   Handle<SharedFunctionInfo> shared(function->shared(), isolate);
   Zone zone(isolate->allocator(), ZONE_NAME);
-  OptimizedCompilationInfo info(&zone, isolate, shared, function);
+  OptimizedCompilationInfo info(&zone, isolate, shared, function,
+                                CodeKind::OPTIMIZED_FUNCTION);
 
   auto call_descriptor = Linkage::ComputeIncoming(&zone, &info);
   Handle<Code> code =

@@ -115,20 +115,6 @@ int ares_init_options(ares_channel *channelptr, struct ares_options *options,
   int status = ARES_SUCCESS;
   struct timeval now;
 
-#ifdef CURLDEBUG
-  const char *env = getenv("CARES_MEMDEBUG");
-
-  if (env)
-    curl_memdebug(env);
-  env = getenv("CARES_MEMLIMIT");
-  if (env) {
-    char *endptr;
-    long num = strtol(env, &endptr, 10);
-    if((endptr != env) && (endptr == env + strlen(env)) && (num > 0))
-      curl_memlimit(num);
-  }
-#endif
-
   if (ares_library_initialized() != ARES_SUCCESS)
     return ARES_ENOTINITIALIZED;  /* LCOV_EXCL_LINE: n/a on non-WinSock */
 
@@ -1543,8 +1529,6 @@ static int init_by_resolv_conf(ares_channel channel)
 
 #elif defined(ANDROID) || defined(__ANDROID__)
   unsigned int i;
-  char propname[PROP_NAME_MAX];
-  char propvalue[PROP_VALUE_MAX]="";
   char **dns_servers;
   char *domains;
   size_t num_servers;
@@ -1587,6 +1571,8 @@ static int init_by_resolv_conf(ares_channel channel)
    * We'll only run this if we don't have any dns servers
    * because this will get the same ones (if it works). */
   if (status != ARES_EOF) {
+    char propname[PROP_NAME_MAX];
+    char propvalue[PROP_VALUE_MAX]="";
     for (i = 1; i <= MAX_DNS_PROPERTIES; i++) {
       snprintf(propname, sizeof(propname), "%s%u", DNS_PROP_NAME_PREFIX, i);
       if (__system_property_get(propname, propvalue) < 1) {
@@ -1611,7 +1597,8 @@ static int init_by_resolv_conf(ares_channel channel)
     if (channel->nservers == -1) {
       union res_sockaddr_union addr[MAXNS];
       int nscount = res_getservers(&res, addr, MAXNS);
-      for (int i = 0; i < nscount; ++i) {
+      int i;
+      for (i = 0; i < nscount; ++i) {
         char str[INET6_ADDRSTRLEN];
         int config_status;
         sa_family_t family = addr[i].sin.sin_family;
@@ -1639,8 +1626,9 @@ static int init_by_resolv_conf(ares_channel channel)
       if (!channel->domains) {
         status = ARES_ENOMEM;
       } else {
+        int i;
         channel->ndomains = entries;
-        for (int i = 0; i < channel->ndomains; ++i) {
+        for (i = 0; i < channel->ndomains; ++i) {
           channel->domains[i] = ares_strdup(res.dnsrch[i]);
           if (!channel->domains[i])
             status = ARES_ENOMEM;
@@ -2024,6 +2012,7 @@ static int config_lookup(ares_channel channel, const char *str,
 {
   char lookups[3], *l;
   const char *vqualifier p;
+  int found;
 
   if (altbindch == NULL)
     altbindch = bindch;
@@ -2034,17 +2023,21 @@ static int config_lookup(ares_channel channel, const char *str,
    */
   l = lookups;
   p = str;
+  found = 0;
   while (*p)
     {
       if ((*p == *bindch || *p == *altbindch || *p == *filech) && l < lookups + 2) {
         if (*p == *bindch || *p == *altbindch) *l++ = 'b';
         else *l++ = 'f';
+        found = 1;
       }
       while (*p && !ISSPACE(*p) && (*p != ','))
         p++;
       while (*p && (ISSPACE(*p) || (*p == ',')))
         p++;
     }
+  if (!found)
+    return ARES_ENOTINITIALIZED;
   *l = '\0';
   channel->lookups = ares_strdup(lookups);
   return (channel->lookups) ? ARES_SUCCESS : ARES_ENOMEM;
@@ -2418,9 +2411,9 @@ static int ip_addr(const char *ipbuf, ares_ssize_t len, struct in_addr *addr)
   if (len > 15)
     return -1;
 
-  addr->s_addr = inet_addr(ipbuf);
-  if (addr->s_addr == INADDR_NONE && strcmp(ipbuf, "255.255.255.255") != 0)
+  if (ares_inet_pton(AF_INET, ipbuf, addr) < 1)
     return -1;
+
   return 0;
 }
 

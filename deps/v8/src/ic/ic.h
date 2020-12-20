@@ -7,11 +7,11 @@
 
 #include <vector>
 
-#include "src/feedback-vector.h"
+#include "src/common/message-template.h"
+#include "src/execution/isolate.h"
 #include "src/heap/factory.h"
 #include "src/ic/stub-cache.h"
-#include "src/isolate.h"
-#include "src/message-template.h"
+#include "src/objects/feedback-vector.h"
 #include "src/objects/map.h"
 #include "src/objects/maybe-object.h"
 #include "src/objects/smi.h"
@@ -29,8 +29,6 @@ class IC {
   // Alias the inline cache state type to make the IC code more readable.
   using State = InlineCacheState;
 
-  static constexpr int kMaxKeyedPolymorphism = 4;
-
   // Construct the IC structure with the given number of extra
   // JavaScript frames on the stack.
   IC(Isolate* isolate, Handle<FeedbackVector> vector, FeedbackSlot slot,
@@ -38,10 +36,10 @@ class IC {
   virtual ~IC() = default;
 
   State state() const { return state_; }
-  inline Address address() const;
 
-  // Compute the current IC state based on the target stub, receiver and name.
-  void UpdateState(Handle<Object> receiver, Handle<Object> name);
+  // Compute the current IC state based on the target stub, lookup_start_object
+  // and name.
+  void UpdateState(Handle<Object> lookup_start_object, Handle<Object> name);
 
   bool RecomputeHandlerForName(Handle<Object> name);
   void MarkRecomputeHandler(Handle<Object> name) {
@@ -63,34 +61,20 @@ class IC {
 
   // Nofity the IC system that a feedback has changed.
   static void OnFeedbackChanged(Isolate* isolate, FeedbackVector vector,
-                                FeedbackSlot slot, JSFunction host_function,
-                                const char* reason);
+                                FeedbackSlot slot, const char* reason);
 
-  static void OnFeedbackChanged(Isolate* isolate, FeedbackNexus* nexus,
-                                JSFunction host_function, const char* reason);
+  void OnFeedbackChanged(const char* reason);
 
  protected:
-  Address fp() const { return fp_; }
-  Address pc() const { return *pc_address_; }
-
   void set_slow_stub_reason(const char* reason) { slow_stub_reason_ = reason; }
 
   Isolate* isolate() const { return isolate_; }
-
-  // Get the caller function object.
-  JSFunction GetHostFunction() const;
-
-  inline bool AddressIsDeoptimizedCode() const;
-  inline static bool AddressIsDeoptimizedCode(Isolate* isolate,
-                                              Address address);
 
   bool is_vector_set() { return vector_set_; }
   inline bool vector_needs_update();
 
   // Configure for most states.
   bool ConfigureVectorState(IC::State new_state, Handle<Object> key);
-  // Configure the vector for PREMONOMORPHIC.
-  void ConfigureVectorState(Handle<Map> map);
   // Configure the vector for MONOMORPHIC.
   void ConfigureVectorState(Handle<Name> name, Handle<Map> map,
                             Handle<Object> handler);
@@ -99,6 +83,8 @@ class IC {
   // Configure the vector for POLYMORPHIC.
   void ConfigureVectorState(Handle<Name> name, MapHandles const& maps,
                             MaybeObjectHandles* handlers);
+  void ConfigureVectorState(
+      Handle<Name> name, std::vector<MapAndHandler> const& maps_and_handlers);
 
   char TransitionMarkFromState(IC::State state);
   void TraceIC(const char* type, Handle<Object> name);
@@ -109,8 +95,6 @@ class IC {
                                 Handle<Object> key);
   MaybeHandle<Object> ReferenceError(Handle<Name> name);
 
-  void TraceHandlerCacheHitStats(LookupIterator* lookup);
-
   void UpdateMonomorphicIC(const MaybeObjectHandle& handler, Handle<Name> name);
   bool UpdatePolymorphicIC(Handle<Name> name, const MaybeObjectHandle& handler);
   void UpdateMegamorphicCache(Handle<Map> map, Handle<Name> name,
@@ -120,8 +104,8 @@ class IC {
 
   void CopyICToMegamorphicCache(Handle<Name> name);
   bool IsTransitionOfMonomorphicTarget(Map source_map, Map target_map);
-  void PatchCache(Handle<Name> name, Handle<Object> handler);
-  void PatchCache(Handle<Name> name, const MaybeObjectHandle& handler);
+  void SetCache(Handle<Name> name, Handle<Object> handler);
+  void SetCache(Handle<Name> name, const MaybeObjectHandle& handler);
   FeedbackSlotKind kind() const { return kind_; }
   bool IsGlobalIC() const { return IsLoadGlobalIC() || IsStoreGlobalIC(); }
   bool IsLoadIC() const { return IsLoadICKind(kind_); }
@@ -138,8 +122,8 @@ class IC {
   }
   bool ShouldRecomputeHandler(Handle<String> name);
 
-  Handle<Map> receiver_map() { return receiver_map_; }
-  inline void update_receiver_map(Handle<Object> receiver);
+  Handle<Map> lookup_start_object_map() { return lookup_start_object_map_; }
+  inline void update_lookup_start_object_map(Handle<Object> object);
 
   void TargetMaps(MapHandles* list) {
     FindTargetMaps();
@@ -153,35 +137,15 @@ class IC {
     return !target_maps_.empty() ? *target_maps_[0] : Map();
   }
 
-  State saved_state() const {
-    return state() == RECOMPUTE_HANDLER ? old_state_ : state();
-  }
-
   const FeedbackNexus* nexus() const { return &nexus_; }
   FeedbackNexus* nexus() { return &nexus_; }
 
  private:
-  inline Address constant_pool() const;
-  inline Address raw_constant_pool() const;
-
   void FindTargetMaps() {
     if (target_maps_set_) return;
     target_maps_set_ = true;
     nexus()->ExtractMaps(&target_maps_);
   }
-
-  // Frame pointer for the frame that uses (calls) the IC.
-  Address fp_;
-
-  // All access to the program counter and constant pool of an IC structure is
-  // indirect to make the code GC safe. This feature is crucial since
-  // GetProperty and SetProperty are called and they in turn might
-  // invoke the garbage collector.
-  Address* pc_address_;
-
-  // The constant pool of the code which originally called the IC (which might
-  // be for the breakpointed copy of the original code).
-  Address* constant_pool_address_;
 
   Isolate* isolate_;
 
@@ -189,8 +153,7 @@ class IC {
   State old_state_;  // For saving if we marked as prototype failure.
   State state_;
   FeedbackSlotKind kind_;
-  Handle<Map> receiver_map_;
-  MaybeObjectHandle maybe_handler_;
+  Handle<Map> lookup_start_object_map_;
 
   MapHandles target_maps_;
   bool target_maps_set_;
@@ -218,15 +181,12 @@ class LoadIC : public IC {
     return ShouldThrowReferenceError(kind());
   }
 
-  V8_WARN_UNUSED_RESULT MaybeHandle<Object> Load(Handle<Object> object,
-                                                 Handle<Name> name);
+  // If receiver is empty, use object as the receiver.
+  V8_WARN_UNUSED_RESULT MaybeHandle<Object> Load(
+      Handle<Object> object, Handle<Name> name, bool update_feedback = true,
+      Handle<Object> receiver = Handle<Object>());
 
  protected:
-  virtual Handle<Code> slow_stub() const {
-    return IsAnyHas() ? BUILTIN_CODE(isolate(), HasIC_Slow)
-                      : BUILTIN_CODE(isolate(), LoadIC_Slow);
-  }
-
   // Update the inline cache and the global stub cache based on the
   // lookup result.
   void UpdateCaches(LookupIterator* lookup);
@@ -244,12 +204,8 @@ class LoadGlobalIC : public LoadIC {
                FeedbackSlot slot, FeedbackSlotKind kind)
       : LoadIC(isolate, vector, slot, kind) {}
 
-  V8_WARN_UNUSED_RESULT MaybeHandle<Object> Load(Handle<Name> name);
-
- protected:
-  Handle<Code> slow_stub() const override {
-    return BUILTIN_CODE(isolate(), LoadGlobalIC_Slow);
-  }
+  V8_WARN_UNUSED_RESULT MaybeHandle<Object> Load(Handle<Name> name,
+                                                 bool update_feedback = true);
 };
 
 class KeyedLoadIC : public LoadIC {
@@ -302,11 +258,6 @@ class StoreIC : public IC {
 
  protected:
   // Stub accessors.
-  virtual Handle<Code> slow_stub() const {
-    // All StoreICs share the same slow stub.
-    return BUILTIN_CODE(isolate(), KeyedStoreIC_Slow);
-  }
-
   // Update the inline cache and the global stub cache based on the
   // lookup result.
   void UpdateCaches(LookupIterator* lookup, Handle<Object> value,
@@ -326,16 +277,17 @@ class StoreGlobalIC : public StoreIC {
 
   V8_WARN_UNUSED_RESULT MaybeHandle<Object> Store(Handle<Name> name,
                                                   Handle<Object> value);
-
- protected:
-  Handle<Code> slow_stub() const override {
-    return BUILTIN_CODE(isolate(), StoreGlobalIC_Slow);
-  }
 };
 
 enum KeyedStoreCheckMap { kDontCheckMap, kCheckMap };
 
 enum KeyedStoreIncrementLength { kDontIncrementLength, kIncrementLength };
+
+enum class TransitionMode {
+  kNoTransition,
+  kTransitionToDouble,
+  kTransitionToObject
+};
 
 class KeyedStoreIC : public StoreIC {
  public:
@@ -354,22 +306,19 @@ class KeyedStoreIC : public StoreIC {
  protected:
   void UpdateStoreElement(Handle<Map> receiver_map,
                           KeyedAccessStoreMode store_mode,
-                          bool receiver_was_cow);
-
-  Handle<Code> slow_stub() const override {
-    return BUILTIN_CODE(isolate(), KeyedStoreIC_Slow);
-  }
+                          Handle<Map> new_receiver_map);
 
  private:
   Handle<Map> ComputeTransitionedMap(Handle<Map> map,
-                                     KeyedAccessStoreMode store_mode);
+                                     TransitionMode transition_mode);
 
-  Handle<Object> StoreElementHandler(Handle<Map> receiver_map,
-                                     KeyedAccessStoreMode store_mode);
+  Handle<Object> StoreElementHandler(
+      Handle<Map> receiver_map, KeyedAccessStoreMode store_mode,
+      MaybeHandle<Object> prev_validity_cell = MaybeHandle<Object>());
 
-  void StoreElementPolymorphicHandlers(MapHandles* receiver_maps,
-                                       MaybeObjectHandles* handlers,
-                                       KeyedAccessStoreMode store_mode);
+  void StoreElementPolymorphicHandlers(
+      std::vector<MapAndHandler>* receiver_maps_and_handlers,
+      KeyedAccessStoreMode store_mode);
 
   friend class IC;
 };
@@ -384,11 +333,6 @@ class StoreInArrayLiteralIC : public KeyedStoreIC {
   }
 
   void Store(Handle<JSArray> array, Handle<Object> index, Handle<Object> value);
-
- private:
-  Handle<Code> slow_stub() const override {
-    return BUILTIN_CODE(isolate(), StoreInArrayLiteralIC_Slow);
-  }
 };
 
 }  // namespace internal

@@ -2,9 +2,10 @@
 #include "inspector_agent.h"
 #include "inspector_io.h"
 #include "memory_tracker-inl.h"
+#include "node_external_reference.h"
 #include "util-inl.h"
-#include "v8.h"
 #include "v8-inspector.h"
+#include "v8.h"
 
 #include <memory>
 
@@ -12,7 +13,6 @@ namespace node {
 namespace inspector {
 namespace {
 
-using v8::Boolean;
 using v8::Context;
 using v8::Function;
 using v8::FunctionCallbackInfo;
@@ -37,6 +37,29 @@ std::unique_ptr<StringBuffer> ToProtocolString(Isolate* isolate,
   return StringBuffer::create(StringView(*buffer, buffer.length()));
 }
 
+struct LocalConnection {
+  static std::unique_ptr<InspectorSession> Connect(
+      Agent* inspector, std::unique_ptr<InspectorSessionDelegate> delegate) {
+    return inspector->Connect(std::move(delegate), false);
+  }
+
+  static Local<String> GetClassName(Environment* env) {
+    return FIXED_ONE_BYTE_STRING(env->isolate(), "Connection");
+  }
+};
+
+struct MainThreadConnection {
+  static std::unique_ptr<InspectorSession> Connect(
+      Agent* inspector, std::unique_ptr<InspectorSessionDelegate> delegate) {
+    return inspector->ConnectToMainThread(std::move(delegate), true);
+  }
+
+  static Local<String> GetClassName(Environment* env) {
+    return FIXED_ONE_BYTE_STRING(env->isolate(), "MainThreadConnection");
+  }
+};
+
+template <typename ConnectionType>
 class JSBindingsConnection : public AsyncWrap {
  public:
   class JSBindingsSessionDelegate : public InspectorSessionDelegate {
@@ -61,7 +84,7 @@ class JSBindingsConnection : public AsyncWrap {
 
    private:
     Environment* env_;
-    JSBindingsConnection* connection_;
+    BaseObjectPtr<JSBindingsConnection> connection_;
   };
 
   JSBindingsConnection(Environment* env,
@@ -70,12 +93,28 @@ class JSBindingsConnection : public AsyncWrap {
                        : AsyncWrap(env, wrap, PROVIDER_INSPECTORJSBINDING),
                          callback_(env->isolate(), callback) {
     Agent* inspector = env->inspector_agent();
-    session_ = inspector->Connect(std::make_unique<JSBindingsSessionDelegate>(
-        env, this), false);
+    session_ = ConnectionType::Connect(
+        inspector, std::make_unique<JSBindingsSessionDelegate>(env, this));
   }
 
   void OnMessage(Local<Value> value) {
     MakeCallback(callback_.Get(env()->isolate()), 1, &value);
+  }
+
+  static void Bind(Environment* env, Local<Object> target) {
+    Local<String> class_name = ConnectionType::GetClassName(env);
+    Local<FunctionTemplate> tmpl =
+        env->NewFunctionTemplate(JSBindingsConnection::New);
+    tmpl->InstanceTemplate()->SetInternalFieldCount(
+        JSBindingsConnection::kInternalFieldCount);
+    tmpl->SetClassName(class_name);
+    tmpl->Inherit(AsyncWrap::GetConstructorTemplate(env));
+    env->SetProtoMethod(tmpl, "dispatch", JSBindingsConnection::Dispatch);
+    env->SetProtoMethod(tmpl, "disconnect", JSBindingsConnection::Disconnect);
+    target->Set(env->context(),
+                class_name,
+                tmpl->GetFunction(env->context()).ToLocalChecked())
+        .ToChecked();
   }
 
   static void New(const FunctionCallbackInfo<Value>& info) {
@@ -116,6 +155,10 @@ class JSBindingsConnection : public AsyncWrap {
 
   SET_MEMORY_INFO_NAME(JSBindingsConnection)
   SET_SELF_SIZE(JSBindingsConnection)
+
+  bool IsNotIndicativeOfMemoryLeakAtExit() const override {
+    return true;  // Binding connections emit events on their own.
+  }
 
  private:
   std::unique_ptr<InspectorSession> session_;
@@ -240,12 +283,14 @@ void Open(const FunctionCallbackInfo<Value>& args) {
 
   if (args.Length() > 0 && args[0]->IsUint32()) {
     uint32_t port = args[0].As<Uint32>()->Value();
-    agent->host_port()->set_port(static_cast<int>(port));
+    ExclusiveAccess<HostPort>::Scoped host_port(agent->host_port());
+    host_port->set_port(static_cast<int>(port));
   }
 
   if (args.Length() > 1 && args[1]->IsString()) {
     Utf8Value host(env->isolate(), args[1].As<String>());
-    agent->host_port()->set_host(*host);
+    ExclusiveAccess<HostPort>::Scoped host_port(agent->host_port());
+    host_port->set_host(*host);
   }
 
   agent->StartIoThread();
@@ -262,7 +307,7 @@ void WaitForDebugger(const FunctionCallbackInfo<Value>& args) {
 void Url(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   std::string url = env->inspector_agent()->GetWsUrl();
-  if (url.length() == 0) {
+  if (url.empty()) {
     return;
   }
   args.GetReturnValue().Set(OneByteString(env->isolate(), url.c_str()));
@@ -300,23 +345,40 @@ void Initialize(Local<Object> target, Local<Value> unused,
   env->SetMethod(target, "registerAsyncHook", RegisterAsyncHookWrapper);
   env->SetMethodNoSideEffect(target, "isEnabled", IsEnabled);
 
-  auto conn_str = FIXED_ONE_BYTE_STRING(env->isolate(), "Connection");
-  Local<FunctionTemplate> tmpl =
-      env->NewFunctionTemplate(JSBindingsConnection::New);
-  tmpl->InstanceTemplate()->SetInternalFieldCount(1);
-  tmpl->SetClassName(conn_str);
-  tmpl->Inherit(AsyncWrap::GetConstructorTemplate(env));
-  env->SetProtoMethod(tmpl, "dispatch", JSBindingsConnection::Dispatch);
-  env->SetProtoMethod(tmpl, "disconnect", JSBindingsConnection::Disconnect);
-  target
-      ->Set(env->context(), conn_str,
-            tmpl->GetFunction(env->context()).ToLocalChecked())
-      .ToChecked();
+  JSBindingsConnection<LocalConnection>::Bind(env, target);
+  JSBindingsConnection<MainThreadConnection>::Bind(env, target);
 }
 
 }  // namespace
+
+void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
+  registry->Register(InspectorConsoleCall);
+  registry->Register(SetConsoleExtensionInstaller);
+  registry->Register(CallAndPauseOnStart);
+  registry->Register(Open);
+  registry->Register(Url);
+  registry->Register(WaitForDebugger);
+
+  registry->Register(AsyncTaskScheduledWrapper);
+  registry->Register(InvokeAsyncTaskFnWithId<&Agent::AsyncTaskCanceled>);
+  registry->Register(InvokeAsyncTaskFnWithId<&Agent::AsyncTaskStarted>);
+  registry->Register(InvokeAsyncTaskFnWithId<&Agent::AsyncTaskFinished>);
+
+  registry->Register(RegisterAsyncHookWrapper);
+  registry->Register(IsEnabled);
+
+  registry->Register(JSBindingsConnection<LocalConnection>::New);
+  registry->Register(JSBindingsConnection<LocalConnection>::Dispatch);
+  registry->Register(JSBindingsConnection<LocalConnection>::Disconnect);
+  registry->Register(JSBindingsConnection<MainThreadConnection>::New);
+  registry->Register(JSBindingsConnection<MainThreadConnection>::Dispatch);
+  registry->Register(JSBindingsConnection<MainThreadConnection>::Disconnect);
+}
+
 }  // namespace inspector
 }  // namespace node
 
 NODE_MODULE_CONTEXT_AWARE_INTERNAL(inspector,
                                   node::inspector::Initialize)
+NODE_MODULE_EXTERNAL_REFERENCE(inspector,
+                               node::inspector::RegisterExternalReferences)

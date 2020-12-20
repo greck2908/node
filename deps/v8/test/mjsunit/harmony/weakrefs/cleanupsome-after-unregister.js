@@ -2,18 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --harmony-weak-refs --expose-gc --noincremental-marking
+// Flags: --harmony-weak-refs-with-cleanup-some --expose-gc --noincremental-marking
 
 let cleanup_count = 0;
 let cleanup_holdings = [];
-let cleanup = function(iter) {
-  for (holdings of iter) {
-    cleanup_holdings.push(holdings);
-  }
+let cleanup = function(holdings) {
+  cleanup_holdings.push(holdings);
   ++cleanup_count;
 }
 
-let fg = new FinalizationGroup(cleanup);
+let fg = new FinalizationRegistry(cleanup);
 let key = {"k": "this is the key"};
 (function() {
   let o = {};
@@ -22,6 +20,9 @@ let key = {"k": "this is the key"};
   // cleanupSome won't do anything since there are no reclaimed targets.
   fg.cleanupSome();
   assertEquals(0, cleanup_count);
+  // Keep o alive to the end of the function, so that --stress-opt mode
+  // is robust towards --gc-interval timing.
+  return o;
 })();
 
 // GC will detect the WeakCell as dirty.

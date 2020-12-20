@@ -7,7 +7,8 @@
 
 #include <cstdint>
 
-#include "src/machine-type.h"
+#include "src/base/optional.h"
+#include "src/codegen/machine-type.h"
 #include "src/wasm/wasm-tier.h"
 
 namespace v8 {
@@ -30,8 +31,10 @@ struct MemoryTracingInfo {
 
 // Callback for tracing a memory operation for debugging.
 // Triggered by --wasm-trace-memory.
-void TraceMemoryOperation(ExecutionTier, const MemoryTracingInfo* info,
-                          int func_index, int position, uint8_t* mem_start);
+V8_EXPORT_PRIVATE void TraceMemoryOperation(base::Optional<ExecutionTier>,
+                                            const MemoryTracingInfo* info,
+                                            int func_index, int position,
+                                            uint8_t* mem_start);
 
 }  // namespace wasm
 }  // namespace internal

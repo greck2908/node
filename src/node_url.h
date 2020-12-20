@@ -4,7 +4,6 @@
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
 
 #include "node.h"
-#include "env.h"
 
 #include <string>
 
@@ -72,6 +71,7 @@ struct url_data {
   std::string query;
   std::string fragment;
   std::vector<std::string> path;
+  std::string href;
 };
 
 class URL {
@@ -83,6 +83,8 @@ class URL {
                     bool has_url,
                     const struct url_data* base,
                     bool has_base);
+
+  static std::string SerializeURL(const struct url_data* url, bool exclude);
 
   URL(const char* input, const size_t len) {
     Parse(input, len, kUnknownState, &context_, false, nullptr, false);
@@ -121,11 +123,11 @@ class URL {
   URL(const std::string& input, const std::string& base) :
       URL(input.c_str(), input.length(), base.c_str(), base.length()) {}
 
-  int32_t flags() {
+  int32_t flags() const {
     return context_.flags;
   }
 
-  int port() {
+  int port() const {
     return context_.port;
   }
 
@@ -159,6 +161,10 @@ class URL {
       ret += '/' + element;
     }
     return ret;
+  }
+
+  std::string href() const {
+    return SerializeURL(&context_, false);
   }
 
   // Get the path of the file: URL in a format consumable by native file system

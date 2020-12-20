@@ -43,13 +43,12 @@ except NameError:  # Python 3
 FILES_PATTERN = re.compile(r"//\s+Files:(.*)")
 ENV_PATTERN = re.compile(r"//\s+Environment Variables:(.*)")
 SELF_SCRIPT_PATTERN = re.compile(r"//\s+Env: TEST_FILE_NAME")
-MODULE_PATTERN = re.compile(r"^// MODULE$", flags=re.MULTILINE)
 NO_HARNESS_PATTERN = re.compile(r"^// NO HARNESS$", flags=re.MULTILINE)
 
 
 # Flags known to misbehave when combining arbitrary mjsunit tests. Can also
 # be compiled regular expressions.
-COMBINE_TESTS_FLAGS_BLACKLIST = [
+MISBEHAVING_COMBINED_TESTS_FLAGS= [
   '--check-handle-count',
   '--enable-tracing',
   re.compile('--experimental.*'),
@@ -99,8 +98,7 @@ class TestCase(testcase.D8TestCase):
         break
     files = [ os.path.normpath(os.path.join(self.suite.root, '..', '..', f))
               for f in files_list ]
-    testfilename = os.path.join(self.suite.root,
-                                self.path + self._get_suffix())
+    testfilename = self._get_source_path()
     if SELF_SCRIPT_PATTERN.search(source):
       files = (
         ["-e", "TEST_FILE_NAME=\"%s\"" % testfilename.replace("\\", "\\\\")] +
@@ -114,15 +112,10 @@ class TestCase(testcase.D8TestCase):
     if self.suite.framework_name == 'num_fuzzer':
       mjsunit_files.append(os.path.join(self.suite.root, "mjsunit_numfuzz.js"))
 
-    files_suffix = []
-    if MODULE_PATTERN.search(source):
-      files_suffix.append("--module")
-    files_suffix.append(testfilename)
-
     self._source_files = files
     self._source_flags = self._parse_source_flags(source)
     self._mjsunit_files = mjsunit_files
-    self._files_suffix = files_suffix
+    self._files_suffix = [testfilename]
     self._env = self._parse_source_env(source)
 
   def _parse_source_env(self, source):
@@ -151,7 +144,13 @@ class TestCase(testcase.D8TestCase):
     return self._env
 
   def _get_source_path(self):
-    return os.path.join(self.suite.root, self.path + self._get_suffix())
+    base_path = os.path.join(self.suite.root, self.path)
+    # Try .js first, and fall back to .mjs.
+    # TODO(v8:9406): clean this up by never separating the path from
+    # the extension in the first place.
+    if os.path.exists(base_path + self._get_suffix()):
+      return base_path + self._get_suffix()
+    return base_path + '.mjs'
 
 
 class TestCombiner(testsuite.TestCombiner):
@@ -207,7 +206,7 @@ class CombinedTest(testcase.D8TestCase):
     """In addition to standard set of shell flags it appends:
       --disable-abortjs: %AbortJS can abort the test even inside
         trycatch-wrapper, so we disable it.
-      --es-staging: We blacklist all harmony flags due to false positives,
+      --es-staging: We skip all harmony flags due to false positives,
           but always pass the staging flag to cover the mature features.
       --omit-quit: Calling quit() in JS would otherwise early terminate.
       --quiet-load: suppress any stdout from load() function used by
@@ -248,8 +247,8 @@ class CombinedTest(testcase.D8TestCase):
       elif flag1.startswith('-'):
         yield flag1
 
-  def _is_flag_blacklisted(self, flag):
-    for item in COMBINE_TESTS_FLAGS_BLACKLIST:
+  def _is_flag_blocked(self, flag):
+    for item in MISBEHAVING_COMBINED_TESTS_FLAGS:
       if isinstance(item, basestring):
         if item == flag:
           return True
@@ -268,7 +267,7 @@ class CombinedTest(testcase.D8TestCase):
     unique_flags = OrderedDict((flag, True) for flag in merged_flags).keys()
     return [
       flag for flag in unique_flags
-      if not self._is_flag_blacklisted(flag)
+      if not self._is_flag_blocked(flag)
     ]
 
   def _get_source_flags(self):

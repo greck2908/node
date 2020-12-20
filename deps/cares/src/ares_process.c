@@ -34,12 +34,12 @@
 #endif
 #ifdef HAVE_ARPA_NAMESER_H
 #  include <arpa/nameser.h>
-#else
-#  include "nameser.h"
 #endif
 #ifdef HAVE_ARPA_NAMESER_COMPAT_H
 #  include <arpa/nameser_compat.h>
 #endif
+
+#include "nameser.h"
 
 #ifdef HAVE_STRINGS_H
 #  include <strings.h>
@@ -87,6 +87,7 @@ static int open_udp_socket(ares_channel channel, struct server_state *server);
 static int same_questions(const unsigned char *qbuf, int qlen,
                           const unsigned char *abuf, int alen);
 static int same_address(struct sockaddr *sa, struct ares_addr *aa);
+static int has_opt_rr(const unsigned char *abuf, int alen);
 static void end_query(ares_channel channel, struct query *query, int status,
                       unsigned char *abuf, int alen);
 
@@ -608,14 +609,14 @@ static void process_answer(ares_channel channel, unsigned char *abuf,
     return;
 
   packetsz = PACKETSZ;
-  /* If we use EDNS and server answers with one of these RCODES, the protocol
+  /* If we use EDNS and server answers with FORMERR without an OPT RR, the protocol
    * extension is not understood by the responder. We must retry the query
    * without EDNS enabled.
    */
   if (channel->flags & ARES_FLAG_EDNS)
   {
       packetsz = channel->ednspsz;
-      if (rcode == NOTIMP || rcode == FORMERR || rcode == SERVFAIL)
+      if (rcode == FORMERR && has_opt_rr(abuf, alen) != 1)
       {
           int qlen = (query->tcplen - 2) - EDNSFIXEDSZ;
           channel->flags ^= ARES_FLAG_EDNS;
@@ -1039,30 +1040,6 @@ static int configure_socket(ares_socket_t s, int family, ares_channel channel)
   return 0;
 }
 
-static ares_socket_t open_socket(ares_channel channel, int af, int type, int protocol)
-{
-  if (channel->sock_funcs != 0)
-    return channel->sock_funcs->asocket(af,
-                                        type,
-                                        protocol,
-                                        channel->sock_func_cb_data);
-
-  return socket(af, type, protocol);
-}
-
-static int connect_socket(ares_channel channel, ares_socket_t sockfd,
-			  const struct sockaddr * addr,
-	                  ares_socklen_t addrlen)
-{
-   if (channel->sock_funcs != 0)
-      return channel->sock_funcs->aconnect(sockfd,
-	                                   addr,
-	                                   addrlen,
-	                                   channel->sock_func_cb_data);
-
-   return connect(sockfd, addr, addrlen);
-}
-
 static int open_tcp_socket(ares_channel channel, struct server_state *server)
 {
   ares_socket_t s;
@@ -1107,14 +1084,14 @@ static int open_tcp_socket(ares_channel channel, struct server_state *server)
     }
 
   /* Acquire a socket. */
-  s = open_socket(channel, server->addr.family, SOCK_STREAM, 0);
+  s = ares__open_socket(channel, server->addr.family, SOCK_STREAM, 0);
   if (s == ARES_SOCKET_BAD)
     return -1;
 
   /* Configure it. */
   if (configure_socket(s, server->addr.family, channel) < 0)
     {
-       ares__socket_close(channel, s);
+       ares__close_socket(channel, s);
        return -1;
     }
 
@@ -1131,7 +1108,7 @@ static int open_tcp_socket(ares_channel channel, struct server_state *server)
      setsockopt(s, IPPROTO_TCP, TCP_NODELAY,
                 (void *)&opt, sizeof(opt)) == -1)
     {
-       ares__socket_close(channel, s);
+       ares__close_socket(channel, s);
        return -1;
     }
 #endif
@@ -1142,19 +1119,19 @@ static int open_tcp_socket(ares_channel channel, struct server_state *server)
                                         channel->sock_config_cb_data);
       if (err < 0)
         {
-          ares__socket_close(channel, s);
+          ares__close_socket(channel, s);
           return err;
         }
     }
 
   /* Connect to the server. */
-  if (connect_socket(channel, s, sa, salen) == -1)
+  if (ares__connect_socket(channel, s, sa, salen) == -1)
     {
       int err = SOCKERRNO;
 
       if (err != EINPROGRESS && err != EWOULDBLOCK)
         {
-          ares__socket_close(channel, s);
+          ares__close_socket(channel, s);
           return -1;
         }
     }
@@ -1165,7 +1142,7 @@ static int open_tcp_socket(ares_channel channel, struct server_state *server)
                                         channel->sock_create_cb_data);
       if (err < 0)
         {
-          ares__socket_close(channel, s);
+          ares__close_socket(channel, s);
           return err;
         }
     }
@@ -1220,14 +1197,14 @@ static int open_udp_socket(ares_channel channel, struct server_state *server)
     }
 
   /* Acquire a socket. */
-  s = open_socket(channel, server->addr.family, SOCK_DGRAM, 0);
+  s = ares__open_socket(channel, server->addr.family, SOCK_DGRAM, 0);
   if (s == ARES_SOCKET_BAD)
     return -1;
 
   /* Set the socket non-blocking. */
   if (configure_socket(s, server->addr.family, channel) < 0)
     {
-       ares__socket_close(channel, s);
+       ares__close_socket(channel, s);
        return -1;
     }
 
@@ -1237,19 +1214,19 @@ static int open_udp_socket(ares_channel channel, struct server_state *server)
                                         channel->sock_config_cb_data);
       if (err < 0)
         {
-          ares__socket_close(channel, s);
+          ares__close_socket(channel, s);
           return err;
         }
     }
 
   /* Connect to the server. */
-  if (connect_socket(channel, s, sa, salen) == -1)
+  if (ares__connect_socket(channel, s, sa, salen) == -1)
     {
       int err = SOCKERRNO;
 
       if (err != EINPROGRESS && err != EWOULDBLOCK)
         {
-          ares__socket_close(channel, s);
+          ares__close_socket(channel, s);
           return -1;
         }
     }
@@ -1260,7 +1237,7 @@ static int open_udp_socket(ares_channel channel, struct server_state *server)
                                         channel->sock_create_cb_data);
       if (err < 0)
         {
-          ares__socket_close(channel, s);
+          ares__close_socket(channel, s);
           return err;
         }
     }
@@ -1361,13 +1338,13 @@ static int same_address(struct sockaddr *sa, struct ares_addr *aa)
         {
           case AF_INET:
             addr1 = &aa->addrV4;
-            addr2 = &((struct sockaddr_in *)sa)->sin_addr;
+            addr2 = &(CARES_INADDR_CAST(struct sockaddr_in *, sa))->sin_addr;
             if (memcmp(addr1, addr2, sizeof(aa->addrV4)) == 0)
               return 1; /* match */
             break;
           case AF_INET6:
             addr1 = &aa->addrV6;
-            addr2 = &((struct sockaddr_in6 *)sa)->sin6_addr;
+            addr2 = &(CARES_INADDR_CAST(struct sockaddr_in6 *, sa))->sin6_addr;
             if (memcmp(addr1, addr2, sizeof(aa->addrV6)) == 0)
               return 1; /* match */
             break;
@@ -1376,6 +1353,85 @@ static int same_address(struct sockaddr *sa, struct ares_addr *aa)
         }
     }
   return 0; /* different */
+}
+
+/* search for an OPT RR in the response */
+static int has_opt_rr(const unsigned char *abuf, int alen)
+{
+  unsigned int qdcount, ancount, nscount, arcount, i;
+  const unsigned char *aptr;
+  int status;
+
+  if (alen < HFIXEDSZ)
+    return -1;
+
+  /* Parse the answer header. */
+  qdcount = DNS_HEADER_QDCOUNT(abuf);
+  ancount = DNS_HEADER_ANCOUNT(abuf);
+  nscount = DNS_HEADER_NSCOUNT(abuf);
+  arcount = DNS_HEADER_ARCOUNT(abuf);
+
+  aptr = abuf + HFIXEDSZ;
+
+  /* skip the questions */
+  for (i = 0; i < qdcount; i++)
+    {
+      char* name;
+      long len;
+      status = ares_expand_name(aptr, abuf, alen, &name, &len);
+      if (status != ARES_SUCCESS)
+        return -1;
+      ares_free_string(name);
+      if (aptr + len + QFIXEDSZ > abuf + alen)
+        return -1;
+      aptr += len + QFIXEDSZ;
+    }
+
+  /* skip the ancount and nscount */
+  for (i = 0; i < ancount + nscount; i++)
+    {
+      char* name;
+      long len;
+      int dlen;
+      status = ares_expand_name(aptr, abuf, alen, &name, &len);
+      if (status != ARES_SUCCESS)
+        return -1;
+      ares_free_string(name);
+      if (aptr + len + RRFIXEDSZ > abuf + alen)
+        return -1;
+      aptr += len;
+      dlen = DNS_RR_LEN(aptr);
+      aptr += RRFIXEDSZ;
+      if (aptr + dlen > abuf + alen)
+        return -1;
+      aptr += dlen;
+    }
+
+  /* search for rr type (41) - opt */
+  for (i = 0; i < arcount; i++)
+    {
+      char* name;
+      long len;
+      int dlen;
+      status = ares_expand_name(aptr, abuf, alen, &name, &len);
+      if (status != ARES_SUCCESS)
+        return -1;
+      ares_free_string(name);
+      if (aptr + len + RRFIXEDSZ > abuf + alen)
+        return -1;
+      aptr += len;
+
+      if (DNS_RR_TYPE(aptr) == T_OPT)
+        return 1;
+
+      dlen = DNS_RR_LEN(aptr);
+      aptr += RRFIXEDSZ;
+      if (aptr + dlen > abuf + alen)
+        return -1;
+      aptr += dlen;
+    }
+
+  return 0;
 }
 
 static void end_query (ares_channel channel, struct query *query, int status,
@@ -1464,7 +1520,33 @@ void ares__free_query(struct query *query)
   ares_free(query);
 }
 
-void ares__socket_close(ares_channel channel, ares_socket_t s)
+ares_socket_t ares__open_socket(ares_channel channel,
+                                int af, int type, int protocol)
+{
+  if (channel->sock_funcs)
+    return channel->sock_funcs->asocket(af,
+                                        type,
+                                        protocol,
+                                        channel->sock_func_cb_data);
+  else
+    return socket(af, type, protocol);
+}
+
+int ares__connect_socket(ares_channel channel,
+                         ares_socket_t sockfd,
+                         const struct sockaddr *addr,
+                         ares_socklen_t addrlen)
+{
+  if (channel->sock_funcs)
+    return channel->sock_funcs->aconnect(sockfd,
+                                         addr,
+                                         addrlen,
+                                         channel->sock_func_cb_data);
+  else
+    return connect(sockfd, addr, addrlen);
+}
+
+void ares__close_socket(ares_channel channel, ares_socket_t s)
 {
   if (channel->sock_funcs)
     channel->sock_funcs->aclose(s, channel->sock_func_cb_data);

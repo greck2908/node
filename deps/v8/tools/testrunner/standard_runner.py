@@ -5,15 +5,18 @@
 # found in the LICENSE file.
 
 # for py2/py3 compatibility
+from __future__ import absolute_import
 from __future__ import print_function
 from functools import reduce
 
+import datetime
+import json
 import os
-import re
 import sys
+import tempfile
 
 # Adds testrunner to the path hence it has to be imported at the beggining.
-import base_runner
+from . import base_runner
 
 from testrunner.local import utils
 from testrunner.local.variants import ALL_VARIANTS
@@ -21,20 +24,16 @@ from testrunner.objects import predictable
 from testrunner.testproc.execution import ExecutionProc
 from testrunner.testproc.filter import StatusFileFilterProc, NameFilterProc
 from testrunner.testproc.loader import LoadProc
-from testrunner.testproc.progress import ResultsTracker
 from testrunner.testproc.seed import SeedProc
 from testrunner.testproc.variant import VariantProc
-from testrunner.utils import random_utils
 
-
-ARCH_GUESS = utils.DefaultArch()
 
 VARIANTS = ['default']
 
 MORE_VARIANTS = [
   'jitless',
   'stress',
-  'stress_background_compile',
+  'stress_js_bg_compile_wasm_code_gc',
   'stress_incremental_marking',
 ]
 
@@ -43,17 +42,22 @@ VARIANT_ALIASES = {
   'dev': VARIANTS,
   # Additional variants, run on all bots.
   'more': MORE_VARIANTS,
-  # Shortcut for the two above ('more' first - it has the longer running tests).
+  # Shortcut for the two above ('more' first - it has the longer running tests)
   'exhaustive': MORE_VARIANTS + VARIANTS,
   # Additional variants, run on a subset of bots.
-  'extra': ['nooptimization', 'future', 'no_wasm_traps'],
+  'extra': ['nooptimization', 'future', 'no_wasm_traps', 'turboprop',
+            'instruction_scheduling'],
 }
+
+# Extra flags passed to all tests using the standard test runner.
+EXTRA_DEFAULT_FLAGS = ['--testing-d8-test-runner']
 
 GC_STRESS_FLAGS = ['--gc-interval=500', '--stress-compaction',
                    '--concurrent-recompilation-queue-length=64',
                    '--concurrent-recompilation-delay=500',
                    '--concurrent-recompilation',
-                   '--stress-flush-bytecode']
+                   '--stress-flush-bytecode',
+                   '--wasm-code-gc', '--stress-wasm-code-gc']
 
 RANDOM_GC_STRESS_FLAGS = ['--random-gc-interval=5000',
                           '--stress-compaction-random']
@@ -65,10 +69,10 @@ PREDICTABLE_WRAPPER = os.path.join(
 
 class StandardTestRunner(base_runner.BaseTestRunner):
   def __init__(self, *args, **kwargs):
-      super(StandardTestRunner, self).__init__(*args, **kwargs)
+    super(StandardTestRunner, self).__init__(*args, **kwargs)
 
-      self.sancov_dir = None
-      self._variants = None
+    self.sancov_dir = None
+    self._variants = None
 
   @property
   def framework_name(self):
@@ -103,11 +107,6 @@ class StandardTestRunner(base_runner.BaseTestRunner):
                       help='Regard pass|fail tests (run|skip|dontcare)')
     parser.add_option('--quickcheck', default=False, action='store_true',
                       help=('Quick check mode (skip slow tests)'))
-    parser.add_option('--dont-skip-slow-simulator-tests',
-                      help='Don\'t skip more slow tests when using a'
-                      ' simulator.',
-                      default=False, action='store_true',
-                      dest='dont_skip_simulator_slow_tests')
 
     # Stress modes
     parser.add_option('--gc-stress',
@@ -121,6 +120,10 @@ class StandardTestRunner(base_runner.BaseTestRunner):
                       help='Number of runs with different random seeds. Only '
                            'with test processors: 0 means infinite '
                            'generation.')
+
+    # Extra features.
+    parser.add_option('--time', help='Print timing information after running',
+                      default=False, action='store_true')
 
     # Noop
     parser.add_option('--cfi-vptr',
@@ -148,13 +151,10 @@ class StandardTestRunner(base_runner.BaseTestRunner):
                       default=False, action='store_true')
     parser.add_option('--flakiness-results',
                       help='Path to a file for storing flakiness json.')
-    parser.add_option('--time', help='Print timing information after running',
-                      default=False, action='store_true')
     parser.add_option('--warn-unused', help='Report unused rules',
                       default=False, action='store_true')
     parser.add_option('--report', default=False, action='store_true',
                       help='Print a summary of the tests to be run')
-
 
   def _process_options(self, options):
     if options.sancov_dir:
@@ -171,12 +171,6 @@ class StandardTestRunner(base_runner.BaseTestRunner):
 
     if self.build_config.asan:
       options.extra_flags.append('--invoke-weak-callbacks')
-      options.extra_flags.append('--omit-quit')
-
-    if self.build_config.no_snap:
-      # Speed up slow nosnap runs. Allocation verification is covered by
-      # running mksnapshot on other builders.
-      options.extra_flags.append('--no-turbo-verify-allocation')
 
     if options.novfp3:
       options.extra_flags.append('--noenable-vfp3')
@@ -223,7 +217,7 @@ class StandardTestRunner(base_runner.BaseTestRunner):
     self._variants = self._parse_variants(options.variants)
 
     def CheckTestMode(name, option):  # pragma: no cover
-      if not option in ['run', 'skip', 'dontcare']:
+      if option not in ['run', 'skip', 'dontcare']:
         print('Unknown %s mode %s' % (name, option))
         raise base_runner.TestRunnerError()
     CheckTestMode('slow test', options.slow_tests)
@@ -233,6 +227,17 @@ class StandardTestRunner(base_runner.BaseTestRunner):
       base_runner.TEST_MAP['default'].remove('intl')
       # TODO(machenbach): uncomment after infra side lands.
       # base_runner.TEST_MAP['d8_default'].remove('intl')
+
+    if options.time and not options.json_test_results:
+      # We retrieve the slowest tests from the JSON output file, so create
+      # a temporary output file (which will automatically get deleted on exit)
+      # if the user didn't specify one.
+      self._temporary_json_output_file = tempfile.NamedTemporaryFile(
+          prefix="v8-test-runner-")
+      options.json_test_results = self._temporary_json_output_file.name
+
+  def _runner_flags(self):
+    return EXTRA_DEFAULT_FLAGS
 
   def _parse_variants(self, aliases_str):
     # Use developer defaults if no variant was specified.
@@ -248,6 +253,8 @@ class StandardTestRunner(base_runner.BaseTestRunner):
     for v in user_variants:
       if v not in ALL_VARIANTS:
         print('Unknown variant: %s' % v)
+        print('    Available variants: %s' % ALL_VARIANTS)
+        print('    Available variant aliases: %s' % VARIANT_ALIASES.keys());
         raise base_runner.TestRunnerError()
     assert False, 'Unreachable'
 
@@ -268,19 +275,10 @@ class StandardTestRunner(base_runner.BaseTestRunner):
     variables = (
         super(StandardTestRunner, self)._get_statusfile_variables(options))
 
-    simulator_run = (
-      not options.dont_skip_simulator_slow_tests and
-      self.build_config.arch in [
-        'arm64', 'arm', 'mipsel', 'mips', 'mips64', 'mips64el', 'ppc',
-        'ppc64', 's390', 's390x'] and
-      bool(ARCH_GUESS) and
-      self.build_config.arch != ARCH_GUESS)
-
     variables.update({
       'gc_stress': options.gc_stress or options.random_gc_stress,
       'gc_fuzzer': options.random_gc_stress,
       'novfp3': options.novfp3,
-      'simulator_run': simulator_run,
     })
     return variables
 
@@ -318,7 +316,7 @@ class StandardTestRunner(base_runner.BaseTestRunner):
 
     self._prepare_procs(procs)
 
-    loader.load_initial_tests(initial_batch_size=options.j*2)
+    loader.load_initial_tests(initial_batch_size=options.j * 2)
 
     # This starts up worker processes and blocks until all tests are
     # processed.
@@ -326,7 +324,6 @@ class StandardTestRunner(base_runner.BaseTestRunner):
 
     for indicator in indicators:
       indicator.finished()
-
 
     if tests.test_count_estimate:
       percentage = float(results.total) / tests.test_count_estimate * 100
@@ -345,8 +342,44 @@ class StandardTestRunner(base_runner.BaseTestRunner):
     if not results.total:
       exit_code = utils.EXIT_CODE_NO_TESTS
 
+    if options.time:
+      self._print_durations(options)
+
     # Indicate if a SIGINT or SIGTERM happened.
     return max(exit_code, sigproc.exit_code)
+
+  def _print_durations(self, options):
+
+    def format_duration(duration_in_seconds):
+      duration = datetime.timedelta(seconds=duration_in_seconds)
+      time = (datetime.datetime.min + duration).time()
+      return time.strftime('%M:%S:') + '%03i' % int(time.microsecond / 1000)
+
+    def _duration_results_text(test):
+      return [
+        'Test: %s' % test['name'],
+        'Flags: %s' % ' '.join(test['flags']),
+        'Command: %s' % test['command'],
+        'Duration: %s' % format_duration(test['duration']),
+      ]
+
+    assert os.path.exists(options.json_test_results)
+    with open(options.json_test_results, "r") as f:
+      output = json.load(f)
+    lines = []
+    for test in output['slowest_tests']:
+      suffix = ''
+      if test.get('marked_slow') is False:
+        suffix = ' *'
+      lines.append(
+          '%s %s%s' % (format_duration(test['duration']),
+                       test['name'], suffix))
+
+    # Slowest tests duration details.
+    lines.extend(['', 'Details:', ''])
+    for test in output['slowest_tests']:
+      lines.extend(_duration_results_text(test))
+    print("\n".join(lines))
 
   def _create_predictable_filter(self):
     if not self.build_config.predictable:

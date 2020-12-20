@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "src/api-inl.h"
+#include "src/api/api-inl.h"
 #include "src/ast/ast.h"
-#include "src/compiler.h"
-#include "src/objects-inl.h"
+#include "src/codegen/compiler.h"
+#include "src/objects/objects-inl.h"
 #include "src/parsing/parse-info.h"
 #include "src/parsing/parsing.h"
 #include "src/parsing/preparse-data-impl.h"
@@ -109,9 +109,6 @@ TEST(PreParserScopeAnalysis) {
         : params(p), source(s), skip(skip), precise_maybe_assigned(precise) {}
     Inner(const char* p, const char* s, SkipTests skip, Bailout bailout)
         : params(p), source(s), skip(skip), bailout(bailout) {}
-
-    Inner(const char* s, std::function<void()> p, std::function<void()> e)
-        : source(s), prologue(p), epilogue(e) {}
 
     const char* params = "";
     const char* source;
@@ -659,33 +656,11 @@ TEST(PreParserScopeAnalysis) {
       {"class MyClass extends MyBase { static m() { var var1; function foo() { "
        "var1 = 11; } } }"},
 
-      {"class X { ['bar'] = 1; }; new X;",
-       [] { i::FLAG_harmony_public_fields = true; },
-       [] { i::FLAG_harmony_public_fields = false; }},
-      {"class X { static ['foo'] = 2; }; new X;",
-       [] {
-         i::FLAG_harmony_public_fields = true;
-         i::FLAG_harmony_static_fields = true;
-       },
-       [] {
-         i::FLAG_harmony_public_fields = false;
-         i::FLAG_harmony_static_fields = false;
-       }},
-      {"class X { ['bar'] = 1; static ['foo'] = 2; }; new X;",
-       [] {
-         i::FLAG_harmony_public_fields = true;
-         i::FLAG_harmony_static_fields = true;
-       },
-       [] {
-         i::FLAG_harmony_public_fields = false;
-         i::FLAG_harmony_static_fields = false;
-       }},
-      {"class X { #x = 1 }; new X;",
-       [] { i::FLAG_harmony_private_fields = true; },
-       [] { i::FLAG_harmony_private_fields = false; }},
-      {"function t() { return class { #x = 1 }; } new t();",
-       [] { i::FLAG_harmony_private_fields = true; },
-       [] { i::FLAG_harmony_private_fields = false; }},
+      {"class X { ['bar'] = 1; }; new X;"},
+      {"class X { static ['foo'] = 2; }; new X;"},
+      {"class X { ['bar'] = 1; static ['foo'] = 2; }; new X;"},
+      {"class X { #x = 1 }; new X;"},
+      {"function t() { return class { #x = 1 }; } new t();"},
   };
 
   for (unsigned i = 0; i < arraysize(outers); ++i) {
@@ -705,20 +680,18 @@ TEST(PreParserScopeAnalysis) {
       int source_len = Utf8LengthHelper(inner.source);
       int len = code_len + params_len + source_len;
 
-      if (inner.prologue != nullptr) inner.prologue();
-
       i::ScopedVector<char> program(len + 1);
       i::SNPrintF(program, code, inner.params, inner.source);
 
       i::HandleScope scope(isolate);
 
       i::Handle<i::String> source =
-          factory->InternalizeUtf8String(program.start());
+          factory->InternalizeUtf8String(program.begin());
       source->PrintOn(stdout);
       printf("\n");
 
       // Compile and run the script to get a pointer to the lazy function.
-      v8::Local<v8::Value> v = CompileRun(program.start());
+      v8::Local<v8::Value> v = CompileRun(program.begin());
       i::Handle<i::Object> o = v8::Utils::OpenHandle(*v);
       i::Handle<i::JSFunction> f = i::Handle<i::JSFunction>::cast(o);
       i::Handle<i::SharedFunctionInfo> shared = i::handle(f->shared(), isolate);
@@ -731,15 +704,20 @@ TEST(PreParserScopeAnalysis) {
 
       CHECK(shared->HasUncompiledDataWithPreparseData());
       i::Handle<i::PreparseData> produced_data_on_heap(
-          shared->uncompiled_data_with_preparse_data()->preparse_data(),
+          shared->uncompiled_data_with_preparse_data().preparse_data(),
           isolate);
 
+      i::UnoptimizedCompileFlags flags =
+          i::UnoptimizedCompileFlags::ForFunctionCompile(isolate, *shared);
+      flags.set_is_lazy_compile(true);
+
       // Parse the lazy function using the scope data.
-      i::ParseInfo using_scope_data(isolate, shared);
-      using_scope_data.set_lazy_compile();
+      i::UnoptimizedCompileState using_scope_state(isolate);
+      i::ParseInfo using_scope_data(isolate, flags, &using_scope_state);
       using_scope_data.set_consumed_preparse_data(
           i::ConsumedPreparseData::For(isolate, produced_data_on_heap));
-      CHECK(i::parsing::ParseFunction(&using_scope_data, shared, isolate));
+      CHECK(i::parsing::ParseFunction(&using_scope_data, shared, isolate,
+                                      i::parsing::ReportStatisticsMode::kYes));
 
       // Verify that we skipped at least one function inside that scope.
       i::DeclarationScope* scope_with_skipped_functions =
@@ -747,13 +725,11 @@ TEST(PreParserScopeAnalysis) {
       CHECK(i::ScopeTestHelper::HasSkippedFunctionInside(
           scope_with_skipped_functions));
 
-      // Do scope allocation (based on the preparsed scope data).
-      CHECK(i::DeclarationScope::Analyze(&using_scope_data));
-
       // Parse the lazy function again eagerly to produce baseline data.
-      i::ParseInfo not_using_scope_data(isolate, shared);
-      not_using_scope_data.set_lazy_compile();
-      CHECK(i::parsing::ParseFunction(&not_using_scope_data, shared, isolate));
+      i::UnoptimizedCompileState not_using_scope_state(isolate);
+      i::ParseInfo not_using_scope_data(isolate, flags, &not_using_scope_state);
+      CHECK(i::parsing::ParseFunction(&not_using_scope_data, shared, isolate,
+                                      i::parsing::ReportStatisticsMode::kYes));
 
       // Verify that we didn't skip anything (there's no preparsed scope data,
       // so we cannot skip).
@@ -762,16 +738,11 @@ TEST(PreParserScopeAnalysis) {
       CHECK(!i::ScopeTestHelper::HasSkippedFunctionInside(
           scope_without_skipped_functions));
 
-      // Do normal scope allocation.
-      CHECK(i::DeclarationScope::Analyze(&not_using_scope_data));
-
       // Verify that scope allocation gave the same results when parsing w/ the
       // scope data (and skipping functions), and when parsing without.
       i::ScopeTestHelper::CompareScopes(
           scope_without_skipped_functions, scope_with_skipped_functions,
           inner.precise_maybe_assigned == PreciseMaybeAssigned::YES);
-
-      if (inner.epilogue != nullptr) inner.epilogue();
     }
   }
 }
@@ -788,11 +759,15 @@ TEST(Regress753896) {
   i::Handle<i::String> source = factory->InternalizeUtf8String(
       "function lazy() { let v = 0; if (true) { var v = 0; } }");
   i::Handle<i::Script> script = factory->NewScript(source);
-  i::ParseInfo info(isolate, script);
+  i::UnoptimizedCompileState state(isolate);
+  i::UnoptimizedCompileFlags flags =
+      i::UnoptimizedCompileFlags::ForScriptCompile(isolate, *script);
+  i::ParseInfo info(isolate, flags, &state);
 
   // We don't assert that parsing succeeded or that it failed; currently the
   // error is not detected inside lazy functions, but it might be in the future.
-  i::parsing::ParseProgram(&info, isolate);
+  i::parsing::ParseProgram(&info, script, isolate,
+                           i::parsing::ReportStatisticsMode::kYes);
 }
 
 TEST(ProducingAndConsumingByteData) {

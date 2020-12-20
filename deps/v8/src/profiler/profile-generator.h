@@ -15,12 +15,11 @@
 #include <vector>
 
 #include "include/v8-profiler.h"
-#include "src/allocation.h"
 #include "src/base/platform/time.h"
 #include "src/builtins/builtins.h"
-#include "src/code-events.h"
+#include "src/logging/code-events.h"
 #include "src/profiler/strings-storage.h"
-#include "src/source-position.h"
+#include "src/utils/allocation.h"
 
 namespace v8 {
 namespace internal {
@@ -65,7 +64,6 @@ class CodeEntry {
                    int line_number = v8::CpuProfileNode::kNoLineNumberInfo,
                    int column_number = v8::CpuProfileNode::kNoColumnNumberInfo,
                    std::unique_ptr<SourcePositionTable> line_info = nullptr,
-                   Address instruction_start = kNullAddress,
                    bool is_shared_cross_origin = false);
 
   const char* name() const { return name_; }
@@ -136,9 +134,6 @@ class CodeEntry {
   const std::vector<CodeEntryAndLineNumber>* GetInlineStack(
       int pc_offset) const;
 
-  void set_instruction_start(Address start) { instruction_start_ = start; }
-  Address instruction_start() const { return instruction_start_; }
-
   CodeEventListener::LogEventsAndTags tag() const {
     return TagField::decode(bit_field_);
   }
@@ -208,12 +203,12 @@ class CodeEntry {
   V8_EXPORT_PRIVATE static base::LazyDynamicInstance<
       CodeEntry, RootEntryCreateTrait>::type kRootEntry;
 
-  using TagField = BitField<CodeEventListener::LogEventsAndTags, 0, 8>;
-  using BuiltinIdField = BitField<Builtins::Name, 8, 22>;
+  using TagField = base::BitField<CodeEventListener::LogEventsAndTags, 0, 8>;
+  using BuiltinIdField = base::BitField<Builtins::Name, 8, 22>;
   static_assert(Builtins::builtin_count <= BuiltinIdField::kNumValues,
                 "builtin_count exceeds size of bitfield");
-  using UsedField = BitField<bool, 30, 1>;
-  using SharedCrossOriginField = BitField<bool, 31, 1>;
+  using UsedField = base::BitField<bool, 30, 1>;
+  using SharedCrossOriginField = base::BitField<bool, 31, 1>;
 
   uint32_t bit_field_;
   const char* name_;
@@ -223,7 +218,6 @@ class CodeEntry {
   int script_id_;
   int position_;
   std::unique_ptr<SourcePositionTable> line_info_;
-  Address instruction_start_;
   std::unique_ptr<RareData> rare_data_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeEntry);
@@ -234,7 +228,11 @@ struct CodeEntryAndLineNumber {
   int line_number;
 };
 
-typedef std::vector<CodeEntryAndLineNumber> ProfileStackTrace;
+struct ProfileStackFrame {
+  CodeEntryAndLineNumber entry;
+};
+
+typedef std::vector<ProfileStackFrame> ProfileStackTrace;
 
 class ProfileTree;
 
@@ -255,7 +253,6 @@ class V8_EXPORT_PRIVATE ProfileNode {
   unsigned self_ticks() const { return self_ticks_; }
   const std::vector<ProfileNode*>* children() const { return &children_list_; }
   unsigned id() const { return id_; }
-  unsigned function_id() const;
   ProfileNode* parent() const { return parent_; }
   int line_number() const {
     return line_number_ != 0 ? line_number_ : entry_->line_number();
@@ -273,7 +270,7 @@ class V8_EXPORT_PRIVATE ProfileNode {
   }
   Isolate* isolate() const;
 
-  void Print(int indent);
+  void Print(int indent) const;
 
  private:
   struct Equals {
@@ -311,7 +308,7 @@ class V8_EXPORT_PRIVATE ProfileTree {
   explicit ProfileTree(Isolate* isolate);
   ~ProfileTree();
 
-  typedef v8::CpuProfilingMode ProfilingMode;
+  using ProfilingMode = v8::CpuProfilingMode;
 
   ProfileNode* AddPathFromEnd(
       const std::vector<CodeEntry*>& path,
@@ -324,11 +321,8 @@ class V8_EXPORT_PRIVATE ProfileTree {
       ProfilingMode mode = ProfilingMode::kLeafNodeLineNumbers);
   ProfileNode* root() const { return root_; }
   unsigned next_node_id() { return next_node_id_++; }
-  unsigned GetFunctionId(const ProfileNode* node);
 
-  void Print() {
-    root_->Print(0);
-  }
+  void Print() const { root_->Print(0); }
 
   Isolate* isolate() const { return isolate_; }
 
@@ -348,9 +342,6 @@ class V8_EXPORT_PRIVATE ProfileTree {
   ProfileNode* root_;
   Isolate* isolate_;
 
-  unsigned next_function_id_;
-  std::unordered_map<CodeEntry*, unsigned> function_ids_;
-
   DISALLOW_COPY_AND_ASSIGN(ProfileTree);
 };
 
@@ -358,20 +349,22 @@ class CpuProfiler;
 
 class CpuProfile {
  public:
-  typedef v8::CpuProfilingMode ProfilingMode;
-
   struct SampleInfo {
     ProfileNode* node;
     base::TimeTicks timestamp;
     int line;
   };
 
-  CpuProfile(CpuProfiler* profiler, const char* title, bool record_samples,
-             ProfilingMode mode);
+  V8_EXPORT_PRIVATE CpuProfile(CpuProfiler* profiler, const char* title,
+                               CpuProfilingOptions options);
 
+  // Checks whether or not the given TickSample should be (sub)sampled, given
+  // the sampling interval of the profiler that recorded it (in microseconds).
+  V8_EXPORT_PRIVATE bool CheckSubsample(base::TimeDelta sampling_interval);
   // Add pc -> ... -> main() call path to the profile.
   void AddPath(base::TimeTicks timestamp, const ProfileStackTrace& path,
-               int src_line, bool update_stats);
+               int src_line, bool update_stats,
+               base::TimeDelta sampling_interval);
   void FinishProfile();
 
   const char* title() const { return title_; }
@@ -380,20 +373,23 @@ class CpuProfile {
   int samples_count() const { return static_cast<int>(samples_.size()); }
   const SampleInfo& sample(int index) const { return samples_[index]; }
 
+  int64_t sampling_interval_us() const {
+    return options_.sampling_interval_us();
+  }
+
   base::TimeTicks start_time() const { return start_time_; }
   base::TimeTicks end_time() const { return end_time_; }
   CpuProfiler* cpu_profiler() const { return profiler_; }
 
   void UpdateTicksScale();
 
-  V8_EXPORT_PRIVATE void Print();
+  V8_EXPORT_PRIVATE void Print() const;
 
  private:
   void StreamPendingTraceEvents();
 
   const char* title_;
-  bool record_samples_;
-  ProfilingMode mode_;
+  const CpuProfilingOptions options_;
   base::TimeTicks start_time_;
   base::TimeTicks end_time_;
   std::deque<SampleInfo> samples_;
@@ -401,6 +397,9 @@ class CpuProfile {
   CpuProfiler* const profiler_;
   size_t streaming_next_sample_;
   uint32_t id_;
+  // Number of microseconds worth of profiler ticks that should elapse before
+  // the next sample is recorded.
+  base::TimeDelta next_sample_delta_;
 
   static std::atomic<uint32_t> last_id_;
 
@@ -414,7 +413,7 @@ class V8_EXPORT_PRIVATE CodeMap {
 
   void AddCode(Address addr, CodeEntry* entry, unsigned size);
   void MoveCode(Address from, Address to);
-  CodeEntry* FindEntry(Address addr);
+  CodeEntry* FindEntry(Address addr, Address* out_instruction_start = nullptr);
   void Print();
 
  private:
@@ -447,11 +446,9 @@ class V8_EXPORT_PRIVATE CpuProfilesCollection {
  public:
   explicit CpuProfilesCollection(Isolate* isolate);
 
-  typedef v8::CpuProfilingMode ProfilingMode;
-
   void set_cpu_profiler(CpuProfiler* profiler) { profiler_ = profiler; }
-  bool StartProfiling(const char* title, bool record_samples,
-                      ProfilingMode mode = ProfilingMode::kLeafNodeLineNumbers);
+  bool StartProfiling(const char* title, CpuProfilingOptions options = {});
+
   CpuProfile* StopProfiling(const char* title);
   std::vector<std::unique_ptr<CpuProfile>>* profiles() {
     return &finished_profiles_;
@@ -460,10 +457,16 @@ class V8_EXPORT_PRIVATE CpuProfilesCollection {
   bool IsLastProfile(const char* title);
   void RemoveProfile(CpuProfile* profile);
 
+  // Finds a common sampling interval dividing each CpuProfile's interval,
+  // rounded up to the nearest multiple of the CpuProfiler's sampling interval.
+  // Returns 0 if no profiles are attached.
+  base::TimeDelta GetCommonSamplingInterval() const;
+
   // Called from profile generator thread.
   void AddPathToCurrentProfiles(base::TimeTicks timestamp,
                                 const ProfileStackTrace& path, int src_line,
-                                bool update_stats);
+                                bool update_stats,
+                                base::TimeDelta sampling_interval);
 
   // Limits the number of profiles that can be simultaneously collected.
   static const int kMaxSimultaneousProfiles = 100;
@@ -482,18 +485,22 @@ class V8_EXPORT_PRIVATE CpuProfilesCollection {
 
 class V8_EXPORT_PRIVATE ProfileGenerator {
  public:
-  explicit ProfileGenerator(CpuProfilesCollection* profiles);
+  explicit ProfileGenerator(CpuProfilesCollection* profiles, CodeMap* code_map);
 
-  void RecordTickSample(const TickSample& sample);
+  // Use the CodeMap to turn the raw addresses recorded in the sample into
+  // code/function names. The symbolized stack is added to the relevant
+  // profiles in the CpuProfilesCollection.
+  void SymbolizeTickSample(const TickSample& sample);
 
-  CodeMap* code_map() { return &code_map_; }
+  CodeMap* code_map() { return code_map_; }
 
  private:
-  CodeEntry* FindEntry(Address address);
+  CodeEntry* FindEntry(Address address,
+                       Address* out_instruction_start = nullptr);
   CodeEntry* EntryForVMState(StateTag tag);
 
   CpuProfilesCollection* profiles_;
-  CodeMap code_map_;
+  CodeMap* const code_map_;
 
   DISALLOW_COPY_AND_ASSIGN(ProfileGenerator);
 };

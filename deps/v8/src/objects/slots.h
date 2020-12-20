@@ -5,8 +5,8 @@
 #ifndef V8_OBJECTS_SLOTS_H_
 #define V8_OBJECTS_SLOTS_H_
 
-#include "src/globals.h"
-#include "src/v8memory.h"
+#include "src/base/memory.h"
+#include "src/common/globals.h"
 
 namespace v8 {
 namespace internal {
@@ -109,13 +109,17 @@ class FullObjectSlot : public SlotBase<FullObjectSlot, Address> {
   // raw value.
   inline bool contains_value(Address raw_value) const;
 
-  inline const Object operator*() const;
+  inline Object operator*() const;
+  inline Object load(const Isolate* isolate) const;
   inline void store(Object value) const;
 
   inline Object Acquire_Load() const;
+  inline Object Acquire_Load(const Isolate* isolate) const;
   inline Object Relaxed_Load() const;
+  inline Object Relaxed_Load(const Isolate* isolate) const;
   inline void Relaxed_Store(Object value) const;
   inline void Release_Store(Object value) const;
+  inline Object Relaxed_CompareAndSwap(Object old, Object target) const;
   inline Object Release_CompareAndSwap(Object old, Object target) const;
 };
 
@@ -142,10 +146,12 @@ class FullMaybeObjectSlot
   explicit FullMaybeObjectSlot(SlotBase<T, TData, kSlotDataAlignment> slot)
       : SlotBase(slot.address()) {}
 
-  inline const MaybeObject operator*() const;
+  inline MaybeObject operator*() const;
+  inline MaybeObject load(const Isolate* isolate) const;
   inline void store(MaybeObject value) const;
 
   inline MaybeObject Relaxed_Load() const;
+  inline MaybeObject Relaxed_Load(const Isolate* isolate) const;
   inline void Relaxed_Store(MaybeObject value) const;
   inline void Release_CompareAndSwap(MaybeObject old, MaybeObject target) const;
 };
@@ -167,7 +173,8 @@ class FullHeapObjectSlot : public SlotBase<FullHeapObjectSlot, Address> {
   explicit FullHeapObjectSlot(SlotBase<T, TData, kSlotDataAlignment> slot)
       : SlotBase(slot.address()) {}
 
-  inline const HeapObjectReference operator*() const;
+  inline HeapObjectReference operator*() const;
+  inline HeapObjectReference load(const Isolate* isolate) const;
   inline void store(HeapObjectReference value) const;
 
   inline HeapObject ToHeapObject() const;
@@ -192,11 +199,11 @@ class UnalignedSlot : public SlotBase<UnalignedSlot<T>, T, 1> {
     Reference(const Reference&) V8_NOEXCEPT = default;
 
     Reference& operator=(const Reference& other) V8_NOEXCEPT {
-      WriteUnalignedValue<T>(address_, other.value());
+      base::WriteUnalignedValue<T>(address_, other.value());
       return *this;
     }
     Reference& operator=(T value) {
-      WriteUnalignedValue<T>(address_, value);
+      base::WriteUnalignedValue<T>(address_, value);
       return *this;
     }
 
@@ -206,8 +213,8 @@ class UnalignedSlot : public SlotBase<UnalignedSlot<T>, T, 1> {
 
     void swap(Reference& other) {
       T tmp = value();
-      WriteUnalignedValue<T>(address_, other.value());
-      WriteUnalignedValue<T>(other.address_, tmp);
+      base::WriteUnalignedValue<T>(address_, other.value());
+      base::WriteUnalignedValue<T>(other.address_, tmp);
     }
 
     bool operator<(const Reference& other) const {
@@ -219,7 +226,7 @@ class UnalignedSlot : public SlotBase<UnalignedSlot<T>, T, 1> {
     }
 
    private:
-    T value() const { return ReadUnalignedValue<T>(address_); }
+    T value() const { return base::ReadUnalignedValue<T>(address_); }
 
     Address address_;
   };
@@ -251,6 +258,19 @@ class UnalignedSlot : public SlotBase<UnalignedSlot<T>, T, 1> {
   friend difference_type operator-(UnalignedSlot a, UnalignedSlot b) {
     return static_cast<int>(a.address() - b.address()) / sizeof(T);
   }
+};
+
+// An off-heap uncompressed object slot can be the same as an on-heap one, with
+// a few methods deleted.
+class OffHeapFullObjectSlot : public FullObjectSlot {
+ public:
+  OffHeapFullObjectSlot() : FullObjectSlot() {}
+  explicit OffHeapFullObjectSlot(const Address* ptr) : FullObjectSlot(ptr) {}
+
+  inline Object operator*() const = delete;
+
+  using FullObjectSlot::Relaxed_Load;
+  inline Object Relaxed_Load() const = delete;
 };
 
 }  // namespace internal

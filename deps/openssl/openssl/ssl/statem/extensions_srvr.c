@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2016-2020 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the OpenSSL license (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -8,8 +8,8 @@
  */
 
 #include <openssl/ocsp.h>
-#include "../ssl_locl.h"
-#include "statem_locl.h"
+#include "../ssl_local.h"
+#include "statem_local.h"
 #include "internal/cryptlib.h"
 
 #define COOKIE_STATE_FORMAT_VERSION     0
@@ -127,6 +127,10 @@ int tls_parse_ctos_server_name(SSL *s, PACKET *pkt, unsigned int context,
         return 0;
     }
 
+    /*
+     * In TLSv1.2 and below the SNI is associated with the session. In TLSv1.3
+     * we always use the SNI value from the handshake.
+     */
     if (!s->hit || SSL_IS_TLS13(s)) {
         if (PACKET_remaining(&hostname) > TLSEXT_MAXLEN_host_name) {
             SSLfatal(s, SSL_AD_UNRECOGNIZED_NAME,
@@ -155,8 +159,12 @@ int tls_parse_ctos_server_name(SSL *s, PACKET *pkt, unsigned int context,
         }
 
         s->servername_done = 1;
-    }
-    if (s->hit) {
+    } else {
+        /*
+         * In TLSv1.2 and below we should check if the SNI is consistent between
+         * the initial handshake and the resumption. In TLSv1.3 SNI is not
+         * associated with the session.
+         */
         /*
          * TODO(openssl-team): if the SNI doesn't match, we MUST
          * fall back to a full handshake.
@@ -164,9 +172,6 @@ int tls_parse_ctos_server_name(SSL *s, PACKET *pkt, unsigned int context,
         s->servername_done = (s->session->ext.hostname != NULL)
             && PACKET_equal(&hostname, s->session->ext.hostname,
                             strlen(s->session->ext.hostname));
-
-        if (!s->servername_done && s->session->ext.hostname != NULL)
-            s->ext.early_data_ok = 0;
     }
 
     return 1;
@@ -254,8 +259,8 @@ int tls_parse_ctos_ec_pt_formats(SSL *s, PACKET *pkt, unsigned int context,
 
     if (!s->hit) {
         if (!PACKET_memdup(&ec_point_format_list,
-                           &s->session->ext.ecpointformats,
-                           &s->session->ext.ecpointformats_len)) {
+                           &s->ext.peer_ecpointformats,
+                           &s->ext.peer_ecpointformats_len)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR,
                      SSL_F_TLS_PARSE_CTOS_EC_PT_FORMATS, ERR_R_INTERNAL_ERROR);
             return 0;
@@ -962,12 +967,12 @@ int tls_parse_ctos_supported_groups(SSL *s, PACKET *pkt, unsigned int context,
     }
 
     if (!s->hit || SSL_IS_TLS13(s)) {
-        OPENSSL_free(s->session->ext.supportedgroups);
-        s->session->ext.supportedgroups = NULL;
-        s->session->ext.supportedgroups_len = 0;
+        OPENSSL_free(s->ext.peer_supportedgroups);
+        s->ext.peer_supportedgroups = NULL;
+        s->ext.peer_supportedgroups_len = 0;
         if (!tls1_save_u16(&supported_groups_list,
-                           &s->session->ext.supportedgroups,
-                           &s->session->ext.supportedgroups_len)) {
+                           &s->ext.peer_supportedgroups,
+                           &s->ext.peer_supportedgroups_len)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR,
                      SSL_F_TLS_PARSE_CTOS_SUPPORTED_GROUPS,
                      ERR_R_INTERNAL_ERROR);
@@ -1146,7 +1151,7 @@ int tls_parse_ctos_psk(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
             if (sesstmp == NULL) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR,
                          SSL_F_TLS_PARSE_CTOS_PSK, ERR_R_INTERNAL_ERROR);
-                return 0;
+                goto err;
             }
             SSL_SESSION_free(sess);
             sess = sesstmp;
@@ -1298,6 +1303,27 @@ int tls_parse_ctos_post_handshake_auth(SSL *s, PACKET *pkt, unsigned int context
     return 1;
 }
 
+#ifndef OPENSSL_NO_QUIC
+/* SAME AS tls_parse_stoc_quic_transport_params() */
+int tls_parse_ctos_quic_transport_params(SSL *s, PACKET *pkt, unsigned int context,
+                                         X509 *x, size_t chainidx)
+{
+    OPENSSL_free(s->ext.peer_quic_transport_params);
+    s->ext.peer_quic_transport_params = NULL;
+    s->ext.peer_quic_transport_params_len = 0;
+
+    if (!PACKET_memdup(pkt,
+                       &s->ext.peer_quic_transport_params,
+                       &s->ext.peer_quic_transport_params_len)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                 SSL_F_TLS_PARSE_CTOS_QUIC_TRANSPORT_PARAMS,
+                 ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    return 1;
+}
+#endif
+
 /*
  * Add the server's renegotiation binding
  */
@@ -1330,8 +1356,14 @@ EXT_RETURN tls_construct_stoc_server_name(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx)
 {
-    if (s->hit || s->servername_done != 1
-            || s->ext.hostname == NULL)
+    if (s->servername_done != 1)
+        return EXT_RETURN_NOT_SENT;
+
+    /*
+     * Prior to TLSv1.3 we ignore any SNI in the current handshake if resuming.
+     * We just use the servername from the initial handshake.
+     */
+    if (s->hit && !SSL_IS_TLS13(s))
         return EXT_RETURN_NOT_SENT;
 
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_server_name)
@@ -1376,7 +1408,7 @@ EXT_RETURN tls_construct_stoc_ec_pt_formats(SSL *s, WPACKET *pkt,
     unsigned long alg_k = s->s3->tmp.new_cipher->algorithm_mkey;
     unsigned long alg_a = s->s3->tmp.new_cipher->algorithm_auth;
     int using_ecc = ((alg_k & SSL_kECDHE) || (alg_a & SSL_aECDSA))
-                    && (s->session->ext.ecpointformats != NULL);
+                    && (s->ext.peer_ecpointformats != NULL);
     const unsigned char *plist;
     size_t plistlen;
 
@@ -1487,6 +1519,10 @@ EXT_RETURN tls_construct_stoc_status_request(SSL *s, WPACKET *pkt,
                                              unsigned int context, X509 *x,
                                              size_t chainidx)
 {
+    /* We don't currently support this extension inside a CertificateRequest */
+    if (context == SSL_EXT_TLS1_3_CERTIFICATE_REQUEST)
+        return EXT_RETURN_NOT_SENT;
+
     if (!s->ext.status_expected)
         return EXT_RETURN_NOT_SENT;
 
@@ -1911,12 +1947,20 @@ EXT_RETURN tls_construct_stoc_early_data(SSL *s, WPACKET *pkt,
                                          size_t chainidx)
 {
     if (context == SSL_EXT_TLS1_3_NEW_SESSION_TICKET) {
-        if (s->max_early_data == 0)
+        uint32_t max_early_data = s->max_early_data;
+
+        if (max_early_data == 0)
             return EXT_RETURN_NOT_SENT;
+
+#ifndef OPENSSL_NO_QUIC
+        /* QUIC server must always send 0xFFFFFFFF, per draft-ietf-quic-tls-27 S4.5 */
+        if (s->quic_method != NULL)
+            max_early_data = 0xFFFFFFFF;
+#endif
 
         if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_early_data)
                 || !WPACKET_start_sub_packet_u16(pkt)
-                || !WPACKET_put_bytes_u32(pkt, s->max_early_data)
+                || !WPACKET_put_bytes_u32(pkt, max_early_data)
                 || !WPACKET_close(pkt)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR,
                      SSL_F_TLS_CONSTRUCT_STOC_EARLY_DATA, ERR_R_INTERNAL_ERROR);
@@ -1957,3 +2001,27 @@ EXT_RETURN tls_construct_stoc_psk(SSL *s, WPACKET *pkt, unsigned int context,
 
     return EXT_RETURN_SENT;
 }
+
+#ifndef OPENSSL_NO_QUIC
+/* SAME AS tls_construct_ctos_quic_transport_params() */
+EXT_RETURN tls_construct_stoc_quic_transport_params(SSL *s, WPACKET *pkt,
+                                                    unsigned int context, X509 *x,
+                                                    size_t chainidx)
+{
+    if (s->ext.quic_transport_params == NULL
+        || s->ext.quic_transport_params_len == 0) {
+        return EXT_RETURN_NOT_SENT;
+    }
+
+    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_quic_transport_parameters)
+        || !WPACKET_sub_memcpy_u16(pkt, s->ext.quic_transport_params,
+                                   s->ext.quic_transport_params_len)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                 SSL_F_TLS_CONSTRUCT_STOC_QUIC_TRANSPORT_PARAMS,
+                 ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+
+    return EXT_RETURN_SENT;
+}
+#endif

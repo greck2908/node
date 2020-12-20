@@ -1,5 +1,3 @@
-// Flags: --expose-internals
-
 'use strict';
 const common = require('../common');
 
@@ -60,4 +58,4 @@ async function runTests() {
   assert.throws(() => require('inspector').waitForDebugger(), re);
 }
 
-runTests();
+runTests().then(common.mustCall());

@@ -64,9 +64,6 @@
     # Print to stdout on Android.
     'v8_android_log_stdout%': 0,
 
-    # Force disable libstdc++ debug mode.
-    'disable_glibcxx_debug%': 0,
-
     'v8_enable_backtrace%': 0,
 
     # Enable profiling support. Only required on Windows.
@@ -89,9 +86,6 @@
     # For a shared library build, results in "libv8-<(soname_version).so".
     'soname_version%': '',
 
-    # Allow to suppress the array bounds warning (default is no suppression).
-    'wno_array_bounds%': '',
-
     # Override where to find binutils
     'binutils_dir%': '',
 
@@ -101,34 +95,6 @@
       }],
       ['OS=="linux" and host_arch=="ia32"', {
         'binutils_dir%': 'third_party/binutils/Linux_ia32/Release/bin',
-      }],
-
-      # linux_use_bundled_gold: whether to use the gold linker binary checked
-      # into third_party/binutils.  Force this off via GYP_DEFINES when you
-      # are using a custom toolchain and need to control -B in ldflags.
-      # Do not use 32-bit gold on 32-bit hosts as it runs out address space
-      # for component=static_library builds.
-      ['((OS=="linux" or OS=="android") and (target_arch=="x64" or target_arch=="arm" or (target_arch=="ia32" and host_arch=="x64"))) or (OS=="linux" and target_arch=="mipsel")', {
-        'linux_use_bundled_gold%': 1,
-      }, {
-        'linux_use_bundled_gold%': 0,
-      }],
-      # linux_use_bundled_binutils: whether to use the binary binutils
-      # checked into third_party/binutils.  These are not multi-arch so cannot
-      # be used except on x86 and x86-64 (the only two architectures which
-      # are currently checke in).  Force this off via GYP_DEFINES when you
-      # are using a custom toolchain and need to control -B in cflags.
-      ['OS=="linux" and (target_arch=="ia32" or target_arch=="x64")', {
-        'linux_use_bundled_binutils%': 1,
-      }, {
-        'linux_use_bundled_binutils%': 0,
-      }],
-      # linux_use_gold_flags: whether to use build flags that rely on gold.
-      # On by default for x64 Linux.
-      ['OS=="linux" and target_arch=="x64"', {
-        'linux_use_gold_flags%': 1,
-      }, {
-        'linux_use_gold_flags%': 0,
       }],
     ],
 
@@ -140,7 +106,7 @@
   'conditions': [
     ['host_arch=="ia32" or host_arch=="x64" or \
       host_arch=="ppc" or host_arch=="ppc64" or \
-      host_arch=="s390" or host_arch=="s390x" or \
+      host_arch=="s390x" or \
       clang==1', {
       'variables': {
         'host_cxx_is_biarch%': 1,
@@ -151,7 +117,7 @@
       },
     }],
     ['target_arch=="ia32" or target_arch=="x64" or \
-      target_arch=="ppc" or target_arch=="ppc64" or target_arch=="s390" or \
+      target_arch=="ppc" or target_arch=="ppc64" or \
       target_arch=="s390x" or clang==1', {
       'variables': {
         'target_cxx_is_biarch%': 1,
@@ -172,7 +138,7 @@
         'cflags': [ '-Werror', '-Wno-unknown-pragmas' ],
       },{
         'cflags!': [ '-Wall', '-Wextra' ],
-        'cflags': [ '-Wno-return-type' ],
+        'cflags': [ '-Wno-return-type', '-Wno-int-in-bool-context' ],
       }],
       ['v8_target_arch=="arm"', {
         'defines': [
@@ -301,11 +267,17 @@
         'defines': [
           'V8_TARGET_ARCH_ARM64',
         ],
+        'conditions': [
+          ['v8_control_flow_integrity==1', {
+            'cflags': [ '-mbranch-protection=standard' ],
+          }],
+        ],
       }],
-      ['v8_target_arch=="s390" or v8_target_arch=="s390x"', {
+      ['v8_target_arch=="s390x"', {
         'defines': [
           'V8_TARGET_ARCH_S390',
         ],
+        'cflags': [ '-ffp-contract=off' ],
         'conditions': [
           ['v8_target_arch=="s390x"', {
             'defines': [
@@ -320,12 +292,14 @@
             'cflags': [ '-march=z196' ],
           }],
           ],
-      }],  # s390
+      }],  # s390x
       ['v8_target_arch=="ppc" or v8_target_arch=="ppc64"', {
-        'defines': [
-          'V8_TARGET_ARCH_PPC',
-        ],
         'conditions': [
+          ['v8_target_arch=="ppc"', {
+            'defines': [
+              'V8_TARGET_ARCH_PPC',
+            ],
+          }],
           ['v8_target_arch=="ppc64"', {
             'defines': [
               'V8_TARGET_ARCH_PPC64',
@@ -985,26 +959,6 @@
           '-mx32',
         ],
       }],  # v8_target_arch=="x32"
-      ['linux_use_gold_flags==1', {
-        # Newer gccs and clangs support -fuse-ld, use the flag to force gold
-        # selection.
-        # gcc -- http://gcc.gnu.org/onlinedocs/gcc-4.8.0/gcc/Optimize-Options.html
-        'ldflags': [ '-fuse-ld=gold', ],
-      }],
-      ['linux_use_bundled_binutils==1', {
-        'cflags': [
-          '-B<!(cd <(DEPTH) && pwd -P)/<(binutils_dir)',
-        ],
-      }],
-      ['linux_use_bundled_gold==1', {
-        # Put our binutils, which contains gold in the search path. We pass
-        # the path to gold to the compiler. gyp leaves unspecified what the
-        # cwd is when running the compiler, so the normal gyp path-munging
-        # fails us. This hack gets the right path.
-        'ldflags': [
-          '-B<!(cd <(DEPTH) && pwd -P)/<(binutils_dir)',
-        ],
-      }],
       ['OS=="win"', {
         'defines': [
           'WIN32',
@@ -1045,13 +999,13 @@
          or OS=="netbsd" or OS=="mac" or OS=="android" or OS=="qnx") and \
         (v8_target_arch=="arm" or v8_target_arch=="ia32" or \
          v8_target_arch=="mips" or v8_target_arch=="mipsel" or \
-         v8_target_arch=="ppc" or v8_target_arch=="s390")', {
+         v8_target_arch=="ppc")', {
         'target_conditions': [
           ['_toolset=="host"', {
             'conditions': [
               ['host_cxx_is_biarch==1', {
                 'conditions': [
-                  ['host_arch=="s390" or host_arch=="s390x"', {
+                  ['host_arch=="s390x"', {
                     'cflags': [ '-m31' ],
                     'ldflags': [ '-m31' ]
                   },{
@@ -1069,7 +1023,7 @@
             'conditions': [
               ['target_cxx_is_biarch==1', {
                 'conditions': [
-                  ['host_arch=="s390" or host_arch=="s390x"', {
+                  ['host_arch=="s390x"', {
                     'cflags': [ '-m31' ],
                     'ldflags': [ '-m31' ]
                   },{
@@ -1159,18 +1113,9 @@
           'V8_ENABLE_FORCE_SLOW_PATH',
         ],
         'conditions': [
-          ['OS=="linux" or OS=="freebsd" or OS=="openbsd" or OS=="netbsd" or \
-            OS=="qnx" or OS=="aix"', {
-            'cflags': [ '-Woverloaded-virtual', '<(wno_array_bounds)', ],
-          }],
           ['OS=="linux" and v8_enable_backtrace==1', {
             # Support for backtrace_symbols.
             'ldflags': [ '-rdynamic' ],
-          }],
-          ['OS=="linux" and disable_glibcxx_debug==0', {
-            # Enable libstdc++ debugging facilities to help catch problems
-            # early, see http://crbug.com/65151 .
-            'defines': ['_GLIBCXX_DEBUG=1',],
           }],
           ['OS=="aix"', {
             'ldflags': [ '-Wl,-bbigtoc' ],
@@ -1191,21 +1136,6 @@
                 'defines!': [
                   'DEBUG',
                   'ENABLE_SLOW_DCHECKS',
-                ],
-              }],
-            ],
-          }],
-          ['linux_use_gold_flags==1', {
-            'target_conditions': [
-              ['_toolset=="target"', {
-                'ldflags': [
-                  # Experimentation found that using four linking threads
-                  # saved ~20% of link time.
-                  # https://groups.google.com/a/chromium.org/group/chromium-dev/browse_thread/thread/281527606915bb36
-                  # Only apply this to the target linker, since the host
-                  # linker might not be gold, but isn't used much anyway.
-                  '-Wl,--threads',
-                  '-Wl,--thread-count=4',
                 ],
               }],
             ],
@@ -1339,7 +1269,6 @@
             'cflags': [
               '-fdata-sections',
               '-ffunction-sections',
-              '<(wno_array_bounds)',
             ],
             'conditions': [
               # Don't use -O3 with sanitizers.
@@ -1425,5 +1354,13 @@
       4724,  # https://crbug.com/v8/7771
       4800,  # Forcing value to bool.
     ],
+    # Relevant only for x86.
+    # Refs: https://github.com/nodejs/node/pull/25852
+    # Refs: https://docs.microsoft.com/en-us/cpp/build/reference/safeseh-image-has-safe-exception-handlers
+    'msvs_settings': {
+      'VCLinkerTool': {
+        'ImageHasSafeExceptionHandlers': 'false',
+      },
+    },
   },  # target_defaults
 }

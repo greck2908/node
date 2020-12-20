@@ -7,11 +7,11 @@
 
 #include "src/objects/embedder-data-slot.h"
 
+#include "src/base/memory.h"
 #include "src/heap/heap-write-barrier-inl.h"
-#include "src/objects-inl.h"
 #include "src/objects/embedder-data-array.h"
 #include "src/objects/js-objects-inl.h"
-#include "src/v8memory.h"
+#include "src/objects/objects-inl.h"
 
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
@@ -25,7 +25,7 @@ EmbedderDataSlot::EmbedderDataSlot(EmbedderDataArray array, int entry_index)
 
 EmbedderDataSlot::EmbedderDataSlot(JSObject object, int embedder_field_index)
     : SlotBase(FIELD_ADDR(
-          object, object->GetEmbedderFieldOffset(embedder_field_index))) {}
+          object, object.GetEmbedderFieldOffset(embedder_field_index))) {}
 
 Object EmbedderDataSlot::load_tagged() const {
   return ObjectSlot(address() + kTaggedPayloadOffset).Relaxed_Load();
@@ -35,7 +35,7 @@ void EmbedderDataSlot::store_smi(Smi value) {
   ObjectSlot(address() + kTaggedPayloadOffset).Relaxed_Store(value);
 #ifdef V8_COMPRESS_POINTERS
   // See gc_safe_store() for the reasons behind two stores.
-  ObjectSlot(address() + kRawPayloadOffset).Relaxed_Store(Smi::kZero);
+  ObjectSlot(address() + kRawPayloadOffset).Relaxed_Store(Smi::zero());
 #endif
 }
 
@@ -49,25 +49,26 @@ void EmbedderDataSlot::store_tagged(EmbedderDataArray array, int entry_index,
 #ifdef V8_COMPRESS_POINTERS
   // See gc_safe_store() for the reasons behind two stores.
   ObjectSlot(FIELD_ADDR(array, slot_offset + kRawPayloadOffset))
-      .Relaxed_Store(Smi::kZero);
+      .Relaxed_Store(Smi::zero());
 #endif
 }
 
 // static
 void EmbedderDataSlot::store_tagged(JSObject object, int embedder_field_index,
                                     Object value) {
-  int slot_offset = object->GetEmbedderFieldOffset(embedder_field_index);
+  int slot_offset = object.GetEmbedderFieldOffset(embedder_field_index);
   ObjectSlot(FIELD_ADDR(object, slot_offset + kTaggedPayloadOffset))
       .Relaxed_Store(value);
   WRITE_BARRIER(object, slot_offset + kTaggedPayloadOffset, value);
 #ifdef V8_COMPRESS_POINTERS
   // See gc_safe_store() for the reasons behind two stores.
   ObjectSlot(FIELD_ADDR(object, slot_offset + kRawPayloadOffset))
-      .Relaxed_Store(Smi::kZero);
+      .Relaxed_Store(Smi::zero());
 #endif
 }
 
-bool EmbedderDataSlot::ToAlignedPointer(void** out_pointer) const {
+bool EmbedderDataSlot::ToAlignedPointer(const Isolate* isolate,
+                                        void** out_pointer) const {
   // We don't care about atomicity of access here because embedder slots
   // are accessed this way only from the main thread via API during "mutator"
   // phase which is propely synched with GC (concurrent marker may still look
@@ -77,7 +78,9 @@ bool EmbedderDataSlot::ToAlignedPointer(void** out_pointer) const {
   // fields (external pointers, doubles and BigInt data) are only kTaggedSize
   // aligned so we have to use unaligned pointer friendly way of accessing them
   // in order to avoid undefined behavior in C++ code.
-  Address raw_value = ReadUnalignedValue<Address>(address());
+  Address raw_value = base::ReadUnalignedValue<Address>(address());
+  // We currently have to treat zero as nullptr in embedder slots.
+  if (raw_value) raw_value = DecodeExternalPointer(isolate, raw_value);
 #else
   Address raw_value = *location();
 #endif
@@ -85,15 +88,18 @@ bool EmbedderDataSlot::ToAlignedPointer(void** out_pointer) const {
   return HAS_SMI_TAG(raw_value);
 }
 
-bool EmbedderDataSlot::store_aligned_pointer(void* ptr) {
+bool EmbedderDataSlot::store_aligned_pointer(Isolate* isolate, void* ptr) {
   Address value = reinterpret_cast<Address>(ptr);
   if (!HAS_SMI_TAG(value)) return false;
+  // We currently have to treat zero as nullptr in embedder slots.
+  if (value) value = EncodeExternalPointer(isolate, value);
+  DCHECK(HAS_SMI_TAG(value));
   gc_safe_store(value);
   return true;
 }
 
 EmbedderDataSlot::RawData EmbedderDataSlot::load_raw(
-    const DisallowHeapAllocation& no_gc) const {
+    Isolate* isolate, const DisallowGarbageCollection& no_gc) const {
   // We don't care about atomicity of access here because embedder slots
   // are accessed this way only by serializer from the main thread when
   // GC is not active (concurrent marker may still look at the tagged part
@@ -103,14 +109,20 @@ EmbedderDataSlot::RawData EmbedderDataSlot::load_raw(
   // fields (external pointers, doubles and BigInt data) are only kTaggedSize
   // aligned so we have to use unaligned pointer friendly way of accessing them
   // in order to avoid undefined behavior in C++ code.
-  return ReadUnalignedValue<Address>(address());
+  Address value = base::ReadUnalignedValue<Address>(address());
+  // We currently have to treat zero as nullptr in embedder slots.
+  if (value) return DecodeExternalPointer(isolate, value);
+  return value;
 #else
   return *location();
 #endif
 }
 
-void EmbedderDataSlot::store_raw(EmbedderDataSlot::RawData data,
-                                 const DisallowHeapAllocation& no_gc) {
+void EmbedderDataSlot::store_raw(Isolate* isolate,
+                                 EmbedderDataSlot::RawData data,
+                                 const DisallowGarbageCollection& no_gc) {
+  // We currently have to treat zero as nullptr in embedder slots.
+  if (data) data = EncodeExternalPointer(isolate, data);
   gc_safe_store(data);
 }
 

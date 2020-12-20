@@ -5,7 +5,7 @@
 #ifndef V8_BUILTINS_BUILTINS_PROMISE_H_
 #define V8_BUILTINS_BUILTINS_PROMISE_H_
 
-#include "src/contexts.h"
+#include "src/objects/contexts.h"
 
 namespace v8 {
 namespace internal {
@@ -35,9 +35,21 @@ class PromiseBuiltins {
     kPromiseAllResolveElementCapabilitySlot,
 
     // Values array from Promise.all
-    kPromiseAllResolveElementValuesArraySlot,
+    kPromiseAllResolveElementValuesSlot,
 
     kPromiseAllResolveElementLength
+  };
+
+  enum PromiseAnyRejectElementContextSlots {
+    // Remaining elements count
+    kPromiseAnyRejectElementRemainingSlot = Context::MIN_CONTEXT_SLOTS,
+
+    // Promise capability from Promise.any
+    kPromiseAnyRejectElementCapabilitySlot,
+
+    // errors array from Promise.any
+    kPromiseAnyRejectElementErrorsSlot,
+    kPromiseAnyRejectElementLength
   };
 
   enum FunctionContextSlot {

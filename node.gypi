@@ -70,7 +70,7 @@
     }],
     [ 'node_use_bundled_v8=="true"', {
       'dependencies': [
-        'tools/v8_gypfiles/v8.gyp:v8_maybe_snapshot',
+        'tools/v8_gypfiles/v8.gyp:v8_snapshot',
         'tools/v8_gypfiles/v8.gyp:v8_libplatform',
       ],
     }],
@@ -103,6 +103,13 @@
       'conditions': [
         [ 'icu_small=="true"', {
           'defines': [ 'NODE_HAVE_SMALL_ICU=1' ],
+          'conditions': [
+            [ 'icu_default_data!=""', {
+              'defines': [
+                'NODE_ICU_DEFAULT_DATA_DIR="<(icu_default_data)"',
+              ],
+            }],
+          ],
       }]],
     }],
     [ 'node_no_browser_globals=="true"', {
@@ -139,7 +146,6 @@
 
     [ 'node_shared_http_parser=="false"', {
       'dependencies': [
-        'deps/http_parser/http_parser.gyp:http_parser',
         'deps/llhttp/llhttp.gyp:llhttp'
       ],
     } ],
@@ -180,6 +186,24 @@
     [ 'node_shared_nghttp2=="false"', {
       'dependencies': [ 'deps/nghttp2/nghttp2.gyp:nghttp2' ],
     }],
+
+    [
+      'experimental_quic==1', {
+      'conditions': [
+        [
+          'node_shared_ngtcp2=="false"', {
+          'dependencies': [
+            'deps/ngtcp2/ngtcp2.gyp:ngtcp2',
+          ]}
+        ],
+        [
+          'node_shared_nghttp3=="false"', {
+          'dependencies': [
+            'deps/nghttp3/nghttp3.gyp:nghttp3'
+          ]}
+        ]
+      ]}
+    ],
 
     [ 'node_shared_brotli=="false"', {
       'dependencies': [ 'deps/brotli/brotli.gyp:brotli' ],
@@ -265,6 +289,16 @@
         ],
       },
     }],
+    [ 'debug_node=="true"', {
+      'cflags!': [ '-O3' ],
+      'cflags': [ '-g', '-O0' ],
+      'defines': [ 'DEBUG' ],
+      'xcode_settings': {
+        'OTHER_CFLAGS': [
+          '-g', '-O0'
+        ],
+      },
+    }],
     [ 'coverage=="true" and node_shared=="false" and OS in "mac freebsd linux"', {
       'cflags!': [ '-O3' ],
       'ldflags': [ '--coverage',
@@ -291,15 +325,14 @@
     [ 'OS=="sunos"', {
       'ldflags': [ '-Wl,-M,/usr/lib/ld/map.noexstk' ],
     }],
+    [ 'OS=="linux"', {
+      'libraries!': [
+        '-lrt'
+      ],
+    }],
     [ 'OS in "freebsd linux"', {
       'ldflags': [ '-Wl,-z,relro',
                    '-Wl,-z,now' ]
-    }],
-    [ 'OS=="linux" and target_arch=="x64" and node_use_large_pages=="true"', {
-      'ldflags': [
-        '-Wl,-T',
-        '<!(realpath src/large_pages/ld.implicit.script)',
-      ]
     }],
     [ 'node_use_openssl=="true"', {
       'defines': [ 'HAVE_OPENSSL=1' ],

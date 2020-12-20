@@ -5,13 +5,13 @@
 #ifndef V8_OBJECTS_HASH_TABLE_INL_H_
 #define V8_OBJECTS_HASH_TABLE_INL_H_
 
-#include "src/objects/hash-table.h"
-
+#include "src/execution/isolate-utils-inl.h"
 #include "src/heap/heap.h"
-#include "src/objects-inl.h"
 #include "src/objects/fixed-array-inl.h"
+#include "src/objects/hash-table.h"
 #include "src/objects/heap-object-inl.h"
-#include "src/roots-inl.h"
+#include "src/objects/objects-inl.h"
+#include "src/roots/roots-inl.h"
 
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
@@ -36,7 +36,7 @@ ObjectHashTable::ObjectHashTable(Address ptr)
 }
 
 EphemeronHashTable::EphemeronHashTable(Address ptr)
-    : ObjectHashTableBase<EphemeronHashTable, EphemeronHashTableShape>(ptr) {
+    : ObjectHashTableBase<EphemeronHashTable, ObjectHashTableShape>(ptr) {
   SLOW_DCHECK(IsEphemeronHashTable());
 }
 
@@ -71,14 +71,23 @@ void EphemeronHashTable::set_key(int index, Object value,
 }
 
 int HashTableBase::NumberOfElements() const {
-  return Smi::ToInt(get(kNumberOfElementsIndex));
+  int offset = OffsetOfElementAt(kNumberOfElementsIndex);
+  return TaggedField<Smi>::load(*this, offset).value();
 }
 
 int HashTableBase::NumberOfDeletedElements() const {
-  return Smi::ToInt(get(kNumberOfDeletedElementsIndex));
+  int offset = OffsetOfElementAt(kNumberOfDeletedElementsIndex);
+  return TaggedField<Smi>::load(*this, offset).value();
 }
 
-int HashTableBase::Capacity() const { return Smi::ToInt(get(kCapacityIndex)); }
+int HashTableBase::Capacity() const {
+  int offset = OffsetOfElementAt(kCapacityIndex);
+  return TaggedField<Smi>::load(*this, offset).value();
+}
+
+InternalIndex::Range HashTableBase::IterateEntries() const {
+  return InternalIndex::Range(Capacity());
+}
 
 void HashTableBase::ElementAdded() {
   SetNumberOfElements(NumberOfElements() + 1);
@@ -112,56 +121,85 @@ void HashTableBase::SetNumberOfDeletedElements(int nod) {
   set(kNumberOfDeletedElementsIndex, Smi::FromInt(nod));
 }
 
-template <typename Key>
-RootIndex BaseShape<Key>::GetMapRootIndex() {
-  return RootIndex::kHashTableMap;
+// static
+template <typename Derived, typename Shape>
+Handle<Map> HashTable<Derived, Shape>::GetMap(ReadOnlyRoots roots) {
+  return roots.hash_table_map_handle();
 }
 
-RootIndex EphemeronHashTableShape::GetMapRootIndex() {
-  return RootIndex::kEphemeronHashTableMap;
+// static
+Handle<Map> EphemeronHashTable::GetMap(ReadOnlyRoots roots) {
+  return roots.ephemeron_hash_table_map_handle();
 }
 
 template <typename Derived, typename Shape>
-int HashTable<Derived, Shape>::FindEntry(Isolate* isolate, Key key) {
-  return FindEntry(ReadOnlyRoots(isolate), key, Shape::Hash(isolate, key));
+template <typename LocalIsolate>
+InternalIndex HashTable<Derived, Shape>::FindEntry(LocalIsolate* isolate,
+                                                   Key key) {
+  ReadOnlyRoots roots(isolate);
+  return FindEntry(isolate, roots, key, Shape::Hash(roots, key));
 }
 
 // Find entry for key otherwise return kNotFound.
 template <typename Derived, typename Shape>
-int HashTable<Derived, Shape>::FindEntry(ReadOnlyRoots roots, Key key,
-                                         int32_t hash) {
+template <typename LocalIsolate>
+InternalIndex HashTable<Derived, Shape>::FindEntry(const LocalIsolate* isolate,
+                                                   ReadOnlyRoots roots, Key key,
+                                                   int32_t hash) {
   uint32_t capacity = Capacity();
-  uint32_t entry = FirstProbe(hash, capacity);
   uint32_t count = 1;
-  // EnsureCapacity will guarantee the hash table is never full.
   Object undefined = roots.undefined_value();
   Object the_hole = roots.the_hole_value();
   USE(the_hole);
-  while (true) {
-    Object element = KeyAt(entry);
+  // EnsureCapacity will guarantee the hash table is never full.
+  for (InternalIndex entry = FirstProbe(hash, capacity);;
+       entry = NextProbe(entry, count++, capacity)) {
+    Object element = KeyAt(isolate, entry);
     // Empty entry. Uses raw unchecked accessors because it is called by the
     // string table during bootstrapping.
-    if (element == undefined) break;
-    if (!(Shape::kNeedsHoleCheck && the_hole == element)) {
-      if (Shape::IsMatch(key, element)) return entry;
-    }
-    entry = NextProbe(entry, count++, capacity);
+    if (element == undefined) return InternalIndex::NotFound();
+    if (Shape::kMatchNeedsHoleCheck && element == the_hole) continue;
+    if (Shape::IsMatch(key, element)) return entry;
   }
-  return kNotFound;
 }
 
+// static
 template <typename Derived, typename Shape>
 bool HashTable<Derived, Shape>::IsKey(ReadOnlyRoots roots, Object k) {
-  return Shape::IsKey(roots, k);
+  // TODO(leszeks): Dictionaries that don't delete could skip the hole check.
+  return k != roots.undefined_value() && k != roots.the_hole_value();
 }
 
 template <typename Derived, typename Shape>
-bool HashTable<Derived, Shape>::ToKey(ReadOnlyRoots roots, int entry,
+bool HashTable<Derived, Shape>::ToKey(ReadOnlyRoots roots, InternalIndex entry,
                                       Object* out_k) {
   Object k = KeyAt(entry);
   if (!IsKey(roots, k)) return false;
   *out_k = Shape::Unwrap(k);
   return true;
+}
+
+template <typename Derived, typename Shape>
+bool HashTable<Derived, Shape>::ToKey(const Isolate* isolate,
+                                      InternalIndex entry, Object* out_k) {
+  Object k = KeyAt(isolate, entry);
+  if (!IsKey(GetReadOnlyRoots(isolate), k)) return false;
+  *out_k = Shape::Unwrap(k);
+  return true;
+}
+
+template <typename Derived, typename Shape>
+Object HashTable<Derived, Shape>::KeyAt(InternalIndex entry) {
+  const Isolate* isolate = GetIsolateForPtrCompr(*this);
+  return KeyAt(isolate, entry);
+}
+
+template <typename Derived, typename Shape>
+template <typename LocalIsolate>
+Object HashTable<Derived, Shape>::KeyAt(const LocalIsolate* isolate,
+                                        InternalIndex entry) {
+  return get(GetIsolateForPtrCompr(isolate),
+             EntryToIndex(entry) + kEntryKeyIndex);
 }
 
 template <typename Derived, typename Shape>
@@ -177,37 +215,38 @@ void HashTable<Derived, Shape>::set_key(int index, Object value,
   FixedArray::set(index, value, mode);
 }
 
-template <typename KeyT>
-bool BaseShape<KeyT>::IsKey(ReadOnlyRoots roots, Object key) {
-  return IsLive(roots, key);
-}
-
-template <typename KeyT>
-bool BaseShape<KeyT>::IsLive(ReadOnlyRoots roots, Object k) {
-  return k != roots.the_hole_value() && k != roots.undefined_value();
+template <typename Derived, typename Shape>
+void HashTable<Derived, Shape>::SetCapacity(int capacity) {
+  // To scale a computed hash code to fit within the hash table, we
+  // use bit-wise AND with a mask, so the capacity must be positive
+  // and non-zero.
+  DCHECK_GT(capacity, 0);
+  DCHECK_LE(capacity, kMaxCapacity);
+  set(kCapacityIndex, Smi::FromInt(capacity));
 }
 
 bool ObjectHashSet::Has(Isolate* isolate, Handle<Object> key, int32_t hash) {
-  return FindEntry(ReadOnlyRoots(isolate), key, hash) != kNotFound;
+  return FindEntry(isolate, ReadOnlyRoots(isolate), key, hash).is_found();
 }
 
 bool ObjectHashSet::Has(Isolate* isolate, Handle<Object> key) {
   Object hash = key->GetHash();
-  if (!hash->IsSmi()) return false;
-  return FindEntry(ReadOnlyRoots(isolate), key, Smi::ToInt(hash)) != kNotFound;
+  if (!hash.IsSmi()) return false;
+  return FindEntry(isolate, ReadOnlyRoots(isolate), key, Smi::ToInt(hash))
+      .is_found();
 }
 
 bool ObjectHashTableShape::IsMatch(Handle<Object> key, Object other) {
   return key->SameValue(other);
 }
 
-uint32_t ObjectHashTableShape::Hash(Isolate* isolate, Handle<Object> key) {
+uint32_t ObjectHashTableShape::Hash(ReadOnlyRoots roots, Handle<Object> key) {
   return Smi::ToInt(key->GetHash());
 }
 
 uint32_t ObjectHashTableShape::HashForObject(ReadOnlyRoots roots,
                                              Object other) {
-  return Smi::ToInt(other->GetHash());
+  return Smi::ToInt(other.GetHash());
 }
 
 }  // namespace internal

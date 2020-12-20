@@ -10,9 +10,9 @@
 #include "src/compiler/js-operator.h"
 #include "src/compiler/node-properties.h"
 #include "src/compiler/simplified-operator.h"
-#include "src/handles-inl.h"
-#include "src/objects-inl.h"
-#include "src/objects.h"
+#include "src/handles/handles-inl.h"
+#include "src/objects/objects-inl.h"
+#include "src/objects/objects.h"
 
 using testing::_;
 using testing::MakeMatcher;
@@ -1095,9 +1095,11 @@ class IsStoreElementMatcher final : public TestNodeMatcher {
       if (NodeProperties::FirstControlIndex(node) < node->InputCount()) {     \
         control_node = NodeProperties::GetControlInput(node);                 \
       }                                                                       \
+      LoadRepresentation rep = IrOpcode::kLoadFromObject == node->opcode()    \
+                                   ? ObjectAccessOf(node->op()).machine_type  \
+                                   : LoadRepresentationOf(node->op());        \
       return (TestNodeMatcher::MatchAndExplain(node, listener) &&             \
-              PrintMatchAndExplain(LoadRepresentationOf(node->op()), "rep",   \
-                                   rep_matcher_, listener) &&                 \
+              PrintMatchAndExplain(rep, "rep", rep_matcher_, listener) &&     \
               PrintMatchAndExplain(NodeProperties::GetValueInput(node, 0),    \
                                    "base", base_matcher_, listener) &&        \
               PrintMatchAndExplain(NodeProperties::GetValueInput(node, 1),    \
@@ -1119,6 +1121,7 @@ class IsStoreElementMatcher final : public TestNodeMatcher {
 LOAD_MATCHER(Load)
 LOAD_MATCHER(UnalignedLoad)
 LOAD_MATCHER(PoisonedLoad)
+LOAD_MATCHER(LoadFromObject)
 
 #define STORE_MATCHER(kStore)                                                 \
   class Is##kStore##Matcher final : public TestNodeMatcher {                  \
@@ -1484,6 +1487,18 @@ class IsParameterMatcher final : public TestNodeMatcher {
 
 Matcher<Node*> IsDead() {
   return MakeMatcher(new TestNodeMatcher(IrOpcode::kDead));
+}
+
+Matcher<Node*> IsUnreachable() {
+  return MakeMatcher(new TestNodeMatcher(IrOpcode::kUnreachable));
+}
+
+Matcher<Node*> IsThrow() {
+  return MakeMatcher(new TestNodeMatcher(IrOpcode::kThrow));
+}
+
+Matcher<Node*> IsStart() {
+  return MakeMatcher(new TestNodeMatcher(IrOpcode::kStart));
 }
 
 Matcher<Node*> IsEnd(const Matcher<Node*>& control0_matcher) {
@@ -2037,6 +2052,16 @@ Matcher<Node*> IsUnalignedLoad(const Matcher<LoadRepresentation>& rep_matcher,
                                                 control_matcher));
 }
 
+Matcher<Node*> IsLoadFromObject(const Matcher<LoadRepresentation>& rep_matcher,
+                                const Matcher<Node*>& base_matcher,
+                                const Matcher<Node*>& index_matcher,
+                                const Matcher<Node*>& effect_matcher,
+                                const Matcher<Node*>& control_matcher) {
+  return MakeMatcher(new IsLoadFromObjectMatcher(rep_matcher, base_matcher,
+                                                 index_matcher, effect_matcher,
+                                                 control_matcher));
+}
+
 Matcher<Node*> IsStore(const Matcher<StoreRepresentation>& rep_matcher,
                        const Matcher<Node*>& base_matcher,
                        const Matcher<Node*>& index_matcher,
@@ -2162,6 +2187,8 @@ IS_BINOP_MATCHER(Int64Add)
 IS_BINOP_MATCHER(Int64Div)
 IS_BINOP_MATCHER(Int64Sub)
 IS_BINOP_MATCHER(Int64Mul)
+IS_BINOP_MATCHER(Int64LessThan)
+IS_BINOP_MATCHER(Uint64LessThan)
 IS_BINOP_MATCHER(JSAdd)
 IS_BINOP_MATCHER(JSParseInt)
 IS_BINOP_MATCHER(Float32Equal)
@@ -2190,7 +2217,6 @@ IS_UNOP_MATCHER(ChangeInt32ToFloat64)
 IS_UNOP_MATCHER(ChangeInt32ToInt64)
 IS_UNOP_MATCHER(ChangeUint32ToFloat64)
 IS_UNOP_MATCHER(ChangeUint32ToUint64)
-IS_UNOP_MATCHER(ChangeCompressedToTagged)
 IS_UNOP_MATCHER(TruncateFloat64ToFloat32)
 IS_UNOP_MATCHER(TruncateInt64ToInt32)
 IS_UNOP_MATCHER(Float32Abs)

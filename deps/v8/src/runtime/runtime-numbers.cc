@@ -2,12 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "src/arguments-inl.h"
 #include "src/base/bits.h"
-#include "src/bootstrapper.h"
-#include "src/counters.h"
+#include "src/execution/arguments-inl.h"
+#include "src/execution/isolate-inl.h"
 #include "src/heap/heap-inl.h"  // For ToBoolean. TODO(jkummerow): Drop.
-#include "src/isolate-inl.h"
+#include "src/init/bootstrapper.h"
+#include "src/logging/counters.h"
 #include "src/runtime/runtime-utils.h"
 
 namespace v8 {
@@ -70,27 +70,12 @@ RUNTIME_FUNCTION(Runtime_StringParseFloat) {
   return *isolate->factory()->NewNumber(value);
 }
 
-RUNTIME_FUNCTION(Runtime_NumberToString) {
+RUNTIME_FUNCTION(Runtime_NumberToStringSlow) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
   CONVERT_NUMBER_ARG_HANDLE_CHECKED(number, 0);
 
-  return *isolate->factory()->NumberToString(number);
-}
-
-// Compare two Smis x, y as if they were converted to strings and then
-// compared lexicographically. Returns:
-// -1 if x < y
-//  0 if x == y
-//  1 if x > y
-// TODO(szuend): Remove once the call-site in src/js/array.js is gone.
-RUNTIME_FUNCTION(Runtime_SmiLexicographicCompare) {
-  SealHandleScope shs(isolate);
-  DCHECK_EQ(2, args.length());
-  CONVERT_ARG_CHECKED(Smi, x_value, 0);
-  CONVERT_ARG_CHECKED(Smi, y_value, 1);
-
-  return Object(Smi::LexicographicCompare(isolate, x_value, y_value));
+  return *isolate->factory()->NumberToString(number, NumberCacheMode::kSetOnly);
 }
 
 RUNTIME_FUNCTION(Runtime_MaxSmi) {
@@ -104,7 +89,7 @@ RUNTIME_FUNCTION(Runtime_IsSmi) {
   SealHandleScope shs(isolate);
   DCHECK_EQ(1, args.length());
   CONVERT_ARG_CHECKED(Object, obj, 0);
-  return isolate->heap()->ToBoolean(obj->IsSmi());
+  return isolate->heap()->ToBoolean(obj.IsSmi());
 }
 
 

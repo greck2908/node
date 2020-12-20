@@ -9,10 +9,13 @@
 #include <functional>
 #include <memory>
 
-#include "src/cancelable-task.h"
-#include "src/globals.h"
+#include "src/base/optional.h"
+#include "src/common/globals.h"
+#include "src/logging/metrics.h"
+#include "src/tasks/cancelable-task.h"
 #include "src/wasm/compilation-environment.h"
 #include "src/wasm/wasm-features.h"
+#include "src/wasm/wasm-import-wrapper-cache.h"
 #include "src/wasm/wasm-module.h"
 
 namespace v8 {
@@ -42,16 +45,63 @@ std::shared_ptr<NativeModule> CompileToNativeModule(
     std::shared_ptr<const WasmModule> module, const ModuleWireBytes& wire_bytes,
     Handle<FixedArray>* export_wrappers_out);
 
+void RecompileNativeModule(NativeModule* native_module,
+                           TieringState new_tiering_state);
+
 V8_EXPORT_PRIVATE
 void CompileJsToWasmWrappers(Isolate* isolate, const WasmModule* module,
-                             Handle<FixedArray> export_wrappers);
+                             Handle<FixedArray>* export_wrappers_out);
 
-V8_EXPORT_PRIVATE Handle<Script> CreateWasmScript(
-    Isolate* isolate, const ModuleWireBytes& wire_bytes,
-    const std::string& source_map_url);
+// Compiles the wrapper for this (kind, sig) pair and sets the corresponding
+// cache entry. Assumes the key already exists in the cache but has not been
+// compiled yet.
+V8_EXPORT_PRIVATE
+WasmCode* CompileImportWrapper(
+    WasmEngine* wasm_engine, NativeModule* native_module, Counters* counters,
+    compiler::WasmImportCallKind kind, const FunctionSig* sig,
+    int expected_arity, WasmImportWrapperCache::ModificationScope* cache_scope);
 
-// Triggered by the WasmCompileLazy builtin.
-void CompileLazy(Isolate*, NativeModule*, uint32_t func_index);
+// Triggered by the WasmCompileLazy builtin. The return value indicates whether
+// compilation was successful. Lazy compilation can fail only if validation is
+// also lazy.
+bool CompileLazy(Isolate*, NativeModule*, int func_index);
+
+void TriggerTierUp(Isolate*, NativeModule*, int func_index);
+
+// Get the maximum concurrency for parallel compilation.
+int GetMaxCompileConcurrency();
+
+template <typename Key, typename Hash>
+class WrapperQueue {
+ public:
+  // Removes an arbitrary key from the queue and returns it.
+  // If the queue is empty, returns nullopt.
+  // Thread-safe.
+  base::Optional<Key> pop() {
+    base::Optional<Key> key = base::nullopt;
+    base::MutexGuard lock(&mutex_);
+    auto it = queue_.begin();
+    if (it != queue_.end()) {
+      key = *it;
+      queue_.erase(it);
+    }
+    return key;
+  }
+
+  // Add the given key to the queue and returns true iff the insert was
+  // successful.
+  // Not thread-safe.
+  bool insert(const Key& key) { return queue_.insert(key).second; }
+
+  size_t size() {
+    base::MutexGuard lock(&mutex_);
+    return queue_.size();
+  }
+
+ private:
+  base::Mutex mutex_;
+  std::unordered_set<Key, Hash> queue_;
+};
 
 // Encapsulates all the state and steps of an asynchronous compilation.
 // An asynchronous compile job consists of a number of tasks that are executed
@@ -64,7 +114,8 @@ class AsyncCompileJob {
  public:
   AsyncCompileJob(Isolate* isolate, const WasmFeatures& enabled_features,
                   std::unique_ptr<byte[]> bytes_copy, size_t length,
-                  Handle<Context> context,
+                  Handle<Context> context, Handle<Context> incumbent_context,
+                  const char* api_method_name,
                   std::shared_ptr<CompilationResultResolver> resolver);
   ~AsyncCompileJob();
 
@@ -76,6 +127,9 @@ class AsyncCompileJob {
   void CancelPendingForegroundTask();
 
   Isolate* isolate() const { return isolate_; }
+
+  Handle<NativeContext> context() const { return native_context_; }
+  v8::metrics::Recorder::ContextId context_id() const { return context_id_; }
 
  private:
   class CompileTask;
@@ -99,17 +153,19 @@ class AsyncCompileJob {
     return outstanding_finishers_.fetch_sub(1) == 1;
   }
 
-  void CreateNativeModule(std::shared_ptr<const WasmModule> module);
+  void CreateNativeModule(std::shared_ptr<const WasmModule> module,
+                          size_t code_size_estimate);
+  // Return true for cache hit, false for cache miss.
+  bool GetOrCreateNativeModule(std::shared_ptr<const WasmModule> module,
+                               size_t code_size_estimate);
   void PrepareRuntimeObjects();
 
-  void FinishCompile();
+  void FinishCompile(bool is_after_cache_hit);
 
   void DecodeFailed(const WasmError&);
   void AsyncCompileFailed();
 
   void AsyncCompileSucceeded(Handle<WasmModuleObject> result);
-
-  void CompileWrappers();
 
   void FinishModule();
 
@@ -146,14 +202,20 @@ class AsyncCompileJob {
   void NextStep(Args&&... args);
 
   Isolate* const isolate_;
+  const char* const api_method_name_;
   const WasmFeatures enabled_features_;
+  const bool wasm_lazy_compilation_;
+  base::TimeTicks start_time_;
   // Copy of the module wire bytes, moved into the {native_module_} on its
   // creation.
   std::unique_ptr<byte[]> bytes_copy_;
   // Reference to the wire bytes (held in {bytes_copy_} or as part of
   // {native_module_}).
   ModuleWireBytes wire_bytes_;
-  Handle<Context> native_context_;
+  Handle<NativeContext> native_context_;
+  Handle<Context> incumbent_context_;
+  v8::metrics::Recorder::ContextId context_id_;
+  v8::metrics::WasmModuleDecoded metrics_event_;
   const std::shared_ptr<CompilationResultResolver> resolver_;
 
   Handle<WasmModuleObject> module_object_;

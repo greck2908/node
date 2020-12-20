@@ -9,10 +9,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include <array>
 #include <memory>
 
 #include "src/base/utils/random-number-generator.h"
+#include "src/codegen/optimized-compilation-info.h"
 #include "src/compiler/compiler-source-position-table.h"
 #include "src/compiler/graph-visualizer.h"
 #include "src/compiler/int64-lowering.h"
@@ -26,7 +28,6 @@
 #include "src/wasm/local-decl-encoder.h"
 #include "src/wasm/wasm-code-manager.h"
 #include "src/wasm/wasm-external-refs.h"
-#include "src/wasm/wasm-interpreter.h"
 #include "src/wasm/wasm-js.h"
 #include "src/wasm/wasm-module.h"
 #include "src/wasm/wasm-objects-inl.h"
@@ -35,16 +36,29 @@
 #include "src/wasm/wasm-tier.h"
 #include "src/zone/accounting-allocator.h"
 #include "src/zone/zone.h"
-
 #include "test/cctest/cctest.h"
 #include "test/cctest/compiler/call-tester.h"
-#include "test/cctest/compiler/graph-builder-tester.h"
+#include "test/cctest/compiler/graph-and-builders.h"
 #include "test/cctest/compiler/value-helper.h"
 #include "test/common/wasm/flag-utils.h"
+#include "test/common/wasm/wasm-interpreter.h"
 
 namespace v8 {
 namespace internal {
 namespace wasm {
+
+enum class TestExecutionTier : int8_t {
+  kLiftoff = static_cast<int8_t>(ExecutionTier::kLiftoff),
+  kTurbofan = static_cast<int8_t>(ExecutionTier::kTurbofan),
+  kInterpreter
+};
+static_assert(
+    std::is_same<std::underlying_type<ExecutionTier>::type,
+                 std::underlying_type<TestExecutionTier>::type>::value,
+    "enum types match");
+
+using base::ReadLittleEndianValue;
+using base::WriteLittleEndianValue;
 
 constexpr uint32_t kMaxFunctions = 10;
 constexpr uint32_t kMaxGlobalsSize = 128;
@@ -73,7 +87,7 @@ using compiler::Node;
 
 // For tests that must manually import a JSFunction with source code.
 struct ManuallyImportedJSFunction {
-  FunctionSig* sig;
+  const FunctionSig* sig;
   Handle<JSFunction> js_function;
 };
 
@@ -83,10 +97,11 @@ struct ManuallyImportedJSFunction {
 // the interpreter.
 class TestingModuleBuilder {
  public:
-  TestingModuleBuilder(Zone*, ManuallyImportedJSFunction*, ExecutionTier,
+  TestingModuleBuilder(Zone*, ManuallyImportedJSFunction*, TestExecutionTier,
                        RuntimeExceptionSupport, LowerSimd);
+  ~TestingModuleBuilder();
 
-  void ChangeOriginToAsmjs() { test_module_->origin = kAsmJsOrigin; }
+  void ChangeOriginToAsmjs() { test_module_->origin = kAsmJsSloppyOrigin; }
 
   byte* AddMemory(uint32_t size, SharedFlag shared = SharedFlag::kNotShared);
 
@@ -99,19 +114,16 @@ class TestingModuleBuilder {
   }
 
   template <typename T>
-  T* AddGlobal(
-      ValueType type = ValueTypes::ValueTypeFor(MachineTypeForC<T>())) {
+  T* AddGlobal(ValueType type = ValueType::For(MachineTypeForC<T>())) {
     const WasmGlobal* global = AddGlobal(type);
     return reinterpret_cast<T*>(globals_data_ + global->offset);
   }
 
-  byte AddSignature(FunctionSig* sig) {
-    DCHECK_EQ(test_module_->signatures.size(),
-              test_module_->signature_ids.size());
-    test_module_->signatures.push_back(sig);
-    auto canonical_sig_num = test_module_->signature_map.FindOrInsert(*sig);
-    test_module_->signature_ids.push_back(canonical_sig_num);
-    size_t size = test_module_->signatures.size();
+  byte AddSignature(const FunctionSig* sig) {
+    // TODO(7748): This will need updating for struct/array types support.
+    DCHECK_EQ(test_module_->types.size(), test_module_->signature_ids.size());
+    test_module_->add_signature(sig);
+    size_t size = test_module_->types.size();
     CHECK_GT(127, size);
     return static_cast<byte>(size - 1);
   }
@@ -169,14 +181,19 @@ class TestingModuleBuilder {
   void SetMaxMemPages(uint32_t maximum_pages) {
     test_module_->maximum_pages = maximum_pages;
     if (instance_object()->has_memory_object()) {
-      instance_object()->memory_object()->set_maximum_pages(maximum_pages);
+      instance_object()->memory_object().set_maximum_pages(maximum_pages);
     }
   }
 
   void SetHasSharedMemory() { test_module_->has_shared_memory = true; }
 
   enum FunctionType { kImport, kWasm };
-  uint32_t AddFunction(FunctionSig* sig, const char* name, FunctionType type);
+  uint32_t AddFunction(const FunctionSig* sig, const char* name,
+                       FunctionType type);
+
+  // Freezes the signature map of the module and allocates the storage for
+  // export wrappers.
+  void FreezeSignatureMapAndInitializeWrapperCache();
 
   // Wrap the code so it can be called as a JS function.
   Handle<JSFunction> WrapCode(uint32_t index);
@@ -188,7 +205,7 @@ class TestingModuleBuilder {
 
   uint32_t AddBytes(Vector<const byte> bytes);
 
-  uint32_t AddException(FunctionSig* sig);
+  uint32_t AddException(const FunctionSig* sig);
 
   uint32_t AddPassiveDataSegment(Vector<const byte> bytes);
   uint32_t AddPassiveElementSegment(const std::vector<uint32_t>& entries);
@@ -197,7 +214,7 @@ class TestingModuleBuilder {
     return &test_module_->functions[index];
   }
 
-  WasmInterpreter* interpreter() const { return interpreter_; }
+  WasmInterpreter* interpreter() const { return interpreter_.get(); }
   bool interpret() const { return interpreter_ != nullptr; }
   LowerSimd lower_simd() const { return lower_simd_; }
   Isolate* isolate() const { return isolate_; }
@@ -213,9 +230,24 @@ class TestingModuleBuilder {
 
   void SetExecutable() { native_module_->SetExecutable(true); }
 
+  void TierDown() {
+    native_module_->SetTieringState(kTieredDown);
+    native_module_->RecompileForTiering();
+    execution_tier_ = TestExecutionTier::kLiftoff;
+  }
+
   CompilationEnv CreateCompilationEnv();
 
-  ExecutionTier execution_tier() const { return execution_tier_; }
+  ExecutionTier execution_tier() const {
+    switch (execution_tier_) {
+      case TestExecutionTier::kTurbofan:
+        return ExecutionTier::kTurbofan;
+      case TestExecutionTier::kLiftoff:
+        return ExecutionTier::kLiftoff;
+      default:
+        UNREACHABLE();
+    }
+  }
 
   RuntimeExceptionSupport runtime_exception_support() const {
     return runtime_exception_support_;
@@ -230,8 +262,8 @@ class TestingModuleBuilder {
   byte* mem_start_ = nullptr;
   uint32_t mem_size_ = 0;
   alignas(16) byte globals_data_[kMaxGlobalsSize];
-  WasmInterpreter* interpreter_ = nullptr;
-  ExecutionTier execution_tier_;
+  std::unique_ptr<WasmInterpreter> interpreter_;
+  TestExecutionTier execution_tier_;
   Handle<WasmInstanceObject> instance_object_;
   NativeModule* native_module_ = nullptr;
   RuntimeExceptionSupport runtime_exception_support_;
@@ -241,7 +273,6 @@ class TestingModuleBuilder {
   std::vector<byte> data_segment_data_;
   std::vector<Address> data_segment_starts_;
   std::vector<uint32_t> data_segment_sizes_;
-  std::vector<byte> dropped_data_segments_;
   std::vector<byte> dropped_elem_segments_;
 
   const WasmGlobal* AddGlobal(ValueType type);
@@ -250,7 +281,7 @@ class TestingModuleBuilder {
 };
 
 void TestBuildingGraph(Zone* zone, compiler::JSGraph* jsgraph,
-                       CompilationEnv* module, FunctionSig* sig,
+                       CompilationEnv* module, const FunctionSig* sig,
                        compiler::SourcePositionTable* source_position_table,
                        const byte* start, const byte* end);
 
@@ -329,11 +360,11 @@ class WasmFunctionCompiler : public compiler::GraphAndBuilders {
  private:
   friend class WasmRunnerBase;
 
-  WasmFunctionCompiler(Zone* zone, FunctionSig* sig,
+  WasmFunctionCompiler(Zone* zone, const FunctionSig* sig,
                        TestingModuleBuilder* builder, const char* name);
 
   compiler::JSGraph jsgraph;
-  FunctionSig* sig;
+  const FunctionSig* sig;
   // The call descriptor is initialized when the function is compiled.
   CallDescriptor* descriptor_;
   TestingModuleBuilder* builder_;
@@ -345,13 +376,13 @@ class WasmFunctionCompiler : public compiler::GraphAndBuilders {
 
 // A helper class to build a module around Wasm bytecode, generate machine
 // code, and run that code.
-class WasmRunnerBase : public HandleAndZoneScope {
+class WasmRunnerBase : public InitializedHandleScope {
  public:
   WasmRunnerBase(ManuallyImportedJSFunction* maybe_import,
-                 ExecutionTier execution_tier, int num_params,
+                 TestExecutionTier execution_tier, int num_params,
                  RuntimeExceptionSupport runtime_exception_support,
                  LowerSimd lower_simd)
-      : zone_(&allocator_, ZONE_NAME),
+      : zone_(&allocator_, ZONE_NAME, kCompressGraphZone),
         builder_(&zone_, maybe_import, execution_tier,
                  runtime_exception_support, lower_simd),
         wrapper_(&zone_, num_params) {}
@@ -375,10 +406,11 @@ class WasmRunnerBase : public HandleAndZoneScope {
   // Resets the state for building the next function.
   // The main function called will be the last generated function.
   // Returns the index of the previously built function.
-  WasmFunctionCompiler& NewFunction(FunctionSig* sig,
+  WasmFunctionCompiler& NewFunction(const FunctionSig* sig,
                                     const char* name = nullptr) {
     functions_.emplace_back(
         new WasmFunctionCompiler(&zone_, sig, &builder_, name));
+    builder().AddSignature(sig);
     return *functions_.back();
   }
 
@@ -398,18 +430,25 @@ class WasmRunnerBase : public HandleAndZoneScope {
 
   bool interpret() { return builder_.interpret(); }
 
+  void TierDown() { builder_.TierDown(); }
+
   template <typename ReturnType, typename... ParamTypes>
   FunctionSig* CreateSig() {
+    return WasmRunnerBase::CreateSig<ReturnType, ParamTypes...>(&zone_);
+  }
+
+  template <typename ReturnType, typename... ParamTypes>
+  static FunctionSig* CreateSig(Zone* zone) {
     std::array<MachineType, sizeof...(ParamTypes)> param_machine_types{
         {MachineTypeForC<ParamTypes>()...}};
     Vector<MachineType> param_vec(param_machine_types.data(),
                                   param_machine_types.size());
-    return CreateSig(MachineTypeForC<ReturnType>(), param_vec);
+    return CreateSig(zone, MachineTypeForC<ReturnType>(), param_vec);
   }
 
  private:
-  FunctionSig* CreateSig(MachineType return_type,
-                         Vector<MachineType> param_types);
+  static FunctionSig* CreateSig(Zone* zone, MachineType return_type,
+                                Vector<MachineType> param_types);
 
  protected:
   v8::internal::AccountingAllocator allocator_;
@@ -430,7 +469,7 @@ class WasmRunnerBase : public HandleAndZoneScope {
 template <typename ReturnType, typename... ParamTypes>
 class WasmRunner : public WasmRunnerBase {
  public:
-  WasmRunner(ExecutionTier execution_tier,
+  WasmRunner(TestExecutionTier execution_tier,
              ManuallyImportedJSFunction* maybe_import = nullptr,
              const char* main_fn_name = "main",
              RuntimeExceptionSupport runtime_exception_support =
@@ -448,7 +487,7 @@ class WasmRunner : public WasmRunnerBase {
     }
   }
 
-  WasmRunner(ExecutionTier execution_tier, LowerSimd lower_simd)
+  WasmRunner(TestExecutionTier execution_tier, LowerSimd lower_simd)
       : WasmRunner(execution_tier, nullptr, "main", kNoRuntimeExceptionSupport,
                    lower_simd) {}
 
@@ -490,17 +529,16 @@ class WasmRunner : public WasmRunnerBase {
   }
 
   ReturnType CallInterpreter(ParamTypes... p) {
-    WasmInterpreter::Thread* thread = interpreter()->GetThread(0);
-    thread->Reset();
+    interpreter()->Reset();
     std::array<WasmValue, sizeof...(p)> args{{WasmValue(p)...}};
-    thread->InitFrame(function(), args.data());
-    thread->Run();
-    CHECK_GT(thread->NumInterpretedCalls(), 0);
-    if (thread->state() == WasmInterpreter::FINISHED) {
-      WasmValue val = thread->GetReturnValue();
-      possible_nondeterminism_ |= thread->PossibleNondeterminism();
+    interpreter()->InitFrame(function(), args.data());
+    interpreter()->Run();
+    CHECK_GT(interpreter()->NumInterpretedCalls(), 0);
+    if (interpreter()->state() == WasmInterpreter::FINISHED) {
+      WasmValue val = interpreter()->GetReturnValue();
+      possible_nondeterminism_ |= interpreter()->PossibleNondeterminism();
       return val.to<ReturnType>();
-    } else if (thread->state() == WasmInterpreter::TRAPPED) {
+    } else if (interpreter()->state() == WasmInterpreter::TRAPPED) {
       // TODO(titzer): return the correct trap code
       int64_t result = 0xDEADBEEFDEADBEEF;
       return static_cast<ReturnType>(result);
@@ -521,7 +559,7 @@ class WasmRunner : public WasmRunnerBase {
       jsfuncs_[function_index] = builder_.WrapCode(function_index);
     }
     Handle<JSFunction> jsfunc = jsfuncs_[function_index];
-    Handle<Object> global(isolate->context()->global_object(), isolate);
+    Handle<Object> global(isolate->context().global_object(), isolate);
     MaybeHandle<Object> retval =
         Execution::TryCall(isolate, jsfunc, global, count, buffer,
                            Execution::MessageHandling::kReport, nullptr);
@@ -534,12 +572,12 @@ class WasmRunner : public WasmRunnerBase {
         CHECK_EQ(expected, Smi::ToInt(*result));
       } else {
         CHECK(result->IsHeapNumber());
-        CHECK_DOUBLE_EQ(expected, HeapNumber::cast(*result)->value());
+        CHECK_DOUBLE_EQ(expected, HeapNumber::cast(*result).value());
       }
     }
 
     if (builder_.interpret()) {
-      CHECK_GT(builder_.interpreter()->GetThread(0)->NumInterpretedCalls(), 0);
+      CHECK_GT(builder_.interpreter()->NumInterpretedCalls(), 0);
     }
   }
 
@@ -549,6 +587,17 @@ class WasmRunner : public WasmRunnerBase {
     Handle<Object> buffer[] = {isolate->factory()->NewNumber(p)...,
                                Handle<Object>()};
     CheckCallApplyViaJS(expected, function()->func_index, buffer, sizeof...(p));
+  }
+
+  void CheckCallViaJSTraps(ParamTypes... p) {
+    CheckCallViaJS(static_cast<double>(0xDEADBEEF), p...);
+  }
+
+  void CheckUsedExecutionTier(TestExecutionTier expected_tier) {
+    // Liftoff can fail and fallback to Turbofan, so check that the function
+    // gets compiled by the tier requested, to guard against accidental success.
+    CHECK(compiled_);
+    CHECK_EQ(expected_tier, builder_.GetFunctionCode(0)->tier());
   }
 
   Handle<Code> GetWrapperCode() { return wrapper_.GetWrapperCode(); }
@@ -569,20 +618,24 @@ class WasmRunner : public WasmRunnerBase {
 };
 
 // A macro to define tests that run in different engine configurations.
-#define WASM_EXEC_TEST(name)                                                 \
-  void RunWasm_##name(ExecutionTier execution_tier);                         \
-  TEST(RunWasmTurbofan_##name) { RunWasm_##name(ExecutionTier::kTurbofan); } \
-  TEST(RunWasmLiftoff_##name) { RunWasm_##name(ExecutionTier::kLiftoff); }   \
-  TEST(RunWasmInterpreter_##name) {                                          \
-    RunWasm_##name(ExecutionTier::kInterpreter);                             \
-  }                                                                          \
-  void RunWasm_##name(ExecutionTier execution_tier)
+#define WASM_EXEC_TEST(name)                                                   \
+  void RunWasm_##name(TestExecutionTier execution_tier);                       \
+  TEST(RunWasmTurbofan_##name) {                                               \
+    RunWasm_##name(TestExecutionTier::kTurbofan);                              \
+  }                                                                            \
+  TEST(RunWasmLiftoff_##name) { RunWasm_##name(TestExecutionTier::kLiftoff); } \
+  TEST(RunWasmInterpreter_##name) {                                            \
+    RunWasm_##name(TestExecutionTier::kInterpreter);                           \
+  }                                                                            \
+  void RunWasm_##name(TestExecutionTier execution_tier)
 
-#define WASM_COMPILED_EXEC_TEST(name)                                        \
-  void RunWasm_##name(ExecutionTier execution_tier);                         \
-  TEST(RunWasmTurbofan_##name) { RunWasm_##name(ExecutionTier::kTurbofan); } \
-  TEST(RunWasmLiftoff_##name) { RunWasm_##name(ExecutionTier::kLiftoff); }   \
-  void RunWasm_##name(ExecutionTier execution_tier)
+#define WASM_COMPILED_EXEC_TEST(name)                                          \
+  void RunWasm_##name(TestExecutionTier execution_tier);                       \
+  TEST(RunWasmTurbofan_##name) {                                               \
+    RunWasm_##name(TestExecutionTier::kTurbofan);                              \
+  }                                                                            \
+  TEST(RunWasmLiftoff_##name) { RunWasm_##name(TestExecutionTier::kLiftoff); } \
+  void RunWasm_##name(TestExecutionTier execution_tier)
 
 }  // namespace wasm
 }  // namespace internal

@@ -4,9 +4,9 @@
 
 #include "test/cctest/assembler-helper-arm.h"
 
-#include "src/macro-assembler.h"
-#include "src/isolate-inl.h"
-#include "src/v8.h"
+#include "src/codegen/macro-assembler.h"
+#include "src/execution/isolate-inl.h"
+#include "src/init/v8.h"
 #include "test/cctest/cctest.h"
 
 namespace v8 {
@@ -14,7 +14,7 @@ namespace internal {
 
 Handle<Code> AssembleCodeImpl(std::function<void(MacroAssembler&)> assemble) {
   Isolate* isolate = CcTest::i_isolate();
-  MacroAssembler assm(AssemblerOptions{});
+  MacroAssembler assm(isolate, CodeObjectRequired::kYes);
 
   assemble(assm);
   assm.bx(lr);
@@ -22,7 +22,7 @@ Handle<Code> AssembleCodeImpl(std::function<void(MacroAssembler&)> assemble) {
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   Handle<Code> code =
-      isolate->factory()->NewCode(desc, Code::STUB, Handle<Code>());
+      Factory::CodeBuilder(isolate, desc, CodeKind::STUB).Build();
   if (FLAG_print_code) {
     code->Print();
   }

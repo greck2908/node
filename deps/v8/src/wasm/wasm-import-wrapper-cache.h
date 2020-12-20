@@ -23,23 +23,60 @@ using FunctionSig = Signature<ValueType>;
 // Implements a cache for import wrappers.
 class WasmImportWrapperCache {
  public:
+  struct CacheKey {
+    CacheKey(const compiler::WasmImportCallKind& _kind, const FunctionSig* _sig,
+             int _expected_arity)
+        : kind(_kind),
+          signature(_sig),
+          expected_arity(_expected_arity == kDontAdaptArgumentsSentinel
+                             ? 0
+                             : _expected_arity) {}
+
+    bool operator==(const CacheKey& rhs) const {
+      return kind == rhs.kind && signature == rhs.signature &&
+             expected_arity == rhs.expected_arity;
+    }
+
+    compiler::WasmImportCallKind kind;
+    const FunctionSig* signature;
+    int expected_arity;
+  };
+
+  class CacheKeyHash {
+   public:
+    size_t operator()(const CacheKey& key) const {
+      return base::hash_combine(static_cast<uint8_t>(key.kind), key.signature,
+                                key.expected_arity);
+    }
+  };
+
+  // Helper class to modify the cache under a lock.
+  class ModificationScope {
+   public:
+    explicit ModificationScope(WasmImportWrapperCache* cache)
+        : cache_(cache), guard_(&cache->mutex_) {}
+
+    V8_EXPORT_PRIVATE WasmCode*& operator[](const CacheKey& key);
+
+   private:
+    WasmImportWrapperCache* const cache_;
+    base::MutexGuard guard_;
+  };
+
+  // Not thread-safe, use ModificationScope to get exclusive write access to the
+  // cache.
+  V8_EXPORT_PRIVATE WasmCode*& operator[](const CacheKey& key);
+
+  // Thread-safe. Assumes the key exists in the map.
+  V8_EXPORT_PRIVATE WasmCode* Get(compiler::WasmImportCallKind kind,
+                                  const FunctionSig* sig,
+                                  int expected_arity) const;
+
   ~WasmImportWrapperCache();
 
-  V8_EXPORT_PRIVATE WasmCode* GetOrCompile(WasmEngine* wasm_engine,
-                                           Counters* counters,
-                                           compiler::WasmImportCallKind kind,
-                                           FunctionSig* sig);
-
  private:
-  friend class NativeModule;
-  using CacheKey = std::pair<uint8_t, FunctionSig>;
-
   mutable base::Mutex mutex_;
-  NativeModule* native_module_;
-  std::unordered_map<CacheKey, WasmCode*, base::hash<CacheKey>> entry_map_;
-
-  explicit WasmImportWrapperCache(NativeModule* native_module)
-      : native_module_(native_module) {}
+  std::unordered_map<CacheKey, WasmCode*, CacheKeyHash> entry_map_;
 };
 
 }  // namespace wasm

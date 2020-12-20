@@ -9,15 +9,14 @@
 #include "include/v8.h"
 #include "src/base/macros.h"
 #include "src/base/platform/semaphore.h"
-#include "src/base/template-utils.h"
-#include "src/execution.h"
-#include "src/isolate.h"
-#include "src/v8.h"
+#include "src/execution/execution.h"
+#include "src/execution/isolate.h"
+#include "src/init/v8.h"
 #include "test/unittests/test-utils.h"
 
 namespace v8 {
 
-typedef TestWithIsolate IsolateTest;
+using IsolateTest = TestWithIsolate;
 
 namespace {
 
@@ -62,7 +61,7 @@ TEST_F(IsolateTest, MemoryPressureNotificationBackground) {
   base::Semaphore semaphore(0);
 
   internal::V8::GetCurrentPlatform()->CallOnWorkerThread(
-      base::make_unique<MemoryPressureTask>(isolate(), &semaphore));
+      std::make_unique<MemoryPressureTask>(isolate(), &semaphore));
 
   semaphore.Wait();
 
@@ -76,8 +75,7 @@ using IncumbentContextTest = TestWithIsolate;
 // scenarios.
 TEST_F(IncumbentContextTest, Basic) {
   auto Str = [&](const char* s) {
-    return String::NewFromUtf8(isolate(), s, NewStringType::kNormal)
-        .ToLocalChecked();
+    return String::NewFromUtf8(isolate(), s).ToLocalChecked();
   };
   auto Run = [&](Local<Context> context, const char* script) {
     Context::Scope scope(context);
@@ -96,7 +94,7 @@ TEST_F(IncumbentContextTest, Basic) {
         info.GetReturnValue().Set(incumbent_context->Global());
       });
   Local<ObjectTemplate> global_template = ObjectTemplate::New(isolate());
-  global_template->Set(Str("getIncumbentGlobal"), get_incumbent_global);
+  global_template->Set(isolate(), "getIncumbentGlobal", get_incumbent_global);
 
   Local<Context> context_a = Context::New(isolate(), nullptr, global_template);
   Local<Context> context_b = Context::New(isolate(), nullptr, global_template);
